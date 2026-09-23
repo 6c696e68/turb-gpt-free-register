@@ -435,6 +435,27 @@ _EMAIL_INPUT_SELECTORS = [
 ]
 
 
+class _EmailFlowAdvanced(RuntimeError):
+    """等待邮箱输入框期间，页面实际上已经进入了后续认证步骤。"""
+
+    def __init__(self, state: str):
+        super().__init__(state)
+        self.state = state
+
+
+def _current_email_submit_next_state(driver) -> str | None:
+    """无等待地识别邮箱提交后的有效状态，避免把慢跳转误判成邮箱页丢失。"""
+    if _has_access_token(driver):
+        return "logged_in"
+    if _is_login_password_page(driver):
+        return "login_password"
+    if _is_email_verification_page(driver):
+        return "otp"
+    if _is_signup_password_page(driver):
+        return "password"
+    return None
+
+
 def _email_entry_state(driver) -> dict:
     try:
         return driver.execute_script(r"""
@@ -562,6 +583,9 @@ def _wait_for_email_input(driver, timeout: int | None = None):
         end = time.time() + wait_timeout
         clicked_email_option = False
         while time.time() < end:
+            advanced = _current_email_submit_next_state(driver)
+            if advanced:
+                raise _EmailFlowAdvanced(advanced)
             el = _find_visible_email_input_js(driver)
             if el:
                 return el
@@ -1008,14 +1032,9 @@ def _wait_email_submit_next_state(driver, email: str, timeout: int = 18) -> str:
     cleared_recover_done = False
     expected_email = str(email or "").strip().lower()
     while time.time() < end:
-        if _has_access_token(driver):
-            return "logged_in"
-        if _is_login_password_page(driver):
-            return "login_password"
-        if _is_email_verification_page(driver):
-            return "otp"
-        if _is_signup_password_page(driver):
-            return "password"
+        advanced = _current_email_submit_next_state(driver)
+        if advanced:
+            return advanced
         state = _email_input_value_state(driver)
         last = state
         inputs = state.get("inputs") or []
@@ -1065,17 +1084,29 @@ def _submit_email_and_wait_next(
     last_state = None
     current_email = str(email or "").strip()
     for attempt in range(1, attempts + 1):
-        if current_email:
-            _type_email_address(driver, current_email, timeout=20)
-        else:
-            # 先确认页面已有可用输入框，再领取邮箱；不能把领取动作放在页面导航之前。
-            email_input = _wait_for_email_input(driver, timeout=20)
-            if email_supplier is None:
-                raise RuntimeError("已找到邮箱输入框，但未提供邮箱分配器")
-            current_email = str(email_supplier() or "").strip()
-            if not current_email:
-                raise RuntimeError("邮箱分配器返回了空邮箱地址")
-            _human_type_text(driver, email_input, current_email, clear=True)
+        advanced = _current_email_submit_next_state(driver)
+        if advanced:
+            if advanced == "login_password":
+                raise RuntimeError(f"邮箱提交后进入登录密码页，按已注册/不可用邮箱处理并停用: url={getattr(driver, 'current_url', '') or 'https://auth.openai.com/log-in/password'}")
+            logger.info("%s 重试填写邮箱前发现页面已进入下一步：%s", _log_prefix(driver), advanced)
+            return advanced
+        try:
+            if current_email:
+                _type_email_address(driver, current_email, timeout=20)
+            else:
+                # 先确认页面已有可用输入框，再领取邮箱；不能把领取动作放在页面导航之前。
+                email_input = _wait_for_email_input(driver, timeout=20)
+                if email_supplier is None:
+                    raise RuntimeError("已找到邮箱输入框，但未提供邮箱分配器")
+                current_email = str(email_supplier() or "").strip()
+                if not current_email:
+                    raise RuntimeError("邮箱分配器返回了空邮箱地址")
+                _human_type_text(driver, email_input, current_email, clear=True)
+        except _EmailFlowAdvanced as exc:
+            if exc.state == "login_password":
+                raise RuntimeError(f"邮箱提交后进入登录密码页，按已注册/不可用邮箱处理并停用: url={getattr(driver, 'current_url', '') or 'https://auth.openai.com/log-in/password'}") from exc
+            logger.info("%s 等待邮箱输入框期间页面已进入下一步：%s", _log_prefix(driver), exc.state)
+            return exc.state
         state = _email_input_value_state(driver)
         last_state = state
         values = [str(i.get("value") or "") for i in (state.get("inputs") or [])]
@@ -1093,7 +1124,16 @@ def _submit_email_and_wait_next(
         if state_name in ("password", "otp", "logged_in"):
             logger.info("%s 邮箱提交后已进入下一步：%s", _log_prefix(driver), state_name)
             return state_name
-        logger.warning("%s 邮箱提交后仍未进入下一步：%s，准备重填重试 state=%s", _log_prefix(driver), state_name, _email_input_value_state(driver))
+        diagnostic_state = _email_input_value_state(driver)
+        # Selenium 读取 DOM 时页面可能恰好完成慢跳转。诊断采样后必须再判断一次，
+        # 否则会在已经出现验证码输入框时错误进入“重新填写邮箱”分支。
+        advanced = _current_email_submit_next_state(driver)
+        if advanced:
+            if advanced == "login_password":
+                raise RuntimeError(f"邮箱提交后进入登录密码页，按已注册/不可用邮箱处理并停用: url={getattr(driver, 'current_url', '') or 'https://auth.openai.com/log-in/password'}")
+            logger.info("%s 邮箱提交诊断期间页面已进入下一步：%s", _log_prefix(driver), advanced)
+            return advanced
+        logger.warning("%s 邮箱提交后仍未进入下一步：%s，准备重填重试 state=%s", _log_prefix(driver), state_name, diagnostic_state)
         time.sleep(1.0)
     raise RuntimeError(f"邮箱提交后未进入密码页/验证码页，最后状态={last_state}")
 
