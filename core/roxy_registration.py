@@ -1811,6 +1811,7 @@ def _fill_password_page_if_present(driver, email: str, timeout: int = 25) -> str
     verification_wait_end = min(end, time.time() + 10)
     last = {}
     missing_element_refreshes = 0
+    password_route_requested = False
     while time.time() < end:
         if _is_email_verification_page(driver):
             result = {}
@@ -1818,7 +1819,19 @@ def _fill_password_page_if_present(driver, email: str, timeout: int = 25) -> str
                 result = _click_continue_with_password_if_present(driver)
                 if result.get("ok"):
                     logger.info("%s 邮箱验证码页已点击“使用密码继续”：email=%s detail=%s", _log_prefix(driver), email, result)
-                    time.sleep(0.8)
+                    # 点击后导航在高延迟代理下可能要十几秒。旧逻辑只等 0.8 秒便再次
+                    # 点击，并沿用原来的 25 秒总期限，最后可能恰好在密码页刚出现时
+                    # 返回 None。首次点击后单独预留导航/渲染时间，并等待状态真正改变。
+                    if not password_route_requested:
+                        password_route_requested = True
+                        end = max(end, time.time() + 40)
+                    navigation_end = min(end, time.time() + 12)
+                    while time.time() < navigation_end:
+                        if _is_signup_password_page(driver) or _has_access_token(driver):
+                            break
+                        if not _is_email_verification_page(driver):
+                            break
+                        time.sleep(0.5)
                     break
                 time.sleep(0.5)
             else:
@@ -1971,6 +1984,14 @@ def _fill_password_page_if_present(driver, email: str, timeout: int = 25) -> str
                 return password
             time.sleep(0.5)
         return password
+    # 如果已经请求切换到密码方式，不允许在导航竞态中静默进入 OTP 阶段。
+    # 最后再读取一次浏览器 URL；已抵达密码路由但 DOM 尚未就绪时明确报错，
+    # 避免后续在密码页连续刷新并查找 OTP 输入框。
+    current_url = str(getattr(driver, "current_url", "") or "")
+    if password_route_requested and any(x in current_url.lower() for x in (
+        "/create-account/password", "/u/signup/password", "/signup/password",
+    )):
+        raise RuntimeError(f"已进入注册密码页但密码表单在等待期限内未就绪: url={current_url} state={last}")
     logger.info("%s 未检测到密码页，继续后续流程 last=%s", _log_prefix(driver), last)
     return None
 
