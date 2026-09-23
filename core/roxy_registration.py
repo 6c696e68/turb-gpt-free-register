@@ -1652,7 +1652,9 @@ def _password_page_state(driver) -> dict:
           type: el.getAttribute('type') || '', name: el.getAttribute('name') || '', id: el.id || '',
           disabled: !!el.disabled, visible: !!(el.offsetWidth || el.offsetHeight || el.getClientRects().length)
         })).slice(0, 30);
-        return {url: location.href, inputs, forms, buttons};
+        const errors = [...document.querySelectorAll('[role="alert"],[aria-live="assertive"],[aria-live="polite"],.react-aria-FieldError,[slot="errorMessage"],[class*="error"]')]
+          .filter(el => visible(el)).map(el => (el.innerText || el.textContent || '').replace(/\s+/g, ' ').trim()).filter(Boolean).slice(0, 10);
+        return {url: location.href, inputs, forms, buttons, errors};
         """) or {}
     except Exception as exc:
         return {"url": getattr(driver, "current_url", ""), "error": f"{type(exc).__name__}: {exc}"}
@@ -1688,6 +1690,31 @@ def _is_login_password_page(driver) -> bool:
     state = _password_page_state(driver)
     url = str(state.get('url') or '').lower()
     return '/log-in/password' in url
+
+
+def _resubmit_signup_password_form(driver) -> dict:
+    """密码页点击无跳转时，针对当前密码表单执行一次原生 requestSubmit。"""
+    try:
+        return driver.execute_script(r"""
+        const visible = el => !!el && !!(el.offsetWidth || el.offsetHeight || el.getClientRects().length)
+          && getComputedStyle(el).visibility !== 'hidden' && getComputedStyle(el).display !== 'none';
+        const input = [...document.querySelectorAll('input[type="password"],input[name*="password" i],input[autocomplete="new-password"]')]
+          .find(visible);
+        const form = input?.closest('form');
+        const button = form ? [...form.querySelectorAll('button[type="submit"],input[type="submit"],button')]
+          .find(el => visible(el) && !el.disabled && String(el.getAttribute('aria-disabled') || '').toLowerCase() !== 'true') : null;
+        const errors = [...document.querySelectorAll('[role="alert"],[aria-live="assertive"],[aria-live="polite"],.react-aria-FieldError,[slot="errorMessage"],[class*="error"]')]
+          .filter(visible).map(el => (el.innerText || el.textContent || '').replace(/\s+/g, ' ').trim()).filter(Boolean).slice(0, 10);
+        if (!input || !form) return {ok:false, reason:'missing_password_form', url:location.href, errors};
+        if (!String(input.value || '')) return {ok:false, reason:'empty_password', url:location.href, errors};
+        if (errors.length) return {ok:false, reason:'page_errors', url:location.href, errors};
+        if (typeof form.requestSubmit === 'function') form.requestSubmit(button || undefined);
+        else if (button) button.click();
+        else form.submit();
+        return {ok:true, reason:'form_requestSubmit', url:location.href, valueLength:String(input.value || '').length};
+        """) or {"ok": False, "reason": "empty_result"}
+    except Exception as exc:
+        return {"ok": False, "reason": f"{type(exc).__name__}: {exc}"}
 
 
 def _click_passwordless_signup_if_present(driver) -> dict:
@@ -1958,8 +1985,9 @@ def _fill_password_page_if_present(driver, email: str, timeout: int = 25) -> str
             raise RuntimeError(f"密码页找不到可点击的 Continue 按钮：{submit_result} state={_password_page_state(driver)}")
         _human_click(driver, submit_result.get("button"), label="password_submit")
         logger.info("%s 已填写并点击密码页 Continue：detail=%s", _log_prefix(driver), {k: v for k, v in submit_result.items() if k != "button"})
-        # 提交密码后通常进入邮箱验证码页，最多等一段时间。
-        wait_end = time.time() + 20
+        # 高延迟代理下 Auth0 提交和导航可能明显超过 20 秒；过早进入 OTP 阶段
+        # 会在 /create-account/password 上查找验证码框。这里给足提交/导航时间。
+        wait_end = time.time() + 60
         retried_submit = False
         while time.time() < wait_end:
             if _is_email_verification_page(driver):
@@ -1968,21 +1996,30 @@ def _fill_password_page_if_present(driver, email: str, timeout: int = 25) -> str
             if _has_access_token(driver):
                 logger.info("%s 密码提交后已检测到登录态", _log_prefix(driver))
                 return password
-            if not retried_submit and time.time() > wait_end - 15 and _is_signup_password_page(driver):
+            if _is_signup_password_page(driver):
+                error_state = _password_page_state(driver)
+                errors = error_state.get("errors") or []
+                if errors:
+                    error_text = "；".join(str(item) for item in errors[:3])
+                    raise RuntimeError(
+                        f"密码页提交被拒绝: {error_text} "
+                        f"url={error_state.get('url') or getattr(driver, 'current_url', '')}"
+                    )
+            if not retried_submit and time.time() > wait_end - 42 and _is_signup_password_page(driver):
                 retried_submit = True
-                logger.info("%s 密码页点击后仍未跳转，等待后重试一次 Continue/Enter", _log_prefix(driver))
-                human_delay("form", minimum=1.2, maximum=2.2)
-                try:
-                    _click_continue(driver)
-                except Exception:
-                    try:
-                        from selenium.webdriver.common.keys import Keys
-                        driver.switch_to.active_element.send_keys(Keys.ENTER)
-                    except Exception:
-                        pass
+                retry_result = _resubmit_signup_password_form(driver)
+                logger.info("%s 密码页点击后仍未跳转，原生表单补交一次：%s", _log_prefix(driver), retry_result)
+                if retry_result.get("reason") == "page_errors":
+                    raise RuntimeError(f"密码页提交被页面拒绝: {retry_result}")
             if not _is_signup_password_page(driver):
                 return password
             time.sleep(0.5)
+        # 密码提交超时仍停留在注册密码页时，不能把“已设置密码”当成成功并
+        # 直接交给后续 OTP 阶段；此时 OTP 输入框必然不存在。明确失败并保留
+        # 当前 URL/DOM 诊断，避免无意义地刷新密码页三次。
+        if _is_signup_password_page(driver):
+            current_url = str(getattr(driver, "current_url", "") or "")
+            raise RuntimeError(f"密码提交后仍停留在注册密码页: url={current_url} state={_password_page_state(driver)}")
         return password
     # 如果已经请求切换到密码方式，不允许在导航竞态中静默进入 OTP 阶段。
     # 最后再读取一次浏览器 URL；已抵达密码路由但 DOM 尚未就绪时明确报错，
@@ -2375,6 +2412,14 @@ def run_roxy_registration(
         openai_password = _fill_password_page_if_present(driver, email, timeout=25)
         _traffic_checkpoint()
         _check_manual_stop()
+
+        # 防御性校验：任何密码页处理分支都不得把仍停留在密码路由的页面交给
+        # OTP 输入逻辑，否则只会刷新密码页并报告“找不到 OTP 输入框”。
+        if _is_signup_password_page(driver):
+            raise RuntimeError(
+                f"密码页处理结束后仍停留在注册密码页: "
+                f"url={getattr(driver, 'current_url', '')} state={_password_page_state(driver)}"
+            )
 
         current_otp = otp_code
         max_otp_attempts = 3
