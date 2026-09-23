@@ -1660,7 +1660,9 @@ def _password_page_state(driver) -> dict:
 
 def _is_signup_password_page(driver) -> bool:
     state = _password_page_state(driver)
-    url = str(state.get('url') or '').lower()
+    # 页面刚完成导航时 execute_script 可能短暂失败；URL 仍足以确认这是注册密码页，
+    # 不能因此提前返回 None，导致后续错误地进入 OTP 输入阶段。
+    url = str(state.get('url') or getattr(driver, 'current_url', '') or '').lower()
     if any(x in url for x in ('/create-account/password', '/u/signup/password', '/signup/password')):
         return True
     if '/log-in/password' in url:
