@@ -37,7 +37,7 @@ def _wait_for_create_slot() -> None:
         _NEXT_CREATE_SLOT = max(now, _NEXT_CREATE_SLOT) + interval
 
     if wait_for > 0:
-        logger.info("[Roxy] /browser/create 请求错峰，等待 %.2fs", wait_for)
+        logger.info("[Roxy] /browser/create Yêu cầu lệch giờ cao điểm, chờ %.2fs", wait_for)
         time.sleep(wait_for)
 
 
@@ -80,13 +80,13 @@ def _proxy_url_to_roxy_info(proxy_url: str) -> dict:
     """
     text = str(proxy_url or "").strip()
     if not text:
-        raise ValueError("代理为空")
+        raise ValueError("Proxy trống")
     parsed = urlparse(text)
     scheme = (parsed.scheme or "").lower()
     if scheme not in ("http", "https", "socks5", "socks5h"):
-        raise ValueError(f"Roxy 暂不支持该代理协议: {scheme or '-'}")
+        raise ValueError(f"Roxy Tạm chưa hỗ trợ giao thức proxy này: {scheme or '-'}")
     if not parsed.hostname or not parsed.port:
-        raise ValueError(f"代理格式缺少 host/port: {_mask_proxy(text)}")
+        raise ValueError(f"Định dạng proxy thiếu host/port: {_mask_proxy(text)}")
 
     protocol = {
         "http": "HTTP",
@@ -179,7 +179,7 @@ def _apply_data_saver_open_args(params: dict) -> dict:
             args.append(switch)
         params["args"] = args
     except Exception as exc:
-        logger.debug("[Roxy] 添加省流量图片启动参数失败，继续使用原参数：%s", exc)
+        logger.debug("[Roxy] Thêm tham số khởi động ảnh tiết kiệm data thất bại, Tiếp tục dùng tham số gốc: %s", exc)
     return params
 
 
@@ -265,16 +265,16 @@ class RoxyBrowserClient:
                 except Exception:
                     payload = {"raw": text}
                 if not (200 <= resp.status_code < 300):
-                    raise RuntimeError(f"Roxy API 请求失败 {method_u} {path} HTTP {resp.status_code}: {text[:500]}")
+                    raise RuntimeError(f"Roxy API Yêu cầu thất bại {method_u} {path} HTTP {resp.status_code}: {text[:500]}")
                 if isinstance(payload, dict):
                     code = payload.get("code")
                     ok = payload.get("ok")
                     success = payload.get("success")
                     if code not in (None, 0, 200, "0", "200") and ok is not True and success is not True:
                         msg = payload.get("msg") or payload.get("message") or payload.get("error") or json.dumps(payload, ensure_ascii=False)[:500]
-                        raise RuntimeError(f"Roxy API 返回失败 {method_u} {path}: {msg}")
+                        raise RuntimeError(f"Roxy API Trả về thất bại {method_u} {path}: {msg}")
                 if attempt > 1:
-                    logger.info("[Roxy] API 重试成功：%s %s attempt=%s/%s", method_u, path, attempt, max_attempts)
+                    logger.info("[Roxy] API Thử lại thành công: %s %s attempt=%s/%s", method_u, path, attempt, max_attempts)
                 return payload if isinstance(payload, dict) else {"data": payload}
             except Exception as exc:
                 last_exc = exc
@@ -283,13 +283,13 @@ class RoxyBrowserClient:
                     raise
                 delay = base_delay * attempt
                 logger.warning(
-                    "[Roxy] API 请求失败，将在 %.1fs 后使用相同%s重试：%s %s attempt=%s/%s error=%s",
+                    "[Roxy] API Yêu cầu thất bại, Sẽ trong %.1fs sau dùng cùng%sthử lại: %s %s attempt=%s/%s error=%s",
                     delay,
-                    " create payload/name " if is_create else "请求参数",
+                    " create payload/name " if is_create else "Tham số yêu cầu",
                     method_u, path, attempt, max_attempts, exc,
                 )
                 time.sleep(delay)
-        raise last_exc or RuntimeError(f"Roxy API 请求失败 {method_u} {path}")
+        raise last_exc or RuntimeError(f"Roxy API Yêu cầu thất bại {method_u} {path}")
 
     def try_request(self, method: str, path: str, *, params: dict | None = None, json_body: dict | None = None) -> tuple[bool, dict | str]:
         """宽松请求：用于探测不同 Roxy 版本接口，失败不抛出。"""
@@ -438,7 +438,7 @@ class RoxyBrowserClient:
             items = self._extract_workspace_items(payload if isinstance(payload, dict) else {})
             if items:
                 return {"ok": True, "path": path, "method": m, "items": items, "raw": payload}
-            errors.append({"method": m, "path": path, "error": "响应中未解析到团队/工作区列表", "payload": payload})
+            errors.append({"method": m, "path": path, "error": "Phản hồi không parse được danh sách team/workspace", "payload": payload})
 
         return {"ok": False, "items": [], "errors": errors}
 
@@ -483,21 +483,21 @@ class RoxyBrowserClient:
                 proxy_info = _proxy_url_to_roxy_info(proxy_url)
                 body["proxyInfo"] = proxy_info
                 logger.info(
-                    "[Roxy] 创建环境启用代理池：target=%s transport=%s type=%s host=%s port=%s",
+                    "[Roxy] Tạo profile bật proxy pool: target=%s transport=%s type=%s host=%s port=%s",
                     str(target_proxy or "").strip(), str(proxy_url or "").strip(),
                     proxy_info.get("protocol") or proxy_info.get("proxyCategory"),
                     proxy_info.get("host"),
                     proxy_info.get("port"),
                 )
             else:
-                logger.warning("[Roxy] 已启用 ROXY_CREATE_USE_PROXY_POOL，但 PROXY_POOL 为空，本次创建环境不设置代理")
+                logger.warning("[Roxy] Đã bật ROXY_CREATE_USE_PROXY_POOL, nhưng PROXY_POOL Rỗng, Lần này tạo profile không đặt proxy")
         if not body.get("workspaceId"):
             raise RuntimeError(
-                "Roxy 创建环境需要 workspaceId。请在 config/roxybrowser.py 或 WebUI 的 RoxyBrowser 配置中填写 ROXY_WORKSPACE_ID，"
-                "或直接在 ROXY_PROFILE_CREATE_PAYLOAD 里加入 {'workspaceId': '你的工作区ID'}。"
+                "Roxy tạo profile cần workspaceId. Hãy điền ROXY_WORKSPACE_ID trong config/roxybrowser.py hoặc cấu hình RoxyBrowser của WebUI, "
+                "hoặc thêm {'workspaceId': 'ID workspace'} vào ROXY_PROFILE_CREATE_PAYLOAD."
             )
         logger.info(
-            "[Roxy] 创建环境参数：workspaceId=%s projectId=%s name=%s random_name=%s os=%s osVersion=%s random_os=%s",
+            "[Roxy] Tham số tạo profile: workspaceId=%s projectId=%s name=%s random_name=%s os=%s osVersion=%s random_os=%s",
             body.get("workspaceId"),
             body.get("projectId") or "-",
             body.get("name") or "-",
@@ -514,7 +514,7 @@ class RoxyBrowserClient:
             ("data", "profile_id"), ("data", "profileId"), ("data", "browser_id"),
         ])
         if not profile_id:
-            raise RuntimeError(f"Roxy 创建环境成功但未返回 dirId/profile_id: {result}")
+            raise RuntimeError(f"Roxy Tạo profile thành công nhưng chưa trả về dirId/profile_id: {result}")
         return profile_id
 
     @staticmethod
@@ -534,8 +534,8 @@ class RoxyBrowserClient:
         configured_pid = self._normalize_profile_id(profile_id if profile_id is not None else getattr(_cfg, "ROXY_PROFILE_ID", ""))
         if one_profile and configured_pid:
             raise RuntimeError(
-                "已启用 ROXY_ONE_PROFILE_PER_ACCOUNT=True（一号一环境），"
-                "不能配置/传入固定 ROXY_PROFILE_ID；请留空以便每个账号创建新环境。"
+                "Đã bật ROXY_ONE_PROFILE_PER_ACCOUNT=True (một tài khoản một profile), "
+                "không được cấu hình/truyền ROXY_PROFILE_ID cố định; hãy để trống để mỗi tài khoản tạo profile mới."
             )
 
         pid = configured_pid
@@ -543,7 +543,7 @@ class RoxyBrowserClient:
         if not pid:
             pid = self.create_profile()
             created_by_run = True
-            logger.info("[Roxy] 已创建临时环境：%s", pid)
+            logger.info("[Roxy] Đã tạo profile tạm thời: %s", pid)
 
         path = str(_cfg.ROXY_OPEN_PATH).format(profile_id=pid)
         params = dict(getattr(_cfg, "ROXY_OPEN_EXTRA_PARAMS", {}) or {})
@@ -556,7 +556,7 @@ class RoxyBrowserClient:
         # ROXY_OPEN_HEADLESS 是显式开关，优先级应高于 ROXY_OPEN_EXTRA_PARAMS，
         # 否则 extra 里残留 headless=False 会导致 WebUI 保存无头后仍弹窗口。
         params["headless"] = bool(getattr(_cfg, "ROXY_OPEN_HEADLESS", False))
-        logger.info("[Roxy] open 参数：profile=%s headless=%s keep_open=%s", pid, params.get("headless"), getattr(_cfg, "ROXY_KEEP_BROWSER_OPEN", False))
+        logger.info("[Roxy] open tham số: profile=%s headless=%s keep_open=%s", pid, params.get("headless"), getattr(_cfg, "ROXY_KEEP_BROWSER_OPEN", False))
         result = self.request(
             _cfg.ROXY_OPEN_METHOD,
             path,
@@ -564,7 +564,7 @@ class RoxyBrowserClient:
             json_body=params if _cfg.ROXY_OPEN_METHOD.upper() != "GET" else None,
         )
         debugger_address = self._extract_debugger_address(result)
-        logger.info("[Roxy] open 返回摘要: debugger=%s raw=%s", debugger_address, json.dumps(result, ensure_ascii=False)[:800])
+        logger.info("[Roxy] open Trả về tóm tắt: debugger=%s raw=%s", debugger_address, json.dumps(result, ensure_ascii=False)[:800])
         webdriver_url = _first(result, [
             ("webdriver",), ("webDriver",), ("webdriver_url",), ("webdriverUrl",),
             ("selenium",), ("selenium_url",), ("seleniumUrl",),
@@ -576,7 +576,7 @@ class RoxyBrowserClient:
             ("data", "ws"), ("data", "wsEndpoint"), ("data", "ws_endpoint"), ("data", "debuggerWsUrl"),
         ]) or None
         if not debugger_address and not webdriver_url:
-            raise RuntimeError(f"Roxy 已打开环境但未返回 Selenium/调试地址，请检查 ROXY_OPEN_PATH 或接口响应: {result}")
+            raise RuntimeError(f"Roxy Đã mở profile nhưng chưa trả về Selenium/Địa chỉ debug, Hãy kiểm tra ROXY_OPEN_PATH hoặc phản hồi API: {result}")
         if self._proxy_pool_target:
             result = dict(result)
             result["proxy_pool_target"] = self._proxy_pool_target
@@ -604,9 +604,9 @@ class RoxyBrowserClient:
                 params=body if str(_cfg.ROXY_CLOSE_METHOD).upper() == "GET" else None,
                 json_body=body if str(_cfg.ROXY_CLOSE_METHOD).upper() != "GET" else None,
             )
-            logger.info("[Roxy] 已关闭环境：%s", profile_id)
+            logger.info("[Roxy] Đã đóng profile: %s", profile_id)
         except Exception as exc:
-            logger.warning("[Roxy] 关闭环境失败：%s", exc)
+            logger.warning("[Roxy] Đóng profile thất bại: %s", exc)
 
     def delete_profile(self, profile_id: str) -> None:
         if not profile_id:
@@ -624,9 +624,9 @@ class RoxyBrowserClient:
                 params=body if method.upper() == "GET" else None,
                 json_body=body if method.upper() != "GET" else None,
             )
-            logger.info("[Roxy] 已删除环境：%s", profile_id)
+            logger.info("[Roxy] Đã xóa profile: %s", profile_id)
         except Exception as exc:
-            logger.warning("[Roxy] 删除环境失败：%s", exc)
+            logger.warning("[Roxy] Xóa profile thất bại: %s", exc)
 
     def cleanup_profile(self, opened: RoxyOpenResult | None) -> None:
         """任务结束清理：关闭窗口；一号一环境时删除本轮创建的 Profile。"""
@@ -645,7 +645,7 @@ class RoxyBrowserClient:
             if should_delete:
                 # 删除前尽量确保已关闭；若 keep_open=True 则不删除，便于调试保留现场。
                 if keep_open:
-                    logger.info("[Roxy] ROXY_KEEP_BROWSER_OPEN=True，跳过删除环境：%s", opened.profile_id)
+                    logger.info("[Roxy] ROXY_KEEP_BROWSER_OPEN=True, Bỏ qua xóa profile: %s", opened.profile_id)
                     return
                 self.delete_profile(opened.profile_id)
         finally:
@@ -657,7 +657,7 @@ class RoxyBrowserClient:
         if relay is not None:
             if relay.last_error:
                 logger.warning(
-                    "[Roxy] 代理链最后一次错误：target=%s upstream=%s error=%s",
+                    "[Roxy] Lỗi gần nhất chuỗi proxy: target=%s upstream=%s error=%s",
                     _mask_proxy(self._proxy_pool_target),
                     _mask_proxy(getattr(relay.upstream, "raw", "")),
                     relay.last_error,

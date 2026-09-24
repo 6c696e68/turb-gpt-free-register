@@ -402,7 +402,7 @@ class BrowserTrafficTests(unittest.TestCase):
             with self.assertLogs("core.browser_traffic", level="INFO") as captured:
                 result = tracker.stop()
 
-        detail_lines = [line for line in captured.output if "[资源明细]" in line]
+        detail_lines = [line for line in captured.output if "[chi tiết tài nguyên]" in line]
         self.assertEqual(len(detail_lines), 1)
         line = detail_lines[0]
         self.assertIn("xhr POST", line)
@@ -503,7 +503,7 @@ class BrowserTrafficTests(unittest.TestCase):
             with self.assertLogs("core.browser_traffic", level="INFO") as captured:
                 result = tracker.stop()
 
-        detail_lines = [line for line in captured.output if "[资源明细]" in line]
+        detail_lines = [line for line in captured.output if "[chi tiết tài nguyên]" in line]
         self.assertEqual(len(detail_lines), 4)
         joined = "\n".join(detail_lines)
         self.assertIn("status=200", joined)
@@ -536,10 +536,10 @@ class BrowserTrafficTests(unittest.TestCase):
         self.assertIn("Profiler.startPreciseCoverage", [command for command, _ in driver.cdp_commands])
         self.assertIn("Profiler.takePreciseCoverage", [command for command, _ in driver.cdp_commands])
         joined = "\n".join(captured.output)
-        self.assertIn("[JS执行汇总]", joined)
-        self.assertIn("[JS执行]", joined)
+        self.assertIn("[tổng hợp thực thi JS]", joined)
+        self.assertIn("[thực thi JS]", joined)
         self.assertIn("function=<anonymous>", joined)
-        self.assertIn("[JS候选]", joined)
+        self.assertIn("[ứng viên JS]", joined)
         self.assertIn("unused.js", joined)
         self.assertIn("token=<redacted>", joined)
         self.assertNotIn("secret", joined)
@@ -558,7 +558,7 @@ class BrowserTrafficTests(unittest.TestCase):
         self.assertEqual(coverage["script_count"], 1)
         self.assertEqual(coverage["executed_function_count"], 1)
         self.assertTrue(context.sessions[0].detached)
-        self.assertIn("[JS执行]", "\n".join(captured.output))
+        self.assertIn("[thực thi JS]", "\n".join(captured.output))
 
 
 if __name__ == "__main__":

@@ -76,14 +76,14 @@ def _local_proxy_status(proxy: str) -> tuple[bool, bool, str | None]:
         if not is_loopback:
             return False, True, None
         if not parsed.port:
-            return True, False, "本地代理未配置端口"
+            return True, False, "Proxy local chưa cấu hình cổng"
         try:
             with socket.create_connection((host, parsed.port), timeout=0.5):
                 return True, True, None
         except OSError as exc:
-            return True, False, f"本地代理 {host}:{parsed.port} 未监听（{type(exc).__name__}）"
+            return True, False, f"Proxy local {host}:{parsed.port} chưa lắng nghe ({type(exc).__name__}）"
     except Exception as exc:
-        return False, False, f"代理地址解析失败（{type(exc).__name__}）"
+        return False, False, f"Parse địa chỉ proxy thất bại ({type(exc).__name__}）"
 
 
 def open_plan_check_proxy(route: dict, selected_proxy: str, *, timeout: float):
@@ -119,7 +119,7 @@ def resolve_plan_check_route(explicit_proxy: Optional[str] = None) -> dict:
 
     mode = str(getattr(proxy_cfg, "PLAN_CHECK_PROXY_MODE", "auto") or "auto").strip().lower()
     if mode not in {"auto", "proxy", "direct"}:
-        raise ValueError(f"PLAN_CHECK_PROXY_MODE={mode!r} 无效，可选 auto / proxy / direct")
+        raise ValueError(f"PLAN_CHECK_PROXY_MODE={mode!r} không hợp lệ, chọn auto / proxy / direct")
     if mode == "direct":
         return {
             "proxy": "",
@@ -137,7 +137,7 @@ def resolve_plan_check_route(explicit_proxy: Optional[str] = None) -> dict:
     selected = random.choice(candidates) if candidates else str(proxy_cfg.pick_proxy() or "").strip()
     if not selected:
         if mode == "proxy":
-            raise ValueError("套餐查询网络模式为 proxy，但未配置 PLAN_CHECK_PROXY 或 PROXY_POOL")
+            raise ValueError("Chế độ mạng truy vấn gói là proxy nhưng chưa cấu hình PLAN_CHECK_PROXY hoặc PROXY_POOL")
         return {
             "proxy": "",
             "proxy_mode": mode,
@@ -145,7 +145,7 @@ def resolve_plan_check_route(explicit_proxy: Optional[str] = None) -> dict:
             "proxy_used": None,
             "upstream_proxy": "",
             "upstream_proxy_used": None,
-            "proxy_fallback_reason": "未配置套餐查询代理或代理池",
+            "proxy_fallback_reason": "Chưa cấu hình proxy hoặc pool proxy cho truy vấn gói",
         }
 
     is_local, available, reason = _local_proxy_status(selected)
@@ -229,7 +229,7 @@ def parse_accounts_check(data: dict, *, token: str = "") -> dict:
     claim_account_id = claims.get("account_id")
     accounts = data.get("accounts") if isinstance(data, dict) else None
     if not isinstance(accounts, dict):
-        raise ValueError("响应缺少 accounts 对象")
+        raise ValueError("Phản hồi thiếu object accounts")
 
     item = None
     account_key = None
@@ -247,7 +247,7 @@ def parse_accounts_check(data: dict, *, token: str = "") -> dict:
                 account_key = k
                 break
     if not isinstance(item, dict):
-        raise ValueError("未找到可解析的账号条目")
+        raise ValueError("Không tìm thấy mục tài khoản parse được")
 
     account = item.get("account") or {}
     entitlement = item.get("entitlement") or {}
@@ -360,9 +360,9 @@ def _warm_plan_session(env: BrowserSession) -> None:
             allow_redirects=True,
         )
         if int(getattr(resp, "status_code", 0) or 0) >= 400:
-            logger.info("[Plan] document 预热返回 HTTP %s，保留响应 Cookie 后继续", resp.status_code)
+            logger.info("[Plan] khởi động trước document trả HTTP %s，giữ Cookie phản hồi rồi tiếp tục", resp.status_code)
     except Exception as exc:
-        logger.debug("[Plan] document 预热失败，继续正式查询：%s: %s", type(exc).__name__, str(exc)[:160])
+        logger.debug("[Plan] khởi động trước document thất bại, tiếp tục truy vấn chính：%s: %s", type(exc).__name__, str(exc)[:160])
     finally:
         _clear_plan_circuit(env)
 
@@ -388,14 +388,14 @@ def check_account_plan(
 ) -> dict:
     token = normalize_token(token)
     if not token:
-        return {"ok": False, "checked_at": now_iso(), "error": "token 为空"}
+        return {"ok": False, "checked_at": now_iso(), "error": "token trống"}
     claims = token_claims(token)
     if claims.get("token_expired") is True:
         return {
             "ok": False,
             "checked_at": now_iso(),
             "http_status": None,
-            "error": "AT已过期/失效，请手动查活刷新",
+            "error": "AT đã hết hạn/hỏng, hãy kiểm tra sống thủ công để làm mới",
             "needs_live_check": True,
             **{k: v for k, v in claims.items() if k != "payload"},
         }
@@ -407,7 +407,7 @@ def check_account_plan(
             "ok": False,
             "checked_at": now_iso(),
             "http_status": None,
-            "error": f"套餐查询网络配置错误: {exc}",
+            "error": f"Lỗi cấu hình mạng truy vấn gói: {exc}",
             **{k: v for k, v in claims.items() if k != "payload"},
         }
     route_meta = {k: v for k, v in route.items() if k not in {"proxy", "upstream_proxy"}}
@@ -418,7 +418,7 @@ def check_account_plan(
             "ok": False,
             "checked_at": now_iso(),
             "http_status": None,
-            "error": f"套餐查询重试配置错误: {exc}",
+            "error": f"Lỗi cấu hình thử lại truy vấn gói: {exc}",
             "retryable": False,
             **route_meta,
             **{k: v for k, v in claims.items() if k != "payload"},
@@ -449,7 +449,7 @@ def check_account_plan(
             f"?timezone_offset_min={quote(effective_tz)}"
         )
         logger.info(
-            "[Plan] 统一会话已创建：proxy=%s device_id=%s oai_session_id=%s %s",
+            "[Plan] đã tạo phiên thống nhất：proxy=%s device_id=%s oai_session_id=%s %s",
             route_meta.get("proxy_used") or route_meta.get("network_route") or "direct",
             str(env.device_id)[:12] + "...",
             str(env.oai_session_id)[:12] + "...",
@@ -474,7 +474,7 @@ def check_account_plan(
                         "ok": False,
                         "checked_at": now_iso(),
                         "http_status": http_status,
-                        "error": "AT已过期/失效，请手动查活刷新" if is_auth_expired else f"HTTP {http_status}",
+                        "error": "AT đã hết hạn/hỏng, hãy kiểm tra sống thủ công để làm mới" if is_auth_expired else f"HTTP {http_status}",
                         "response_preview": response_text[:500],
                         "retryable": _retryable_plan_error(http_status),
                         "token_expired": True if is_auth_expired else claims.get("token_expired"),
@@ -490,7 +490,7 @@ def check_account_plan(
                             "ok": False,
                             "checked_at": now_iso(),
                             "http_status": http_status,
-                            "error": "响应不是 JSON 对象",
+                            "error": "Phản hồi không phải object JSON",
                             "response_preview": response_text[:500],
                             "retryable": True,
                         }
@@ -505,7 +505,7 @@ def check_account_plan(
                         parsed.update(route_meta)
                         return parsed
             except Exception as exc:
-                logger.debug("套餐查询失败: %s: %s", type(exc).__name__, exc, exc_info=True)
+                logger.debug("truy vấn gói thất bại: %s: %s", type(exc).__name__, exc, exc_info=True)
                 last_result = {
                     "ok": False,
                     "checked_at": now_iso(),
@@ -514,7 +514,7 @@ def check_account_plan(
                     "retryable": True,
                 }
 
-            last_result = last_result or {"ok": False, "checked_at": now_iso(), "error": "未知错误", "retryable": True}
+            last_result = last_result or {"ok": False, "checked_at": now_iso(), "error": "Lỗi không rõ", "retryable": True}
             last_result.update({
                 "attempt_count": attempt,
                 "max_attempts": attempts,
@@ -531,7 +531,7 @@ def check_account_plan(
             _clear_plan_circuit(env)
             wait_seconds = _retry_wait_seconds(resp, base_delay, attempt)
             logger.warning(
-                "套餐查询临时失败，第 %s/%s 次，保留 session/deviceId/CF Cookie，%.1fs 后重试: %s",
+                "Truy vấn gói tạm thất bại, lần %s/%s, giữ session/deviceId/CF Cookie, thử lại sau %.1fs: %s",
                 attempt,
                 attempts,
                 wait_seconds,
@@ -540,7 +540,7 @@ def check_account_plan(
             if wait_seconds > 0:
                 time.sleep(wait_seconds)
     except Exception as exc:
-        logger.debug("套餐查询会话初始化失败: %s: %s", type(exc).__name__, exc, exc_info=True)
+        logger.debug("khởi tạo phiên truy vấn gói thất bại: %s: %s", type(exc).__name__, exc, exc_info=True)
         return {
             "ok": False,
             "checked_at": now_iso(),
@@ -566,7 +566,7 @@ def check_account_plan(
         "ok": False,
         "checked_at": now_iso(),
         "http_status": None,
-        "error": "套餐查询未执行",
+        "error": "Truy vấn gói chưa chạy",
         "retryable": False,
         **route_meta,
         **{k: v for k, v in claims.items() if k != "payload"},

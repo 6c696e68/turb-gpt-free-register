@@ -209,7 +209,7 @@ def _request_with_proxy_retry(session: BrowserSession, label: str, fn):
             response = fn()
             response.raise_for_status()
             if attempt > 1:
-                logger.info("[%s] 代理链路重试成功 (%s/%s)", label, attempt, max_attempts)
+                logger.info("[%s] chuỗi proxy thử lại thành công (%s/%s)", label, attempt, max_attempts)
             return response
         except Exception as exc:
             last_exc = exc
@@ -218,11 +218,11 @@ def _request_with_proxy_retry(session: BrowserSession, label: str, fn):
             _reset_retryable_circuit(session)
             backoff = retry_delay * (2 ** (attempt - 1))
             logger.warning(
-                "[%s] 代理链路临时失败 (%s/%s): %s: %s，保留当前会话，%.1fs 后重试",
+                "[%s] chuỗi proxy thất bại tạm thời (%s/%s): %s: %s, giữ session hiện tại, %.1fs thử lại sau",
                 label, attempt, max_attempts, type(exc).__name__, str(exc)[:180], backoff,
             )
             _interruptible_sleep(backoff)
-    raise last_exc if last_exc else RuntimeError(f"{label} 重试耗尽但无异常记录")
+    raise last_exc if last_exc else RuntimeError(f"{label} thử lại hết nhưng không có bản ghi bất thường")
 
 
 def network_preflight(session: BrowserSession) -> None:
@@ -246,7 +246,7 @@ def network_preflight(session: BrowserSession) -> None:
         )),
     ]
     for label, fn in checks:
-        resp = _request_with_proxy_retry(session, f"预检:{label}", fn)
+        resp = _request_with_proxy_retry(session, f"kiểm tra trước:{label}", fn)
         observe = getattr(session, "observe_chatgpt_document", None)
         if callable(observe):
             observe(resp)
@@ -270,12 +270,12 @@ def follow_authorize(session: BrowserSession, authorize_url: str) -> str:
     last_exc: Exception | None = None
     for attempt in range(1, max_attempts + 1):
         try:
-            logger.info(f"[步骤4] 跟随 authorize URL 重定向 (尝试 {attempt}/{max_attempts})...")
+            logger.info(f"[bước4] theo authorize URL chuyển hướng (Thử {attempt}/{max_attempts})...")
             resp = session.get(authorize_url, headers=headers, allow_redirects=True)
             resp.raise_for_status()
             final_url = str(getattr(resp, "url", "") or "")
             _rotate_document_navigation_id(session)
-            logger.info(f"[步骤4] 重定向完成, 最终URL: {final_url}")
+            logger.info(f"[bước4] chuyển hướng hoàn tất, cuối cùngURL: {final_url}")
             return final_url
         except Exception as exc:
             last_exc = exc
@@ -289,13 +289,13 @@ def follow_authorize(session: BrowserSession, authorize_url: str) -> str:
             _reset_retryable_circuit(session)
             backoff = retry_delay * (2 ** (attempt - 1))
             logger.warning(
-                f"[步骤4] authorize 临时失败 ({type(exc).__name__}: {str(exc)[:120]})，"
-                f"保留当前 session/deviceId/CF Cookie，{backoff:.1f}s 后重试..."
+                f"[bước4] authorize thất bại tạm thời ({type(exc).__name__}: {str(exc)[:120]})，"
+                f"giữ session/deviceId/CF Cookie hiện tại, {backoff:.1f}s thử lại sau..."
             )
             time.sleep(backoff)
 
     # 三次都失败：抛出最后一次异常
-    raise last_exc if last_exc else RuntimeError("步骤4 重试耗尽但无异常记录")
+    raise last_exc if last_exc else RuntimeError("bước4 thử lại hết nhưng không có bản ghi bất thường")
 
 
 def request_sentinel_token(session: BrowserSession, flow: str) -> dict:
@@ -361,7 +361,7 @@ def request_sentinel_token(session: BrowserSession, flow: str) -> dict:
 
     headers = session.get_sentinel_headers()
 
-    logger.info(f"[Sentinel] 请求 sentinel token, flow={flow}")
+    logger.info(f"[Sentinel] yêu cầu sentinel token, flow={flow}")
     resp = _request_with_proxy_retry(
         session,
         f"Sentinel token:{flow}",
@@ -374,12 +374,12 @@ def request_sentinel_token(session: BrowserSession, flow: str) -> dict:
         # 作为 cachedProof 交回 SDK，不能用 VM 内重新采样出来的另一份 proof。
         data = dict(data)
         data["_request_p"] = p
-    logger.info(f"[Sentinel] 获取 sentinel token 成功, persona={data.get('persona')}")
+    logger.info(f"[Sentinel] lấy sentinel token thành công, persona={data.get('persona')}")
 
     if data.get("proofofwork", {}).get("required"):
         seed = data["proofofwork"]["seed"]
         difficulty = data["proofofwork"]["difficulty"]
-        logger.info(f"[Sentinel] 需要 PoW: seed={seed}, difficulty={difficulty}")
+        logger.info(f"[Sentinel] cần PoW: seed={seed}, difficulty={difficulty}")
 
     # 增强诊断：哪些反爬机制被要求
     requires = []
@@ -389,7 +389,7 @@ def request_sentinel_token(session: BrowserSession, flow: str) -> dict:
         requires.append("so")
     if data.get("proofofwork", {}).get("required"):
         requires.append("pow")
-    logger.info(f"[Sentinel] 服务端要求项: {requires or '无'}")
+    logger.info(f"[Sentinel] mục server yêu cầu: {requires or '无'}")
 
     return data
 
@@ -456,7 +456,7 @@ def request_password_sentinel_bundle(session: BrowserSession) -> dict:
             response_data = dict(response_data)
             response_data["_request_p"] = p
         responses[flow] = response_data
-    logger.info("[Sentinel] 密码页 flow bundle 初始化完成")
+    logger.info("[Sentinel] Trang mật khẩu flow bundle khởi tạo xong")
     return responses["username_password_create"]
 
 
@@ -515,9 +515,9 @@ def build_sentinel_header(session: BrowserSession, sentinel_resp: dict, flow: st
                 },
                 separators=(',', ':'),
             )
-            logger.info(f"[Sentinel] 检测到 SO 字段，已构建 so-token 头")
+            logger.info(f"[Sentinel] Đã phát hiện SO trường, đã dựng so-token header")
     except (ValueError, TypeError) as exc:
-        logger.warning(f"[Sentinel] runner 输出解析失败: {exc}")
+        logger.warning(f"[Sentinel] runner phân tích đầu ra thất bại: {exc}")
 
     return header_value, so_header
 
@@ -559,10 +559,10 @@ def register_user(
     if so_header:
         headers["openai-sentinel-so-token"] = so_header
     body = json.dumps({"password": password, "username": email}, separators=(",", ":"))
-    logger.info("[步骤7] 提交邮箱和密码：%s", email)
+    logger.info("[bước7] gửi email và mật khẩu: %s", email)
     resp = session.post(url, headers=headers, data=body)
     if resp.status_code != 200:
-        logger.error("[步骤7] user/register 失败 status=%s body=%s", resp.status_code, (resp.text or "")[:500])
+        logger.error("[bước7] user/register Thất bại status=%s body=%s", resp.status_code, (resp.text or "")[:500])
         resp.raise_for_status()
     data = resp.json()
     return data
@@ -581,7 +581,7 @@ def navigate_email_otp_send(session: BrowserSession, continue_url: str | None = 
     _rotate_document_navigation_id(session)
     final_url = str(getattr(resp, "url", "") or "")
     if "/email-verification" not in final_url:
-        raise RuntimeError(f"OTP 发送导航落点异常: {final_url}")
+        raise RuntimeError(f"OTP điểm rơi gửi điều hướng bất thường: {final_url}")
     return final_url
 
 # def get_create_account_page(session: BrowserSession) -> None:
@@ -658,14 +658,14 @@ def navigate_about_you(session: BrowserSession, about_url: str | None = None) ->
         url = "https://auth.openai.com" + url
     headers = session.get_auth_navigate_headers(referer="https://auth.openai.com/email-verification")
     headers["sec-fetch-site"] = "same-origin"
-    logger.info("[步骤10.5] 导航到 about-you 页面，建立资料页状态")
+    logger.info("[bước10.5] điều hướng đến about-you trang, thiết lập trạng thái trang profile")
     resp = session.get(url, headers=headers, allow_redirects=True)
     if resp.status_code >= 400:
-        raise RuntimeError(f"about-you 导航失败 status={resp.status_code}: {(resp.text or '')[:240]}")
+        raise RuntimeError(f"about-you điều hướng thất bại status={resp.status_code}: {(resp.text or '')[:240]}")
     final_url = str(getattr(resp, "url", "") or url)
     if "/api/accounts/user/register" in final_url or "/create-account/password" in final_url:
-        raise RuntimeError(f"about-you 导航落入旧密码注册路径: {final_url}")
-    logger.info(f"[步骤10.5] about-you 导航完成，落点: {final_url}")
+        raise RuntimeError(f"about-you điều hướng rơi vào đường dẫn đăng ký mật khẩu cũ: {final_url}")
+    logger.info(f"[bước10.5] about-you điều hướng xong, điểm đến: {final_url}")
     return final_url
 
 
@@ -675,13 +675,13 @@ def send_email_otp(session: BrowserSession, referer: str = "https://auth.openai.
     headers = session.get_auth_navigate_headers(referer=referer)
     headers["sec-fetch-site"] = "same-origin"
     headers["sec-fetch-user"] = "?1"
-    logger.info("[OTP] 请求重新发送邮箱验证码...")
+    logger.info("[OTP] yêu cầu gửi lại mã OTP email...")
     resp = session.get(url, headers=headers, allow_redirects=True)
     if resp.status_code >= 400:
-        logger.warning("[OTP] 重新发送验证码失败 status=%s: %s", resp.status_code, (resp.text or '')[:300])
+        logger.warning("[OTP] gửi lại mã OTP thất bại status=%s: %s", resp.status_code, (resp.text or '')[:300])
         resp.raise_for_status()
     _rotate_document_navigation_id(session)
-    logger.info("[OTP] 重新发送验证码请求完成，status=%s", resp.status_code)
+    logger.info("[OTP] yêu cầu gửi lại mã OTP xong, status=%s", resp.status_code)
 
 
 def validate_email_otp(session: BrowserSession, code: str, sentinel_header: str | None = None, so_header: str | None = None) -> dict:
@@ -709,34 +709,34 @@ def validate_email_otp(session: BrowserSession, code: str, sentinel_header: str 
         headers["openai-sentinel-token"] = sentinel_header
     if so_header:
         headers["openai-sentinel-so-token"] = so_header
-        logger.info("[步骤10] 已添加 openai-sentinel-so-token 头")
+        logger.info("[bước10] đã thêm openai-sentinel-so-token header")
 
     body = json.dumps({"code": code})
 
-    logger.info(f"[步骤10] 提交邮箱验证码: {code}")
+    logger.info(f"[bước10] gửi mã OTP email: {code}")
     resp = session.post(url, headers=headers, data=body)
 
     if resp.status_code != 200:
-        logger.error(f"[步骤10] 请求失败, 状态码: {resp.status_code}")
-        logger.error(f"[步骤10] 响应内容: {resp.text}")
+        logger.error(f"[bước10] Yêu cầu thất bại, mã trạng thái: {resp.status_code}")
+        logger.error(f"[bước10] nội dung phản hồi: {resp.text}")
         # 先看是不是"账号已废"——这类邮箱再试也没用，单独抛出让上层标 failed
         err_code = _extract_error_code(resp)
         if err_code in _ACCOUNT_DEAD_CODES:
             raise AccountUnusableError(
-                f"账号已废弃（{err_code}），邮箱不可再用", error_code=err_code,
+                f"tài khoản đã bỏ ({err_code}), email không dùng lại được", error_code=err_code,
             )
         low = (resp.text or '').lower()
         if resp.status_code in (400, 401, 422) and any(k in low for k in (
             'invalid', 'incorrect', 'expired', 'code', 'otp', 'verification',
             '验证码', '認証コード', '確認コード', 'コード'
         )):
-            raise EmailOtpInvalidError(f"邮箱验证码无效或已过期: status={resp.status_code}, body={(resp.text or '')[:240]}")
+            raise EmailOtpInvalidError(f"mã OTP email không hợp lệ hoặc đã hết hạn: status={resp.status_code}, body={(resp.text or '')[:240]}")
         resp.raise_for_status()
 
     data = resp.json()
     page_type = data.get('page', {}).get('type')
-    logger.info(f"[步骤10] 验证码验证成功: {page_type}")
-    logger.info(f"[步骤10] 验证响应摘要: {json.dumps(data, ensure_ascii=False)[:1000]}")
+    logger.info(f"[bước10] xác minh mã OTP thành công: {page_type}")
+    logger.info(f"[bước10] tóm tắt phản hồi xác minh: {json.dumps(data, ensure_ascii=False)[:1000]}")
     return data
 
 
@@ -761,24 +761,24 @@ def create_account(session: BrowserSession, name: str, birthday: str, sentinel_h
     headers["openai-sentinel-token"] = sentinel_header
     if so_header:
         headers["openai-sentinel-so-token"] = so_header
-        logger.info(f"[步骤12] 已添加 openai-sentinel-so-token 头")
+        logger.info(f"[bước12] đã thêm openai-sentinel-so-token header")
 
     body = json.dumps({
         "name": name,
         "birthdate": birthday,
     })
 
-    logger.info(f"[步骤12] 提交用户信息, 名称: {name}, 生日: {birthday}")
+    logger.info(f"[bước12] gửi thông tin người dùng, tên: {name}, ngày sinh: {birthday}")
     resp = session.post(url, headers=headers, data=body)
 
     if resp.status_code != 200:
-        logger.error(f"[步骤12] 请求失败, 状态码: {resp.status_code}")
-        logger.error(f"[步骤12] 响应内容: {resp.text}")
+        logger.error(f"[bước12] Yêu cầu thất bại, mã trạng thái: {resp.status_code}")
+        logger.error(f"[bước12] nội dung phản hồi: {resp.text}")
         resp.raise_for_status()
 
     data = resp.json()
     log_cookies = getattr(session, "log_cookie_names", None)
     if callable(log_cookies):
         log_cookies("create_account_complete")
-    logger.info("[步骤12] 创建接口返回成功，等待 OAuth 回调建立登录态")
+    logger.info("[bước12] API tạo trả về thành công, chờ OAuth callback thiết lập trạng thái đăng nhập")
     return data

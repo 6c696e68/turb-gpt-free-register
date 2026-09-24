@@ -52,7 +52,7 @@ def _ensure_authorize_context(authorize_url: str, session: BrowserSession, email
         if not changed:
             return authorize_url
         logger.info(
-            "[步骤3] authorize 上下文已对齐：ui_locales=%s oai-did=%s",
+            "[Bước3] đã căn chỉnh ngữ cảnh authorize：ui_locales=%s oai-did=%s",
             ui_locale,
             str(session.device_id)[:12] + "...",
         )
@@ -84,12 +84,12 @@ def get_providers(session: BrowserSession) -> dict:
     url = "https://chatgpt.com/api/auth/providers"
     headers = session.get_nextauth_headers(referer="https://chatgpt.com/auth/login")
 
-    logger.info("[步骤1] 获取 OAuth Providers...")
+    logger.info("[Bước1] lấy OAuth Providers...")
     resp = session.get(url, headers=headers)
     resp.raise_for_status()
 
     data = resp.json()
-    logger.info(f"[步骤1] 成功获取 {len(data)} 个 providers: {list(data.keys())}")
+    logger.info(f"[Bước1] lấy thành công {len(data)} providers: {list(data.keys())}")
     return data
 
 
@@ -106,13 +106,13 @@ def get_csrf_token(session: BrowserSession) -> str:
     url = "https://chatgpt.com/api/auth/csrf"
     headers = session.get_nextauth_headers(referer="https://chatgpt.com/auth/login")
 
-    logger.info("[步骤2] 获取 CSRF Token...")
+    logger.info("[Bước2] lấy CSRF Token...")
     resp = session.get(url, headers=headers)
     resp.raise_for_status()
 
     data = resp.json()
     csrf_token = data.get("csrfToken", "")
-    logger.info(f"[步骤2] 获取 CSRF Token 成功: {csrf_token[:20]}...")
+    logger.info(f"[Bước2] lấy CSRF Token thành công: {csrf_token[:20]}...")
     return csrf_token
 
 
@@ -120,7 +120,7 @@ def probe_auth_session(session: BrowserSession) -> dict:
     """按 Web 登录页顺序在 providers 之后读取一次匿名 NextAuth session。"""
     url = "https://chatgpt.com/api/auth/session"
     headers = session.get_nextauth_headers(referer="https://chatgpt.com/auth/login")
-    logger.info("[步骤1.5] 读取匿名 Auth Session...")
+    logger.info("[Bước1.5] đọc Auth Session ẩn danh...")
     resp = session.get(url, headers=headers)
     resp.raise_for_status()
     try:
@@ -167,7 +167,7 @@ def signin_openai(session: BrowserSession, csrf_token: str, email: str) -> str:
         "json": "true",
     })
 
-    logger.info(f"[步骤3] 发起 OAuth Signin 请求, 邮箱: {email}")
+    logger.info(f"[Bước3] gửi request OAuth Signin, email: {email}")
     resp = session.post(url, headers=headers, data=body)
     resp.raise_for_status()
 
@@ -175,9 +175,9 @@ def signin_openai(session: BrowserSession, csrf_token: str, email: str) -> str:
     authorize_url = data.get("url", "")
 
     if not authorize_url:
-        raise ValueError(f"[步骤3] 未获取到 authorize URL, 响应: {data}")
+        raise ValueError(f"[Bước3] không lấy được authorize URL, phản hồi: {data}")
 
     authorize_url = _ensure_authorize_context(authorize_url, session, email)
-    logger.info("[步骤3] 获取 authorize URL 成功，已确认 login_or_signup/oai-did 上下文")
-    logger.debug(f"[步骤3] URL: {authorize_url[:160]}...")
+    logger.info("[Bước3] lấy authorize URL thành công, đã xác nhận ngữ cảnh login_or_signup/oai-did")
+    logger.debug(f"[Bước3] URL: {authorize_url[:160]}...")
     return authorize_url

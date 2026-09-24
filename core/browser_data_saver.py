@@ -205,7 +205,7 @@ class BrowserDataSaver:
         if not self.enabled:
             return self
         if not self.resource_types and not self.url_patterns:
-            logger.info("[%s] 省流量模式已开启，但未配置可拦截资源类型或 URL 规则", self.label)
+            logger.info("[%s] chế độ tiết lưu lượng đã bật nhưng chưa cấu hình loại tài nguyên chặn được hoặc rule URL", self.label)
             return self
         try:
             def _handle_route(route: Any) -> None:
@@ -228,7 +228,7 @@ class BrowserDataSaver:
                     route.continue_()
                 except Exception as exc:
                     # 拦截器不能阻断注册主流程；处理异常时尽量放行请求。
-                    logger.debug("[%s] 省流量路由处理失败，尝试放行：%s", self.label, exc)
+                    logger.debug("[%s] xử lý route tiết lưu lượng thất bại, thử cho qua：%s", self.label, exc)
                     try:
                         route.continue_()
                     except Exception:
@@ -240,13 +240,13 @@ class BrowserDataSaver:
             self._installed = True
             self.method = "playwright.context.route"
             logger.info(
-                "[%s] 省流量模式已启用：拦截资源类型=%s，URL规则=%s（验证码/challenge 相关 URL 放行）",
+                "[%s] chế độ tiết lưu lượng đã bật：loại tài nguyên chặn=%s，rule URL=%s（URL liên quan mã OTP/challenge được cho qua）",
                 self.label,
                 ",".join(self.resource_types) or "-",
                 len(self.url_patterns),
             )
         except Exception as exc:
-            logger.warning("[%s] 安装 Playwright 省流量拦截失败，继续不拦截：%s: %s", self.label, type(exc).__name__, exc)
+            logger.warning("[%s] cài chặn tiết lưu lượng Playwright thất bại, tiếp tục không chặn：%s: %s", self.label, type(exc).__name__, exc)
         return self
 
     def install_selenium(self, driver: Any) -> "BrowserDataSaver":
@@ -264,7 +264,7 @@ class BrowserDataSaver:
         # 去重并保持配置/扩展名顺序，便于日志和测试稳定。
         patterns = list(dict.fromkeys(patterns))
         if not patterns:
-            logger.info("[%s] 省流量模式已开启，但 Selenium 没有可用 URL 规则", self.label)
+            logger.info("[%s] chế độ tiết lưu lượng đã bật nhưng Selenium không có rule URL dùng được", self.label)
             return self
         try:
             # 某些情况下流量统计器没有成功初始化，仍需单独开启 Network 域。
@@ -278,14 +278,14 @@ class BrowserDataSaver:
             self._installed = True
             self.method = "selenium.cdp.Network.setBlockedURLs"
             logger.info(
-                "[%s] 省流量模式已启用：按 URL 拦截资源类型=%s，类型规则=%s 条，URL规则=%s 条（Selenium URL 规则不支持 challenge 例外）",
+                "[%s] chế độ tiết lưu lượng đã bật：chặn loại tài nguyên theo URL=%s，rule loại=%s mục，rule URL=%s mục（rule URL Selenium không hỗ trợ ngoại lệ challenge）",
                 self.label,
                 ",".join(self.resource_types) or "-",
                 sum(len(_URL_EXTENSIONS_BY_TYPE.get(resource_type, ())) for resource_type in self.resource_types),
                 len(self.url_patterns),
             )
         except Exception as exc:
-            logger.warning("[%s] 安装 Selenium 省流量拦截失败，继续不拦截：%s: %s", self.label, type(exc).__name__, exc)
+            logger.warning("[%s] cài chặn tiết lưu lượng Selenium thất bại, tiếp tục không chặn：%s: %s", self.label, type(exc).__name__, exc)
         return self
 
     def enable_post_auth_deep_mode(self, driver: Any) -> bool:
@@ -304,10 +304,10 @@ class BrowserDataSaver:
         try:
             driver.execute_cdp_cmd("Network.setBlockedURLs", {"urls": patterns})
             self._selenium_patterns = patterns
-            logger.info("[%s] 已启用注册后深度省流量：应用壳/遥测规则=%s 条", self.label, len(patterns))
+            logger.info("[%s] đã bật tiết lưu lượng sâu sau đăng ký：rule shell app/telemetry=%s mục", self.label, len(patterns))
             return True
         except Exception as exc:
-            logger.warning("[%s] 注册后深度省流量安装失败，继续联网：%s", self.label, str(exc)[:180])
+            logger.warning("[%s] cài tiết lưu lượng sâu sau đăng ký thất bại, tiếp tục online：%s", self.label, str(exc)[:180])
             return False
 
     def observe_cdp_event(self, method: str, params: dict[str, Any], request: dict[str, Any] | None = None) -> bool:

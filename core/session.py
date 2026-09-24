@@ -212,7 +212,7 @@ class BrowserSession:
         self.browser_profile["react_resources_key"] = self.react_resources_key
         issues = validate_browser_profile(self.browser_profile)
         if issues:
-            logger.warning("[指纹] 浏览器画像存在不一致: %s", "; ".join(issues))
+            logger.warning("[Vân tay] profile trình duyệt không khớp: %s", "; ".join(issues))
 
         # 让 HTTP Cookie、OAuth 参数 ext-oai-did、Sentinel 里的 id 三者一致。
         # 浏览器里 oai-did 通常会作为一方 Cookie 存在；协议层主动补齐可减少同一会话内
@@ -327,7 +327,7 @@ class BrowserSession:
     def _observe_cf_cookie_changes(self, url: str) -> None:
         current = self.cf_cookie_snapshot()
         if current != getattr(self, "_cf_cookie_seen", {}):
-            logger.info("[CF] Cookie 状态更新 url=%s keys=%s", url, sorted(current.keys()))
+            logger.info("[CF] cập nhật trạng thái Cookie url=%s keys=%s", url, sorted(current.keys()))
             self._cf_cookie_seen = current
 
     def _enforce_proxy_quality(self) -> None:
@@ -346,10 +346,10 @@ class BrowserSession:
         hit = next((kw for kw in keywords if kw and str(kw).lower() in org), "")
         if hit:
             raise RuntimeError(
-                f"代理出口疑似云厂商/DC，已拒绝继续注册："
+                f"IP egress của proxy nghi là nhà cloud/DC, đã từ chối tiếp tục đăng ký: "
                 f"ip={self.exit_geo.get('ip') or '?'} country={self.exit_geo.get('country') or '?'} "
                 f"org={self.exit_geo.get('org') or '?'} hit={hit}. "
-                f"如确认是住宅代理，可设置 REJECT_CLOUD_PROXY=False。"
+                f"Nếu chắc là proxy dân cư, có thể đặt REJECT_CLOUD_PROXY=False."
             )
 
     def _cookie_header_for_domain(self, domain: str) -> str:
@@ -405,13 +405,13 @@ class BrowserSession:
                     with _GEO_CACHE_LOCK:
                         _GEO_CACHE[cache_key] = dict(geo)
                     logger.info(
-                        "[指纹] 出口IP地理信息: ip=%s country=%s city=%s timezone=%s",
+                        "[Vân tay] geo IP egress: ip=%s country=%s city=%s timezone=%s",
                         geo.get("ip") or "?", geo.get("country") or "?",
                         geo.get("city") or "?", geo.get("timezone") or "?",
                     )
                     return geo
             except Exception as exc:
-                logger.debug(f"[指纹] 出口 IP 地理检测失败 endpoint={url}: {type(exc).__name__}: {exc}")
+                logger.debug(f"[Vân tay] detect geo IP egress thất bại endpoint={url}: {type(exc).__name__}: {exc}")
                 continue
         with _GEO_CACHE_LOCK:
             _GEO_CACHE[cache_key] = {}
@@ -560,11 +560,11 @@ class BrowserSession:
                 self.client_build_number = seq.group(1)
             if build or seq:
                 logger.info(
-                    "[指纹] 已从 ChatGPT 登录页同步前端版本：build=%s seq=%s",
+                    "[Vân tay] đã đồng bộ phiên bản frontend từ trang đăng nhập ChatGPT：build=%s seq=%s",
                     self.client_version, self.client_build_number,
                 )
         except Exception as exc:
-            logger.debug("[指纹] 解析 ChatGPT 登录页 build 失败：%s", exc)
+            logger.debug("[Vân tay] parse build trang đăng nhập ChatGPT thất bại：%s", exc)
 
     def _attach_frontend_api_headers(self, headers: dict) -> dict:
         """前端 API 统一头：BrowserProfile + oai 上下文 + Datadog。"""
@@ -738,7 +738,7 @@ class BrowserSession:
     def _raise_if_circuit_open(self) -> None:
         if self.blocked_until and time.time() < self.blocked_until:
             remain = max(0, int(self.blocked_until - time.time()))
-            raise RuntimeError(f"当前 BrowserSession 已熔断冷却（剩余 {remain}s）：{self.blocked_reason}")
+            raise RuntimeError(f"当前 BrowserSession 已熔断冷却（剩余 {remain}s): {self.blocked_reason}")
 
     def reset_circuit_breaker(self) -> None:
         """清理一次可选预热产生的本地熔断状态。
@@ -767,7 +767,7 @@ class BrowserSession:
         cool_down = retry_after if retry_after > 0 else (300 if status == 429 else 900)
         self.blocked_until = max(self.blocked_until, time.time() + min(cool_down, 3600))
         self.blocked_reason = f"HTTP {status} from {url}"
-        logger.warning("[熔断] 当前会话收到 HTTP %s，进入冷却 %ss，停止后续请求：%s", status, min(cool_down, 3600), url)
+        logger.warning("[Ngắt mạch] phiên hiện tại nhận HTTP %s，vào cooldown %ss，dừng request tiếp：%s", status, min(cool_down, 3600), url)
         return resp
 
     def get(self, url: str, headers: dict = None, **kwargs):

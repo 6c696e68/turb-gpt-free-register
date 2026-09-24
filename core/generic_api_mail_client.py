@@ -1,12 +1,12 @@
 # -*- coding: utf-8 -*-
 """
-通用 API 取码邮箱客户端。
+Client email lấy mã qua API chung.
 
-邮箱池导入格式：
+Định dạng nhập kho email:
     email----code_url
 
-注册时领取 email；取码时直接 GET code_url，并从响应中提取 6 位验证码。
-响应可以是纯文本、HTML 或 JSON，只要其中包含 6 位验证码即可。
+Lúc đăng ký nhận email; lúc lấy mã GET thẳng code_url và rút mã OTP 6 số từ phản hồi.
+Phản hồi có thể là văn bản thuần, HTML hoặc JSON, miễn là chứa mã OTP 6 số.
 """
 import json
 import logging
@@ -50,11 +50,11 @@ _YANGYANG_OPENAI_SUBJECT_HINTS = (
 
 
 class GenericApiMailError(RuntimeError):
-    """通用 API 取码邮箱错误。"""
+    """Lỗi email lấy mã qua API chung."""
 
 
 def _redact_proxy_url(proxy_url: str) -> str:
-    """日志中保留代理地址和协议，但隐藏认证信息。"""
+    """Log giữ địa chỉ và giao thức proxy, nhưng ẩn thông tin xác thực."""
     raw = str(proxy_url or "").strip()
     if not raw:
         return "direct"
@@ -73,7 +73,7 @@ def _redact_proxy_url(proxy_url: str) -> str:
 
 
 def _new_http_session(proxy_url: str = "") -> requests.Session:
-    """创建不继承系统代理的取码会话；传入代理时 HTTP/HTTPS 均走该代理。"""
+    """Tạo phiên lấy mã không kế thừa proxy hệ thống; có proxy thì HTTP/HTTPS đều đi proxy đó."""
     session = requests.Session()
     session.trust_env = False
     proxy_url = str(proxy_url or "").strip()
@@ -83,7 +83,7 @@ def _new_http_session(proxy_url: str = "") -> requests.Session:
 
 
 def _cache_busted_url(url: str, attempt: int) -> str:
-    """给取码接口加缓存破坏参数，避免 CDN/反向代理一直返回上一封验证码。"""
+    """Thêm tham số phá cache cho API lấy mã, tránh CDN/reverse proxy cứ trả mã OTP thư trước."""
     try:
         parsed = urlparse(str(url))
         query = parse_qsl(parsed.query, keep_blank_values=True)
@@ -100,7 +100,7 @@ class GenericApiEmailAccount:
 
 
 def _public_inbox_latest_code_url(code_url: str) -> str | None:
-    """把公开收件链接 /i/{token} 转成 /api/public/inboxes/{token}/latest-code。"""
+    """Đổi link hộp thư công khai /i/{token} thành /api/public/inboxes/{token}/latest-code."""
     try:
         parsed = urlparse(str(code_url or "").strip())
     except Exception:
@@ -121,7 +121,7 @@ def _public_inbox_latest_code_url(code_url: str) -> str | None:
 
 
 def _public_inbox_page_api_url(code_url: str) -> str | None:
-    """返回公开收件页面实际使用的收件箱列表 API。"""
+    """Trả API danh sách hộp thư mà trang hộp thư công khai thực sự dùng."""
     latest_url = _public_inbox_latest_code_url(code_url)
     if not latest_url:
         return None
@@ -135,7 +135,7 @@ def _fetch_public_inbox_page_otp(
     headers: dict,
     after_ts: float | None = None,
 ) -> tuple[str, dict] | None:
-    """按 /i/{token} 页面使用的 inbox API，从最新邮件预览/正文提取验证码。"""
+    """Theo inbox API mà trang /i/{token} dùng, rút mã OTP từ preview/thân thư mới nhất."""
     resp = session.get(
         api_url,
         headers={**headers, "Accept": "application/json"},
@@ -143,7 +143,7 @@ def _fetch_public_inbox_page_otp(
         verify=False,
     )
     if resp.status_code != 200:
-        logger.debug("[GenericAPI] public inbox 页面 API HTTP %s: %s", resp.status_code, (resp.text or "")[:160])
+        logger.debug("[GenericAPI] API trang public inbox HTTP %s: %s", resp.status_code, (resp.text or "")[:160])
         return None
     try:
         data = resp.json()
@@ -158,7 +158,7 @@ def _fetch_public_inbox_page_otp(
     actual_email = str(mailbox.get("address") if isinstance(mailbox, dict) else mailbox or "").strip()
     if actual_email and actual_email.lower() != email.lower():
         raise GenericApiMailError(
-            f"公开收件链接邮箱不匹配: expected={email}, actual={actual_email}"
+            f"Email link hộp thư công khai không khớp: expected={email}, actual={actual_email}"
         )
     items = [x for x in (data.get("messages") or []) if isinstance(x, dict)]
     items.sort(
@@ -205,7 +205,7 @@ def _fetch_public_inbox_page_otp(
                     ])
                     code = _extract_yangyang_openai_code(subject, detail_text)
             except Exception as exc:
-                logger.debug("[GenericAPI] public inbox 邮件详情读取失败: %s: %s", type(exc).__name__, exc)
+                logger.debug("[GenericAPI] đọc chi tiết thư public inbox thất bại: %s: %s", type(exc).__name__, exc)
         if code:
             return code, {
                 "source": "public_inbox_page",
@@ -234,7 +234,7 @@ def _flatten_json(obj) -> str:
 
 
 def _decode_data_uri(text: str) -> str:
-    """把 data:text/html;base64,... 正文解码成可抽取 OTP 的 HTML/文本。"""
+    """Giải mã thân data:text/html;base64,... thành HTML/văn bản để rút OTP."""
     if not isinstance(text, str):
         return ""
     if not text.startswith("data:"):
@@ -256,7 +256,7 @@ def _decode_data_uri(text: str) -> str:
 
 
 def _extract_code(text: str) -> str | None:
-    """从纯文本/HTML/JSON 文本中提取 6 位 OTP。"""
+    """Rút OTP 6 số từ văn bản thuần/HTML/JSON."""
     if not text:
         return None
 
@@ -289,10 +289,10 @@ def _extract_code(text: str) -> str | None:
 
 def _extract_yangyang_openai_code(subject: str, body: str) -> str | None:
     """
-    yangyang 邮件详情里 OpenAI 模板常混入多个 6 位数字：
-    - 202123 / 353740 这类 CSS/模板数字
-    - 真正 OTP 在 “Your code is / code:” 附近，通常是正文最后一个业务 6 位数
-    所以不能直接复用通用 _extract_code 的“第一个上下文命中”。
+    Chi tiết thư yangyang: template OpenAI thường trộn nhiều số 6 chữ số:
+    - 202123 / 353740 là số CSS/template
+    - OTP thật nằm gần “Your code is / code:”, thường là số nghiệp vụ 6 chữ số cuối thân thư
+    nên không được tái sử dụng “khớp ngữ cảnh đầu tiên” của _extract_code chung.
     """
     body = _decode_data_uri(body or "")
     subject_l = (subject or "").lower()
@@ -337,9 +337,9 @@ def _extract_yangyang_openai_code(subject: str, body: str) -> str | None:
 
 def _parse_yangyang_code_url(code_url: str) -> tuple[str, str, str] | None:
     """
-    解析 yangyang.website 这类邮箱页面：
+    Parse trang email kiểu yangyang.website:
         /messages/{token}/{email}
-    返回 (origin, token, email)。
+    Trả (origin, token, email).
     """
     try:
         parsed = urlparse(code_url)
@@ -369,7 +369,7 @@ def _parse_yangyang_ts(value: str | None) -> float | None:
 
 
 def _parse_generic_api_ts(value) -> float | None:
-    """解析通用 API 返回的时间字段，兼容 ISO8601/Z 和常见本地时间格式。"""
+    """Parse trường thời gian API chung trả, tương thích ISO8601/Z và định dạng giờ địa phương thường gặp."""
     if value is None:
         return None
     raw = str(value).strip()
@@ -404,10 +404,10 @@ def _parse_generic_api_ts(value) -> float | None:
 
 def _extract_structured_api_code(text: str, after_ts: float | None = None) -> tuple[str, dict] | None:
     """
-    兼容 newzoe 这类直接返回 JSON 的取码接口：
+    Tương thích API lấy mã kiểu newzoe trả thẳng JSON:
       {"code":"784207","from":"...","subject":"Your temporary ChatGPT login code","time":"2026-08-05T01:10:17.000Z"}
 
-    如果响应里有 time/date/received_at，会按 after_ts 过滤旧码，避免拿到上一次缓存验证码。
+    Nếu phản hồi có time/date/received_at, lọc mã cũ theo after_ts, tránh lấy mã OTP cache lần trước.
     """
     if not text:
         return None
@@ -449,7 +449,7 @@ def _extract_structured_api_code(text: str, after_ts: float | None = None) -> tu
     msg_ts = _parse_generic_api_ts(ts_raw)
     if after_ts and msg_ts and msg_ts + 2 < after_ts:
         logger.debug(
-            "[GenericAPI] structured API 跳过旧验证码: code=%s ts=%s after=%s subject=%r",
+            "[GenericAPI] structured API bỏ qua mã OTP cũ: code=%s ts=%s after=%s subject=%r",
             code,
             ts_raw,
             time.strftime("%Y-%m-%d %H:%M:%S", time.localtime(after_ts)),
@@ -472,7 +472,7 @@ def _fetch_yangyang_otp(
     headers: dict,
     after_ts: float | None = None,
 ) -> tuple[str, dict] | None:
-    """从 yangyang 邮箱页面的列表 API + 详情 API 中抽取最新 6 位验证码。"""
+    """Rút mã OTP 6 số mới nhất từ API danh sách + API chi tiết của trang email yangyang."""
     parsed = _parse_yangyang_code_url(code_url)
     if not parsed:
         return None
@@ -497,7 +497,7 @@ def _fetch_yangyang_otp(
                     headers=headers,
                     after_ts=after_ts,
                 )
-            logger.debug(f"[GenericAPI] yangyang 邮件列表 HTTP {resp.status_code}: {resp.text[:160]}")
+            logger.debug(f"[GenericAPI] danh sách thư yangyang HTTP {resp.status_code}: {resp.text[:160]}")
             return None
         data = resp.json()
         page_items = data.get("items") or []
@@ -514,7 +514,7 @@ def _fetch_yangyang_otp(
         msg_ts = _parse_yangyang_ts(msg_ts_raw)
         if after_ts and msg_ts and msg_ts + 2 < after_ts:
             logger.debug(
-                "[GenericAPI] yangyang 跳过旧邮件: id=%s ts=%s after=%s subject=%r",
+                "[GenericAPI] yangyang bỏ qua thư cũ: id=%s ts=%s after=%s subject=%r",
                 item.get("id"), msg_ts_raw, time.strftime("%Y-%m-%d %H:%M:%S", time.localtime(after_ts)),
                 item.get("subject") or "",
             )
@@ -529,7 +529,7 @@ def _fetch_yangyang_otp(
                 continue
             detail = detail_resp.json()
         except Exception as exc:
-            logger.debug(f"[GenericAPI] yangyang 邮件详情读取失败: {type(exc).__name__}: {exc}")
+            logger.debug(f"[GenericAPI] đọc chi tiết thư yangyang thất bại: {type(exc).__name__}: {exc}")
             continue
 
         raw_body = str(detail.get("body") or "")
@@ -544,7 +544,7 @@ def _fetch_yangyang_otp(
         code = _extract_yangyang_openai_code(subject, body)
         if code:
             logger.info(
-                f"[GenericAPI] yangyang 页面提取到 OTP={code}, "
+                f"[GenericAPI] trang yangyang rút được OTP={code}, "
                 f"mail_id={msg_id}, ts={detail.get('receivedAt') or item.get('received_at')}, subject={subject[:80]!r}"
             )
             return code, {
@@ -573,7 +573,7 @@ def _fetch_inline_messages_page_otp(
     headers: dict,
     after_ts: float | None = None,
 ) -> tuple[str, dict] | None:
-    """解析无 JSON API、直接把邮件卡片渲染在 HTML 里的 /messages 页面。"""
+    """Parse trang /messages không có JSON API, render thẳng thẻ thư trong HTML."""
     try:
         resp = session.get(
             code_url,
@@ -582,11 +582,11 @@ def _fetch_inline_messages_page_otp(
             verify=False,
         )
         if resp.status_code != 200:
-            logger.debug("[GenericAPI] inline messages 页面 HTTP %s: %s", resp.status_code, (resp.text or "")[:160])
+            logger.debug("[GenericAPI] trang inline messages HTTP %s: %s", resp.status_code, (resp.text or "")[:160])
             return None
         html = resp.text or ""
     except Exception as exc:
-        logger.debug("[GenericAPI] inline messages 页面读取失败: %s: %s", type(exc).__name__, exc)
+        logger.debug("[GenericAPI] đọc trang inline messages thất bại: %s: %s", type(exc).__name__, exc)
         return None
 
     cards = re.findall(r"<article\b[^>]*class=[\"'][^\"']*mail-card[^\"']*[\"'][^>]*>(.*?)</article>", html, flags=re.DOTALL | re.IGNORECASE)
@@ -622,7 +622,7 @@ def _fetch_inline_messages_page_otp(
         msg_ts = float(item.get("msg_ts") or 0.0)
         if after_ts and msg_ts and msg_ts + 2 < after_ts:
             logger.debug(
-                "[GenericAPI] inline messages 跳过旧邮件: id=%s ts=%s after=%s subject=%r",
+                "[GenericAPI] inline messages bỏ qua thư cũ: id=%s ts=%s after=%s subject=%r",
                 item.get("mail_id"), item.get("received_at"),
                 time.strftime("%Y-%m-%d %H:%M:%S", time.localtime(after_ts)),
                 item.get("subject") or "",
@@ -631,7 +631,7 @@ def _fetch_inline_messages_page_otp(
         code = _extract_yangyang_openai_code(str(item.get("subject") or ""), str(item.get("body") or ""))
         if code:
             logger.info(
-                "[GenericAPI] inline messages 页面提取到 OTP=%s, mail_id=%s, ts=%s, subject=%r",
+                "[GenericAPI] trang inline messages rút được OTP=%s, mail_id=%s, ts=%s, subject=%r",
                 code, item.get("mail_id"), item.get("received_at"), str(item.get("subject") or "")[:80],
             )
             return code, {
@@ -644,23 +644,23 @@ def _fetch_inline_messages_page_otp(
 
 
 def pick_account() -> GenericApiEmailAccount:
-    """直接从 SQLite 邮箱库领取一个可用通用 API 邮箱。"""
+    """Nhận thẳng một email API chung còn dùng từ kho email SQLite."""
     from core.db import claim_next_generic_api_email, generic_api_email_pool_summary
 
     row = claim_next_generic_api_email()
     if row is None:
         summary = generic_api_email_pool_summary()
         raise GenericApiMailError(
-            f"通用 API 邮箱池没有可用账号: {summary}. 请在 WebUI 邮箱池导入：邮箱----取码地址"
+            f"Kho email API chung không còn tài khoản: {summary}. Hãy nhập vào kho email WebUI: email----địa chỉ lấy mã"
         )
     account = GenericApiEmailAccount(email=row["email"], code_url=row["code_url"])
     _CONTEXT_CACHE[account.email] = account
-    logger.info(f"[GenericAPI] 选中邮箱: {account.email}（DB id={row.get('id')}）")
+    logger.info(f"[GenericAPI] Đã chọn email: {account.email}（DB id={row.get('id')}）")
     return account
 
 
 def import_from_file(path: str | Path | None = None) -> tuple[int, int]:
-    """从文本文件导入通用 API 邮箱，每行：email----code_url 或 email====code_url。"""
+    """Nhập email API chung từ file văn bản, mỗi dòng: email----code_url hoặc email====code_url."""
     from core.db import import_generic_api_emails
     p = Path(path) if path else _ACCOUNTS_FILE
     if not p.is_absolute():
@@ -708,7 +708,7 @@ def _fetch_poll_payload(
     is_yangyang: bool,
     public_inbox_api_url: str | None,
 ):
-    """执行单次取码请求，网络路由由调用方指定。"""
+    """Thực hiện một yêu cầu lấy mã, đường mạng do caller chỉ định."""
     session = _new_http_session(proxy_url)
     yy_result = (
         _fetch_yangyang_otp(session, poll_url, headers, after_ts=after_ts)
@@ -735,15 +735,15 @@ def fetch_latest_otp(
     settle_seconds: int | None = None,
 ) -> str:
     """
-    轮询该邮箱配置的 code_url，直到提取到 6 位验证码或超时。
+    Poll code_url đã cấu hình của email này đến khi rút được mã OTP 6 số hoặc quá hạn.
 
-    settle 机制：首次拿到验证码后不立刻返回，而是继续等 OTP_SETTLE_SECONDS 秒。
-    如果期间取码地址返回了不同验证码，则替换候选并重置 settle 倒计时；
-    连续 settle 秒没有变化后才返回，避免取到接口缓存中的旧码。
+    Cơ chế settle: lần đầu có mã không trả ngay, tiếp tục chờ OTP_SETTLE_SECONDS giây.
+    Nếu trong lúc đó địa chỉ lấy mã trả mã khác thì thay ứng viên và đặt lại đếm ngược settle;
+    hết settle giây không đổi mới trả, tránh lấy mã cũ trong cache API.
     """
     account = get_account_context(email)
     if account is None:
-        raise GenericApiMailError(f"通用 API 邮箱不存在或未导入: {email}")
+        raise GenericApiMailError(f"Email API chung không tồn tại hoặc chưa nhập: {email}")
 
     deadline = time.time() + (max_wait or _email_cfg.OTP_MAX_WAIT)
     interval = poll_interval or _email_cfg.OTP_POLL_INTERVAL
@@ -759,14 +759,14 @@ def fetch_latest_otp(
     best_seen_at: float = 0.0
     settle_until: float | None = None
     logger.info(
-        f"[GenericAPI] 开始轮询取码地址: {email}，"
-        f"最长 {max_wait or _email_cfg.OTP_MAX_WAIT}s, settle={settle}s"
+        f"[GenericAPI] Bắt đầu poll địa chỉ lấy mã: {email}，"
+        f"tối đa {max_wait or _email_cfg.OTP_MAX_WAIT}s, settle={settle}s"
     )
     is_yangyang = _parse_yangyang_code_url(account.code_url) is not None
     public_inbox_api_url = _public_inbox_page_api_url(account.code_url)
     if public_inbox_api_url:
         logger.info(
-            "[GenericAPI] 已识别公开收件页面，使用页面 inbox API: host=%s email=%s",
+            "[GenericAPI] Đã nhận trang hộp thư công khai, dùng inbox API của trang: host=%s email=%s",
             urlparse(public_inbox_api_url).netloc,
             email,
         )
@@ -780,9 +780,9 @@ def fetch_latest_otp(
         routes.append(("generic_api_local_proxy", selected_proxy))
     routes.append(("direct", ""))
     logger.info(
-        "[GenericAPI] HTTP 路由：代理=%s，网络异常时%s",
+        "[GenericAPI] Tuyến HTTP: proxy=%s, khi lỗi mạng %s",
         _redact_proxy_url(selected_proxy),
-        "回退直连" if selected_proxy else "使用直连",
+        "lùi về đi thẳng" if selected_proxy else "đi thẳng",
     )
 
     attempt = 0
@@ -815,11 +815,11 @@ def fetch_latest_otp(
                     last_error = f"{type(exc).__name__}: {exc}"
                     has_fallback = route_index + 1 < len(routes)
                     logger.warning(
-                        "[GenericAPI] 页面/API 请求失败：route=%s %s: %s%s",
+                        "[GenericAPI] yêu cầu trang/API thất bại: route=%s %s: %s%s",
                         _redact_proxy_url(route_proxy),
                         type(exc).__name__,
                         exc,
-                        "，切换直连重试" if has_fallback else "",
+                        ", chuyển đi thẳng rồi thử lại" if has_fallback else "",
                     )
                 finally:
                     if relay is not None:
@@ -836,27 +836,27 @@ def fetch_latest_otp(
                     best_seen_at = now_seen
                     settle_until = now_seen + settle
                     logger.info(
-                        f"[GenericAPI] 首次锁定 OTP={code}, source={result_source} mail_id={yy_meta.get('mail_id')} ts={yy_meta.get('received_at')}, "
-                        f"等 {settle}s 看取码接口是否出现更新验证码..."
+                        f"[GenericAPI] Khoá OTP lần đầu={code}, source={result_source} mail_id={yy_meta.get('mail_id')} ts={yy_meta.get('received_at')}, "
+                        f"chờ {settle}s xem API lấy mã có mã OTP mới hơn không..."
                     )
                 elif code != best_otp:
                     logger.info(
-                        f"[GenericAPI] 发现更新 OTP={code}, source={result_source} mail_id={yy_meta.get('mail_id')} ts={yy_meta.get('received_at')}，"
-                        f"替换之前的 {best_otp}, 重置 settle 计时"
+                        f"[GenericAPI] Thấy OTP cập nhật={code}, source={result_source} mail_id={yy_meta.get('mail_id')} ts={yy_meta.get('received_at')}，"
+                        f"thay mã trước đó {best_otp}, đặt lại đồng hồ settle"
                     )
                     best_otp = code
                     best_seen_at = now_seen
                     settle_until = now_seen + settle
                 else:
-                    logger.debug(f"[GenericAPI] 取码接口仍返回候选 OTP={best_otp}")
+                    logger.debug(f"[GenericAPI] API lấy mã vẫn trả OTP ứng viên={best_otp}")
                 resp = None
                 text = ""
             else:
                 if is_yangyang or public_inbox_api_url:
                     last_error = (
-                        "yangyang 列表中尚未出现 after_ts 之后的新验证码邮件"
+                        "danh sách yangyang chưa có thư mã OTP mới sau after_ts"
                         if is_yangyang else
-                        "公开收件页面中尚未出现 after_ts 之后的新验证码邮件"
+                        "trang hộp thư công khai chưa có thư mã OTP mới sau after_ts"
                     )
                     resp = None
                     text = ""
@@ -873,7 +873,7 @@ def fetch_latest_otp(
                 mailbox_mismatch = bool(mailbox and mailbox.lower() != email.lower())
                 if mailbox_mismatch:
                     structured = None
-                    last_error = f"latest-code 返回邮箱不匹配: expected={email}, actual={mailbox}"
+                    last_error = f"latest-code trả email không khớp: expected={email}, actual={mailbox}"
                 else:
                     # 此类公开 latest-code 服务的 receivedAt 可能使用独立服务器时间，
                     # 与运行机器相差数小时甚至跨日。它只返回“最新一封”，因此这里
@@ -895,8 +895,7 @@ def fetch_latest_otp(
                         and float(structured_meta["msg_ts"]) + 2 < after_ts
                     ):
                         logger.warning(
-                            "[GenericAPI] latest-code 的 receivedAt 早于取码基准，"
-                            "按服务端最新邮件继续作为候选：receivedAt=%s after=%s messageId=%s",
+                            """[GenericAPI] receivedAt của latest-code sớm hơn mốc lấy mã,vẫn lấy thư mới nhất phía server làm ứng viên: receivedAt=%s after=%s messageId=%s""",
                             structured_meta.get("received_at"),
                             time.strftime("%Y-%m-%d %H:%M:%S", time.localtime(after_ts)),
                             (public_payload or {}).get("messageId"),
@@ -908,38 +907,38 @@ def fetch_latest_otp(
                         settle_until = now_seen + settle
                         if structured_meta:
                             logger.info(
-                                f"[GenericAPI] 首次锁定 OTP={code}, source=structured_api "
+                                f"[GenericAPI] Khoá OTP lần đầu={code}, source=structured_api "
                                 f"ts={structured_meta.get('received_at')} subject={str(structured_meta.get('subject') or '')[:80]!r}, "
-                                f"等 {settle}s 看取码接口是否出现更新验证码..."
+                                f"chờ {settle}s xem API lấy mã có mã OTP mới hơn không..."
                             )
                         else:
                             logger.info(
-                                f"[GenericAPI] 首次锁定 OTP={code}, "
-                                f"等 {settle}s 看取码接口是否出现更新验证码..."
+                                f"[GenericAPI] Khoá OTP lần đầu={code}, "
+                                f"chờ {settle}s xem API lấy mã có mã OTP mới hơn không..."
                             )
                     elif code != best_otp:
                         if structured_meta:
                             logger.info(
-                                f"[GenericAPI] 发现更新 OTP={code}, source=structured_api "
+                                f"[GenericAPI] Thấy OTP cập nhật={code}, source=structured_api "
                                 f"ts={structured_meta.get('received_at')} subject={str(structured_meta.get('subject') or '')[:80]!r}，"
-                                f"替换之前的 {best_otp}, 重置 settle 计时"
+                                f"thay mã trước đó {best_otp}, đặt lại đồng hồ settle"
                             )
                         else:
                             logger.info(
-                                f"[GenericAPI] 发现更新 OTP={code}，"
-                                f"替换之前的 {best_otp}, 重置 settle 计时"
+                                f"[GenericAPI] Thấy OTP cập nhật={code}，"
+                                f"thay mã trước đó {best_otp}, đặt lại đồng hồ settle"
                             )
                         best_otp = code
                         best_seen_at = now_seen
                         settle_until = now_seen + settle
                     else:
-                        logger.debug(f"[GenericAPI] 取码接口仍返回候选 OTP={best_otp}")
+                        logger.debug(f"[GenericAPI] API lấy mã vẫn trả OTP ứng viên={best_otp}")
                 else:
                     if not mailbox_mismatch:
                         if public_inbox_api_url and isinstance(public_payload, dict) and public_payload.get("code") is None:
-                            last_error = "latest-code 返回 code=null，邮箱暂未收到验证码"
+                            last_error = "latest-code trả code=null, email chưa nhận mã OTP"
                         else:
-                            last_error = f"HTTP 200 但未提取到 6 位验证码，响应预览: {text[:160]}"
+                            last_error = f"HTTP 200 nhưng không rút được mã OTP 6 số, preview phản hồi: {text[:160]}"
             else:
                 last_error = f"HTTP {resp.status_code}: {text[:160]}"
         except Exception as exc:
@@ -948,26 +947,26 @@ def fetch_latest_otp(
         now = time.time()
         if best_otp and settle_until is not None and now >= settle_until:
             logger.info(
-                f"[GenericAPI] settle 完成，返回 OTP={best_otp}, "
-                f"候选锁定时间={time.strftime('%H:%M:%S', time.localtime(best_seen_at))}"
+                f"[GenericAPI] settle xong, trả OTP={best_otp}, "
+                f"thời điểm khoá ứng viên={time.strftime('%H:%M:%S', time.localtime(best_seen_at))}"
             )
             return best_otp
 
         remaining = int(deadline - now)
         if best_otp and settle_until is not None:
             logger.info(
-                f"[GenericAPI] 已锁定候选 OTP={best_otp}，等 settle 中"
-                f"（剩余 settle ~{max(0, int(settle_until - now))}s, 总剩余 {remaining}s）..."
+                f"[GenericAPI] Đã khoá OTP ứng viên={best_otp}, đang chờ settle"
+                f" (settle còn ~{max(0, int(settle_until - now))}s, tổng còn {remaining}s)..."
             )
         else:
             logger.info(
-                f"[GenericAPI] 暂未从取码接口拿到验证码，"
-                f"{interval}s 后重试（剩余 {remaining}s）..."
+                f"[GenericAPI] Chưa lấy được mã OTP từ API lấy mã, "
+                f"{interval}s nữa thử lại (còn {remaining}s)..."
             )
         time.sleep(interval)
 
     if best_otp:
-        logger.warning(f"[GenericAPI] 总超时但已有候选，返回 OTP={best_otp}")
+        logger.warning(f"[GenericAPI] Hết hạn tổng nhưng đã có ứng viên, trả OTP={best_otp}")
         return best_otp
 
-    raise GenericApiMailError(f"等待通用 API 验证码超时: {email}; {last_error}")
+    raise GenericApiMailError(f"Chờ mã OTP API chung quá hạn: {email}; {last_error}")

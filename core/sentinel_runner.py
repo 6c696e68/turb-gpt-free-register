@@ -78,9 +78,9 @@ def _resolve_node_executable() -> str:
 def _ensure_runner_environment() -> None:
     """启动前的强制检查：runner.js / sdk.js 必须存在。"""
     if not _RUNNER_PATH.exists():
-        raise FileNotFoundError(f"找不到 sentinel-runner.js: {_RUNNER_PATH}")
+        raise FileNotFoundError(f"không tìm thấy sentinel-runner.js: {_RUNNER_PATH}")
     if not _SDK_PATH.exists():
-        raise FileNotFoundError(f"找不到 sdk.js: {_SDK_PATH}")
+        raise FileNotFoundError(f"không tìm thấy sdk.js: {_SDK_PATH}")
 
 
 def generate_sentinel_token(
@@ -116,9 +116,9 @@ def generate_sentinel_token(
     _ensure_runner_environment()
 
     if not flow:
-        raise ValueError("flow 不能为空")
+        raise ValueError("flow không được trống")
     if not device_id:
-        raise ValueError("device_id 不能为空")
+        raise ValueError("device_id không được trống")
 
     profile = browser_profile or {}
     browser_family = str(profile.get("browser_family") or "chrome")
@@ -249,8 +249,8 @@ def generate_sentinel_token(
             "--cookie", runner_cookie,
         ]
 
-        logger.info(f"[SentinelRunner] 调用 Node 生成 token, flow={flow}")
-        logger.debug(f"[SentinelRunner] 命令: {' '.join(cmd)}")
+        logger.info(f"[SentinelRunner] gọi Node tạo token, flow={flow}")
+        logger.debug(f"[SentinelRunner] lệnh: {' '.join(cmd)}")
 
         # 关键：禁用 sentinel.config.json 自动发现（避免外部配置干扰）
         env = os.environ.copy()
@@ -270,19 +270,19 @@ def generate_sentinel_token(
             )
         except subprocess.TimeoutExpired as exc:
             raise RuntimeError(
-                f"sentinel-runner.js 执行超时（>{_RUNNER_TIMEOUT}s），flow={flow}"
+                f"sentinel-runner.js thực thi quá thời gian (>{_RUNNER_TIMEOUT}s），flow={flow}"
             ) from exc
         except FileNotFoundError as exc:
             raise RuntimeError(
-                "未找到 Node 可执行文件，请确认已安装 Node.js 并加入 PATH，"
-                "或通过 NODE_EXECUTABLE 环境变量指定绝对路径。"
+                "Không tìm thấy tệp thực thi Node. Hãy xác nhận đã cài Node.js và thêm vào PATH, "
+                "hoặc chỉ đường dẫn tuyệt đối qua biến môi trường NODE_EXECUTABLE."
             ) from exc
 
         if proc.returncode != 0:
             stderr = (proc.stderr or "").strip()
             stdout = (proc.stdout or "").strip()
             raise RuntimeError(
-                f"sentinel-runner.js 退出码 {proc.returncode}\n"
+                f"sentinel-runner.js mã thoát {proc.returncode}\n"
                 f"stderr: {stderr}\n"
                 f"stdout: {stdout}"
             )
@@ -290,7 +290,7 @@ def generate_sentinel_token(
         token_text = (proc.stdout or "").strip()
         if not token_text:
             raise RuntimeError(
-                f"sentinel-runner.js 输出为空, stderr: {(proc.stderr or '').strip()}"
+                f"sentinel-runner.js đầu ra rỗng, stderr: {(proc.stderr or '').strip()}"
             )
 
         # 简单合法性校验：必须是合法 JSON 且包含关键字段
@@ -298,13 +298,13 @@ def generate_sentinel_token(
             parsed = json.loads(token_text)
         except json.JSONDecodeError as exc:
             raise RuntimeError(
-                f"runner 输出不是合法 JSON: {token_text[:200]}"
+                f"runner đầu ra không hợp lệ JSON: {token_text[:200]}"
             ) from exc
 
         for required_key in ("p", "c", "id", "flow"):
             if required_key not in parsed:
                 raise RuntimeError(
-                    f"runner 输出缺少字段 {required_key}: {token_text[:200]}"
+                    f"runner đầu ra thiếu trường {required_key}: {token_text[:200]}"
                 )
 
         # 详细诊断：打印输出 JSON 的所有顶层字段名 + 值长度
@@ -313,10 +313,10 @@ def generate_sentinel_token(
             for k, v in parsed.items()
         }
         logger.info(
-            f"[SentinelRunner] token 生成成功, flow={flow}, "
-            f"包含 turnstile={'t' in parsed and bool(parsed.get('t'))}, "
-            f"包含 so={bool(parsed.get('_so') or parsed.get('so'))}, "
-            f"字段: {field_summary}"
+            f"[SentinelRunner] token tạo thành công, flow={flow}, "
+            f"có turnstile={'t' in parsed and bool(parsed.get('t'))}, "
+            f"có so={bool(parsed.get('_so') or parsed.get('so'))}, "
+            f"trường: {field_summary}"
         )
         return token_text
 

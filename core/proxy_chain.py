@@ -28,7 +28,7 @@ def _read_exact(sock: socket.socket, size: int) -> bytes:
     while len(chunks) < size:
         chunk = sock.recv(size - len(chunks))
         if not chunk:
-            raise ConnectionError("SOCKS5 客户端提前断开")
+            raise ConnectionError("Client SOCKS5 ngắt sớm")
         chunks.extend(chunk)
     return bytes(chunks)
 
@@ -42,7 +42,7 @@ def _read_socks_address(sock: socket.socket, atyp: int) -> tuple[str, int]:
     elif atyp == 4:
         host = socket.inet_ntop(socket.AF_INET6, _read_exact(sock, 16))
     else:
-        raise ValueError("SOCKS5 地址类型无效")
+        raise ValueError("Loại địa chỉ SOCKS5 không hợp lệ")
     port = int.from_bytes(_read_exact(sock, 2), "big")
     return host, port
 
@@ -54,11 +54,11 @@ class ProxyChainRelay:
         self.target = parse_proxy_url(target)
         self.upstream = parse_proxy_url(upstream)
         if self.target.scheme not in {"http", "socks5", "socks5h"}:
-            raise ValueError("代理链目标代理必须是 http://、socks5:// 或 socks5h://")
+            raise ValueError("Proxy đích của chuỗi phải là http://, socks5:// hoặc socks5h://")
         if self.upstream.scheme == "https":
-            raise ValueError("代理链暂不支持 https:// 作为上游代理，请填写 http:// 或 socks5://")
+            raise ValueError("Chuỗi proxy chưa hỗ trợ https:// làm upstream, hãy điền http:// hoặc socks5://")
         if socks is None:
-            raise RuntimeError("代理链需要 PySocks，请先安装 requirements.txt 中的依赖")
+            raise RuntimeError("Chuỗi proxy cần PySocks, hãy cài dependency trong requirements.txt trước")
         self.timeout = max(1.0, float(timeout or 15.0))
         self._listener: socket.socket | None = None
         self._stop = threading.Event()
@@ -77,7 +77,7 @@ class ProxyChainRelay:
     @property
     def proxy_url(self) -> str:
         if self._listener is None:
-            raise RuntimeError("代理链尚未启动")
+            raise RuntimeError("Chuỗi proxy chưa khởi động")
         return f"http://127.0.0.1:{self._listener.getsockname()[1]}"
 
     def traffic_snapshot(self) -> dict[str, int | bool]:
@@ -174,7 +174,7 @@ class ProxyChainRelay:
         except ValueError:
             encoded = host.encode("idna")
             if len(encoded) > 255:
-                raise ValueError("SOCKS5 目标域名过长")
+                raise ValueError("Tên miền đích SOCKS5 quá dài")
             return b"\x03" + bytes([len(encoded)]) + encoded + int(port).to_bytes(2, "big")
         if address.version == 4:
             return b"\x01" + address.packed + int(port).to_bytes(2, "big")
@@ -184,7 +184,7 @@ class ProxyChainRelay:
     def _read_socks_reply(sock: socket.socket) -> int:
         header = _read_exact(sock, 4)
         if header[0] != 5:
-            raise ValueError("动态代理返回了非 SOCKS5 响应")
+            raise ValueError("Proxy động trả phản hồi không phải SOCKS5")
         _read_socks_address(sock, header[3])
         return header[1]
 
@@ -202,24 +202,24 @@ class ProxyChainRelay:
                 pass
             if response.startswith(b"HTTP/"):
                 first_line = response.splitlines()[0].decode("latin1", errors="replace")
-                raise ProxyChainError(f"动态代理经本地上游返回 {first_line}，不是 SOCKS5 响应")
-            raise ProxyChainError("动态代理经本地上游返回了非 SOCKS5 响应")
+                raise ProxyChainError(f"Proxy động qua upstream local trả về {first_line}, không phải phản hồi SOCKS5")
+            raise ProxyChainError("Proxy động qua upstream local trả phản hồi không phải SOCKS5")
         if selected[1] == 0xFF:
-            raise ProxyChainError("动态代理不接受当前认证方式")
+            raise ProxyChainError("Proxy động không chấp nhận cách xác thực hiện tại")
         if selected[1] == 2:
             username = self.target.username.encode("utf-8")
             password = self.target.password.encode("utf-8")
             remote.sendall(b"\x01" + bytes([len(username)]) + username + bytes([len(password)]) + password)
             auth = _read_exact(remote, 2)
             if auth[0] != 1 or auth[1] != 0:
-                raise PermissionError("动态代理账号密码认证失败")
+                raise PermissionError("Xác thực user/pass proxy động thất bại")
         elif selected[1] != 0:
-            raise ConnectionError("动态代理选择了不支持的认证方式")
+            raise ConnectionError("Proxy động chọn cách xác thực không hỗ trợ")
 
         remote.sendall(b"\x05\x01\x00" + self._pack_socks_address(host, port))
         reply_code = self._read_socks_reply(remote)
         if reply_code:
-            raise ConnectionError(f"动态代理 CONNECT 失败（SOCKS5 code {reply_code}）")
+            raise ConnectionError(f"CONNECT proxy động thất bại (SOCKS5 code {reply_code}）")
 
     def _target_http_connect(self, remote: socket.socket, host: str, port: int) -> None:
         """经上游连接到 HTTP 目标代理，并在目标代理上建立 CONNECT 隧道。"""
@@ -238,20 +238,20 @@ class ProxyChainRelay:
         while b"\r\n\r\n" not in response:
             chunk = remote.recv(4096)
             if not chunk:
-                raise ConnectionError("HTTP 目标代理提前断开")
+                raise ConnectionError("Proxy đích HTTP ngắt sớm")
             response.extend(chunk)
             if len(response) > 64 * 1024:
-                raise ValueError("HTTP 目标代理响应头过大")
+                raise ValueError("Header phản hồi proxy đích HTTP quá lớn")
         first_line = bytes(response).split(b"\r\n", 1)[0].decode("latin1", errors="replace")
         parts = first_line.split(" ", 2)
         if len(parts) < 2 or not parts[0].startswith("HTTP/"):
-            raise ProxyChainError("目标代理返回了无效的 HTTP 响应")
+            raise ProxyChainError("Proxy đích trả phản hồi HTTP không hợp lệ")
         try:
             status = int(parts[1])
         except ValueError as exc:
-            raise ProxyChainError("目标代理返回了无效的 HTTP 状态码") from exc
+            raise ProxyChainError("Proxy đích trả mã trạng thái HTTP không hợp lệ") from exc
         if status != 200:
-            raise ProxyChainError(f"目标代理 CONNECT 失败（HTTP {status}）")
+            raise ProxyChainError(f"CONNECT proxy đích thất bại (HTTP {status}）")
 
     @staticmethod
     def _read_http_request(client: socket.socket) -> tuple[str, str, str]:
@@ -259,14 +259,14 @@ class ProxyChainRelay:
         while b"\r\n\r\n" not in request:
             chunk = client.recv(4096)
             if not chunk:
-                raise ConnectionError("HTTP 代理客户端提前断开")
+                raise ConnectionError("Client proxy HTTP ngắt sớm")
             request.extend(chunk)
             if len(request) > 64 * 1024:
-                raise ValueError("HTTP 代理请求头过大")
+                raise ValueError("Header request proxy HTTP quá lớn")
         first_line = bytes(request).split(b"\r\n", 1)[0].decode("latin1", errors="replace")
         parts = first_line.split(" ", 2)
         if len(parts) != 3:
-            raise ValueError("HTTP 代理请求行无效")
+            raise ValueError("Dòng request proxy HTTP không hợp lệ")
         return parts[0].upper(), parts[1], parts[2]
 
     @staticmethod
@@ -278,7 +278,7 @@ class ProxyChainRelay:
             host, port_text = destination.rsplit(":", 1)
         port = int(port_text)
         if not 1 <= port <= 65535:
-            raise ValueError("HTTP 代理目标端口无效")
+            raise ValueError("Cổng đích proxy HTTP không hợp lệ")
         return host, port
 
     @staticmethod
@@ -310,7 +310,7 @@ class ProxyChainRelay:
             detail = str(exc or "").strip()
             self._last_error = f"{type(exc).__name__}: {detail[:240]}" if detail else type(exc).__name__
             logger.warning(
-                "代理链连接失败 target=%s upstream=%s error=%s",
+                "kết nối chuỗi proxy thất bại target=%s upstream=%s error=%s",
                 mask_proxy_url(self.target.raw),
                 mask_proxy_url(self.upstream.raw),
                 self._last_error,

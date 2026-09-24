@@ -28,7 +28,7 @@ _DIAGNOSTIC_KEY_PARTS = (
 def _diagnostic_response_summary(resp, limit: int = 1400) -> str:
     """提取资格相关响应字段，不把 access token、Cookie 或完整用户资料写入日志。"""
     if resp is None:
-        return "无响应"
+        return "Không có phản hồi"
     status = int(getattr(resp, "status_code", 0) or 0)
     try:
         payload = resp.json()
@@ -84,7 +84,7 @@ def _safe_request(label: str, fn, *, strict: bool = False):
     except Exception as exc:
         if strict:
             raise
-        logger.debug("[Bootstrap] %s 跳过/失败：%s: %s", label, type(exc).__name__, str(exc)[:180])
+        logger.debug("[Bootstrap] %s bỏ qua/thất bại：%s: %s", label, type(exc).__name__, str(exc)[:180])
         return None
 
 
@@ -145,7 +145,7 @@ def anonymous_bootstrap(session: BrowserSession, *, strict: bool = False) -> Non
     """
     referer = "https://chatgpt.com/auth/login"
     tz = session.js_timezone_offset_min()
-    logger.info("[Bootstrap] 匿名态 ChatGPT 预热开始")
+    logger.info("[Bootstrap] bắt đầu khởi động trước ChatGPT ẩn danh")
     _safe_request("anon accounts/check", lambda: session.get(
         f"{_ANON_BASE}/accounts/check/v4-2023-04-27?timezone_offset_min={tz}",
         headers=session.get_chatgpt_headers(referer=referer),
@@ -177,7 +177,7 @@ def anonymous_bootstrap(session: BrowserSession, *, strict: bool = False) -> Non
     log_cookies = getattr(session, "log_cookie_names", None)
     if callable(log_cookies):
         log_cookies("anonymous_bootstrap_complete")
-    logger.info("[Bootstrap] 匿名态 ChatGPT 预热完成")
+    logger.info("[Bootstrap] khởi động trước ChatGPT ẩn danh xong")
 
 
 def authenticated_bootstrap(session: BrowserSession, access_token: str | None = None, *, strict: bool = False) -> None:
@@ -191,7 +191,7 @@ def authenticated_bootstrap(session: BrowserSession, access_token: str | None = 
             h["authorization"] = access_token if access_token.lower().startswith("bearer ") else f"Bearer {access_token}"
         return h
 
-    logger.info("[Bootstrap] 登录态 ChatGPT 预热开始")
+    logger.info("[Bootstrap] bắt đầu khởi động trước ChatGPT đã đăng nhập")
     diagnostic_paths = {
         "/accounts/optimized/check",
         "/me",
@@ -211,7 +211,7 @@ def authenticated_bootstrap(session: BrowserSession, access_token: str | None = 
             strict=strict,
         )
         if path in diagnostic_paths:
-            logger.info("[资格诊断] endpoint=%s %s", path, _diagnostic_response_summary(resp))
+            logger.info("[Chẩn đoán] endpoint=%s %s", path, _diagnostic_response_summary(resp))
     prep = _chat_requirements_prepare(session, _API_BASE, referer, strict=strict)
     for url in [
         f"{_API_BASE}/system_hints?mode=basic",
@@ -233,8 +233,8 @@ def authenticated_bootstrap(session: BrowserSession, access_token: str | None = 
             strict=strict,
         )
         if path == "/aip/first-party/eligibility":
-            logger.info("[资格诊断] endpoint=%s %s", path, _diagnostic_response_summary(resp))
+            logger.info("[Chẩn đoán] endpoint=%s %s", path, _diagnostic_response_summary(resp))
     log_cookies = getattr(session, "log_cookie_names", None)
     if callable(log_cookies):
         log_cookies("authenticated_bootstrap_complete")
-    logger.info("[Bootstrap] 登录态 ChatGPT 预热完成")
+    logger.info("[Bootstrap] khởi động trước ChatGPT đã đăng nhập xong")

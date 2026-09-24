@@ -209,7 +209,7 @@ class CloakSeleniumDriver:
     def find_element(self, by: Any, selector: str) -> CloakElement:
         els = self.find_elements(by, selector)
         if not els:
-            raise RuntimeError(f"找不到页面元素: {selector}")
+            raise RuntimeError(f"không tìm thấy phần tử trang: {selector}")
         return els[0]
 
     def _locator(self, by: Any, selector: str):
@@ -230,7 +230,7 @@ class CloakSeleniumDriver:
             client = self.context.new_cdp_session(self.page) if self.context is not None else self.page.context.new_cdp_session(self.page)
             return client.send(cmd, params)
         except Exception as exc:
-            logger.debug("[Cloak] CDP 命令失败 %s: %s", cmd, exc)
+            logger.debug("[Cloak] CDP lệnh thất bại %s: %s", cmd, exc)
             return None
 
     def _serialize_args(self, args: tuple[Any, ...]) -> tuple[CloakElement | None, list[Any]]:
@@ -266,7 +266,7 @@ class CloakSeleniumDriver:
         except Exception as exc:
             msg = str(exc)
             if "Execution context was destroyed" in msg or "navigation" in msg.lower():
-                logger.info("[Cloak] JS 执行后页面发生跳转，忽略返回值读取失败：%s", msg[:160])
+                logger.info("[Cloak] JS sau thực thi trang chuyển hướng, bỏ qua giá trị trả về, đọc thất bại: %s", msg[:160])
                 return {"ok": True, "reason": "navigation_after_script"}
             raise
         finally:
@@ -359,12 +359,12 @@ def _detect_cloak_exit_geo(proxy_url: str | None = None) -> dict:
             }
             if geo.get("country") or geo.get("timezone"):
                 logger.info(
-                    "[Cloak] 出口IP地理信息：ip=%s country=%s city=%s timezone=%s",
+                    "[Cloak] lối raIPthông tin địa lý: ip=%s country=%s city=%s timezone=%s",
                     geo.get("ip") or "?", geo.get("country") or "?", geo.get("city") or "?", geo.get("timezone") or "?",
                 )
                 return geo
         except Exception as exc:
-            logger.debug("[Cloak] 出口 IP 地理检测失败 endpoint=%s: %s: %s", url, type(exc).__name__, exc)
+            logger.debug("[Cloak] lối ra IP kiểm tra địa lý thất bại endpoint=%s: %s: %s", url, type(exc).__name__, exc)
     return {}
 
 
@@ -392,7 +392,7 @@ def _build_cloak_locale_options(proxy_url: str | None = None) -> dict:
         out.setdefault("accept_language", str(profile.get("accept_language") or ""))
         out["geo"] = geo
     except Exception as exc:
-        logger.debug("[Cloak] 构建自动语言/时区失败：%s: %s", type(exc).__name__, exc)
+        logger.debug("[Cloak] xây dựng ngôn ngữ tự động/múi giờ thất bại: %s: %s", type(exc).__name__, exc)
     return {k: v for k, v in out.items() if v}
 
 
@@ -417,7 +417,7 @@ def build_cloak_driver(proxy: str | None = None) -> tuple[CloakSeleniumDriver, C
     try:
         from cloakbrowser import launch, launch_persistent_context
     except ImportError as exc:
-        raise RuntimeError("未安装 cloakbrowser，请执行：pip install cloakbrowser") from exc
+        raise RuntimeError("Chưa cài cloakbrowser, hãy chạy: pip install cloakbrowser") from exc
 
     launch_args = list(getattr(_cfg, "CLOAK_EXTRA_ARGS", []) or [])
     seed = str(getattr(_cfg, "CLOAK_FINGERPRINT_SEED", "") or "").strip()
@@ -448,10 +448,10 @@ def build_cloak_driver(proxy: str | None = None) -> tuple[CloakSeleniumDriver, C
 
     user_data_dir = str(getattr(_cfg, "CLOAK_USER_DATA_DIR", "") or "").strip()
     logger.info(
-        "[Cloak] 启动 CloakBrowser：headless=%s humanize=%s geoip=%s proxy=%s locale=%s timezone=%s accept_language=%s persistent=%s",
+        "[Cloak] Khởi động CloakBrowser: headless=%s humanize=%s geoip=%s proxy=%s locale=%s timezone=%s accept_language=%s persistent=%s",
         opts.get("headless"), opts.get("humanize"), opts.get("geoip"),
-        proxy_url or "无", opts.get("locale") or "自动/默认", opts.get("timezone") or "自动/默认",
-        locale_opts.get("accept_language") or "自动/默认", bool(user_data_dir),
+        proxy_url or "无", opts.get("locale") or "Tự động/mặc định", opts.get("timezone") or "Tự động/mặc định",
+        locale_opts.get("accept_language") or "Tự động/mặc định", bool(user_data_dir),
     )
     context_kwargs = {}
     if locale_opts.get("locale"):
@@ -474,7 +474,7 @@ def build_cloak_driver(proxy: str | None = None) -> tuple[CloakSeleniumDriver, C
     driver = CloakSeleniumDriver(browser=browser, context=context, page=page, proxy_relay=proxy_relay)
     # Roxy/Cloak 共用部分页面操作函数；给共享函数一个显式日志前缀，
     # 避免 Cloak 注册流程里出现 `[Roxy注册]`。
-    driver._registration_log_prefix = "[Cloak注册]"
+    driver._registration_log_prefix = "[Cloak đăng ký]"
     driver.set_page_load_timeout(int(getattr(_cfg, "CLOAK_SELENIUM_TIMEOUT", 90) or 90))
     return driver, CloakOpenResult(raw={
         "driver": "cloakbrowser",

@@ -127,10 +127,10 @@ def _extract_callback_url_from_page(driver) -> str:
         """) or []
         for url in urls:
             if _is_callback_url(str(url)):
-                logger.info("[Codex][Browser] 已从浏览器性能记录提取 callback URL：%s", str(url)[:160])
+                logger.info("[Codex][Browser] đã trích xuất từ bản ghi hiệu năng trình duyệt callback URL: %s", str(url)[:160])
                 return str(url)
     except Exception as exc:
-        logger.debug("[Codex][Browser] 从页面提取 callback URL 失败：%s", exc)
+        logger.debug("[Codex][Browser] Trích xuất từ trang callback URL Thất bại: %s", exc)
     return ""
 
 
@@ -159,7 +159,7 @@ def _wait_for_callback(driver, timeout: int | None = None) -> str:
         try:
             current = str(driver.current_url or "")
             if current != last_url:
-                logger.debug("[Codex][Browser] 当前 URL: %s", current)
+                logger.debug("[Codex][Browser] Hiện tại URL: %s", current)
                 last_url = current
             callback = _extract_callback_url_from_any_window(driver)
             if callback:
@@ -167,7 +167,7 @@ def _wait_for_callback(driver, timeout: int | None = None) -> str:
         except Exception:
             pass
         time.sleep(0.5)
-    raise RuntimeError(f"等待 Codex callback 超时，最后 URL={last_url}")
+    raise RuntimeError(f"chờ Codex callback quá thời gian, cuối cùng URL={last_url}")
 
 
 def _click_if_present(driver, selectors: list[str], timeout: int = 3) -> bool:
@@ -190,11 +190,11 @@ def _maybe_click_passwordless_after_email(driver, email: str, timeout: int = 18)
         try:
             if _is_email_verification_page(driver):
                 if clicked:
-                    logger.info("[Codex][Browser] 一次性验证码入口已进入邮箱验证码页")
+                    logger.info("[Codex][Browser] Lối vào mã một lần đã vào trang mã OTP email")
                 return
             url = str(driver.current_url or "")
             if url != last_url:
-                logger.info("[Codex][Browser] 提交邮箱后检测密码/OTP 跳转：url=%s", url or "-")
+                logger.info("[Codex][Browser] sau khi gửi email thì kiểm tra mật khẩu/OTP Chuyển hướng: url=%s", url or "-")
                 last_url = url
             lower = url.lower()
             if any(x in lower for x in ("phone", "workspace", "consent", "authorize", "localhost:1455")):
@@ -203,14 +203,14 @@ def _maybe_click_passwordless_after_email(driver, email: str, timeout: int = 18)
                 result = _click_passwordless_signup_if_present(driver)
                 if result.get("ok"):
                     clicked = True
-                    logger.info("[Codex][Browser] 已点击一次性验证码入口：email=%s detail=%s", email, result)
+                    logger.info("[Codex][Browser] Đã click lối vào mã OTP một lần: email=%s detail=%s", email, result)
                     human_delay("form")
                     continue
         except Exception as exc:
-            logger.debug("[Codex][Browser] 密码页一次性验证码入口探测失败：%s", str(exc)[:140])
+            logger.debug("[Codex][Browser] thăm dò lối vào mã OTP trên trang mật khẩu thất bại: %s", str(exc)[:140])
         time.sleep(0.5)
     if clicked:
-        logger.info("[Codex][Browser] 已点击一次性验证码入口，未立即检测到 OTP 页，继续后续 OTP 轮询")
+        logger.info("[Codex][Browser] Đã click lối vào mã OTP một lần, Chưa phát hiện ngay OTP Trang, tiếp tục bước sau OTP polling")
 
 
 def _wait_for_otp_input(driver, timeout: int = 30) -> None:
@@ -228,20 +228,20 @@ def _wait_for_otp_input(driver, timeout: int = 30) -> None:
             passwordless_retries += 1
             result = _click_passwordless_signup_if_present(driver)
             if result.get("ok"):
-                logger.info("[Codex][Browser] 仍停留登录密码页，补点一次性验证码入口：%s", result.get("reason"))
+                logger.info("[Codex][Browser] vẫn ở trang mật khẩu đăng nhập, bấm bù lối vào mã OTP: %s", result.get("reason"))
                 human_delay("form")
             time.sleep(6)
             continue
         time.sleep(0.8)
     state = _email_otp_page_state(driver)
     logger.warning(
-        "[Codex][Browser] 等待 OTP 输入框超时，页面 url=%s inputs=%s buttons=%s 文本前300字=%s",
+        "[Codex][Browser] chờ OTP ô nhập timeout, trang url=%s inputs=%s buttons=%s trước văn bản300ký tự=%s",
         str(state.get("url") or ""),
         len(state.get("inputs") or []),
         [(b.get("text") or "")[:24] for b in (state.get("buttons") or [])][:8],
         str(state.get("text") or "")[:300],
     )
-    raise RuntimeError("等待 OTP 输入框超时，页面未出现验证码输入框")
+    raise RuntimeError("chờ OTP ô nhập timeout, trang chưa hiện ô nhập mã OTP")
 
 
 def _account_password_for_email(email: str) -> str:
@@ -304,7 +304,7 @@ def _fill_mfa_challenge_if_present(driver, email: str, timeout: int = 15) -> boo
             _human_type_text(driver, result.get("input"), code, clear=True)
             human_delay("otp_input")
             _human_click(driver, result.get("button"), label="codex_mfa_submit")
-            logger.info("[Codex][Browser] 已填写并提交 MFA 验证码：%s", email)
+            logger.info("[Codex][Browser] Đã điền và gửi MFA mã OTP: %s", email)
             wait_end = time.time() + 12
             while time.time() < wait_end:
                 if not _is_mfa_challenge_page(driver):
@@ -312,7 +312,7 @@ def _fill_mfa_challenge_if_present(driver, email: str, timeout: int = 15) -> boo
                 time.sleep(0.4)
             return True
         except Exception as exc:
-            logger.debug("[Codex][Browser] MFA challenge 处理失败：%s", str(exc)[:160])
+            logger.debug("[Codex][Browser] MFA challenge xử lý thất bại: %s", str(exc)[:160])
             time.sleep(0.5)
     return False
 
@@ -352,13 +352,13 @@ def _fill_login_password_if_present(driver, email: str, timeout: int = 18) -> st
         return {ok:true, reason:'password_targets', input, button: buttons[0].el};
         """) or {}
         if not result.get("ok"):
-            logger.info("[Codex][Browser] 登录密码页未找到输入/提交按钮：%s", result)
+            logger.info("[Codex][Browser] Không thấy ô nhập trang mật khẩu đăng nhập/Nút gửi: %s", result)
             time.sleep(0.5)
             continue
         _human_type_text(driver, result.get("input"), password, clear=True)
         human_delay("form", minimum=2.0, maximum=3.6)
         _human_click(driver, result.get("button"), label="codex_password_submit")
-        logger.info("[Codex][Browser] 已填写并提交登录密码：%s", email)
+        logger.info("[Codex][Browser] đã điền và gửi mật khẩu đăng nhập: %s", email)
         wait_end = time.time() + 12
         while time.time() < wait_end:
             if _is_mfa_challenge_page(driver):
@@ -375,33 +375,33 @@ def _fill_login_password_if_present(driver, email: str, timeout: int = 18) -> st
 
 def _fill_email_and_otp(driver, email: str, otp_provider, auth_url: str) -> None:
     otp_after_ts = time.time()
-    logger.info("[Codex][Browser] 打开授权地址")
-    logger.info("[Codex][Browser] 完整授权地址: %s", auth_url)
+    logger.info("[Codex][Browser] mở URL uỷ quyền")
+    logger.info("[Codex][Browser] URL uỷ quyền đầy đủ: %s", auth_url)
     driver.get(auth_url)
     human_delay("navigate")
-    logger.info("[Codex][Browser] 授权页加载完成，检查是否需要邮箱登录")
+    logger.info("[Codex][Browser] trang uỷ quyền tải xong, kiểm tra có cần đăng nhập email")
     _maybe_accept(driver)
 
     # 可能已经处于账号选择/授权页；如果有邮箱输入框则完整登录。
     # 非日本出口时按钮文案/顺序会变，不能按可见文字点“继续”，否则可能误点 Google。
     try:
         _type_email_address(driver, email, timeout=12)
-        logger.info("[Codex][Browser] 已填写邮箱：%s", email)
+        logger.info("[Codex][Browser] đã điền email: %s", email)
         human_delay("form")
         _submit_email_step(driver)
-        logger.info("[Codex][Browser] 已提交邮箱，等待邮箱 OTP 页面")
+        logger.info("[Codex][Browser] Đã gửi email, chờ email OTP trang")
         pw_result = _fill_login_password_if_present(driver, email, timeout=18)
         if pw_result == "next_step":
             if _is_mfa_challenge_page(driver):
                 _fill_mfa_challenge_if_present(driver, email, timeout=15)
-            logger.info("[Codex][Browser] 账号已用密码完成登录，直接进入后续步骤")
+            logger.info("[Codex][Browser] Tài khoản đã đăng nhập xong bằng mật khẩu, Vào thẳng bước tiếp theo")
             return
         if pw_result == "email_otp":
-            logger.info("[Codex][Browser] 密码登录后仍进入邮箱 OTP 页面")
+            logger.info("[Codex][Browser] Sau đăng nhập mật khẩu vẫn vào email OTP trang")
         else:
             _maybe_click_passwordless_after_email(driver, email, timeout=18)
     except Exception as exc:
-        logger.info("[Codex][Browser] 未检测到邮箱输入框，可能已登录或进入下一步：%s", str(exc)[:120])
+        logger.info("[Codex][Browser] Không phát hiện ô nhập email, Có thể đã đăng nhập hoặc sang bước tiếp: %s", str(exc)[:120])
         return
 
     # 提交邮箱后不再执行任何全局“继续/授权/分支”兜底点击；后续只等待验证码页。
@@ -413,7 +413,7 @@ def _fill_email_and_otp(driver, email: str, otp_provider, auth_url: str) -> None
     def _restart_email_otp_flow(reason: str) -> None:
         """Codex Auth 上直接点 resend 可能触发服务端 500；这里改为重新打开授权地址并提交邮箱。"""
         nonlocal otp_after_ts
-        logger.info("[Codex][Browser] 重新触发邮箱 OTP：%s", reason)
+        logger.info("[Codex][Browser] kích hoạt lại email OTP: %s", reason)
         otp_after_ts = time.time()
         driver.get(auth_url)
         human_delay("navigate")
@@ -422,25 +422,25 @@ def _fill_email_and_otp(driver, email: str, otp_provider, auth_url: str) -> None
             _type_email_address(driver, email, timeout=12)
             human_delay("form")
             _submit_email_step(driver)
-            logger.info("[Codex][Browser] 已重新提交邮箱触发 OTP")
+            logger.info("[Codex][Browser] Đã gửi lại email để kích hoạt OTP")
             pw_result = _fill_login_password_if_present(driver, email, timeout=12)
             if pw_result == "next_step":
                 if _is_mfa_challenge_page(driver):
                     _fill_mfa_challenge_if_present(driver, email, timeout=15)
-                logger.info("[Codex][Browser] 重新提交邮箱后已用密码完成登录，进入后续步骤")
+                logger.info("[Codex][Browser] sau khi gửi lại email đã đăng nhập xong bằng mật khẩu, vào bước tiếp theo")
                 return
             if pw_result != "email_otp":
                 _maybe_click_passwordless_after_email(driver, email, timeout=12)
         except Exception as exc:
             # 如果重进授权地址后已经停在验证码/下一步页面，就不要再强行提交。
             if not _is_email_verification_page(driver):
-                logger.warning("[Codex][Browser] 重新提交邮箱失败，继续按当前页面轮询：%s", str(exc)[:180])
+                logger.warning("[Codex][Browser] gửi lại email thất bại, Tiếp tục poll theo trang hiện tại: %s", str(exc)[:180])
             else:
-                logger.info("[Codex][Browser] 重开授权后已在邮箱 OTP 页面")
+                logger.info("[Codex][Browser] Sau khi mở lại uỷ quyền đã ở email OTP trang")
         human_delay("api")
 
     for otp_attempt in range(1, max_otp_attempts + 1):
-        logger.info("[Codex][Browser] 等待邮箱 OTP：%s（第 %s/%s 次）", email, otp_attempt, max_otp_attempts)
+        logger.info("[Codex][Browser] chờ email OTP: %s (thứ %s/%s lần)", email, otp_attempt, max_otp_attempts)
         try:
             code = _wait_for_fresh_email_otp(
                 otp_provider,
@@ -453,20 +453,20 @@ def _fill_email_and_otp(driver, email: str, otp_provider, auth_url: str) -> None
             if otp_attempt >= max_otp_attempts:
                 raise
             logger.warning(
-                "[Codex][Browser] 一直未收到邮箱 OTP，点击“重新发送电子邮件”后继续等待（下一轮 %s/%s）：%s: %s",
+                "[Codex][Browser] mãi chưa nhận được email OTP, nhấp\"gửi lại email\"sau đó tiếp tục chờ (vòng tiếp theo %s/%s): %s: %s",
                 otp_attempt + 1,
                 max_otp_attempts,
                 type(exc).__name__,
                 str(exc)[:180],
             )
-            _restart_email_otp_flow("等待验证码超时，避免点击 resend 导致 500")
+            _restart_email_otp_flow("chờ mã OTP quá thời gian, tránh bấm resend dẫn đến 500")
             continue
         used_codes.add(str(code))
-        logger.info("[Codex][Browser] 邮箱 OTP 收到：%s", code)
+        logger.info("[Codex][Browser] email OTP đã nhận: %s", code)
         _wait_for_otp_input(driver, timeout=30)
         _clear_otp_inputs(driver)
         _type_otp(driver, code)
-        logger.info("[Codex][Browser] 已填写邮箱 OTP")
+        logger.info("[Codex][Browser] đã điền email OTP")
         human_delay("otp_input")
         _install_email_otp_validate_hook(driver)
         clicked = _click_if_present(driver, [
@@ -477,12 +477,12 @@ def _fill_email_and_otp(driver, email: str, otp_provider, auth_url: str) -> None
             "//button[contains(., '验证')]",
         ], timeout=8)
         if clicked:
-            logger.info("[Codex][Browser] 已提交邮箱 OTP，等待后续授权/手机号页面")
+            logger.info("[Codex][Browser] Đã gửi email OTP, Chờ uỷ quyền tiếp theo/Trang số điện thoại")
         else:
-            logger.info("[Codex][Browser] 未找到显式提交按钮，继续等待页面状态")
+            logger.info("[Codex][Browser] Không tìm thấy nút gửi rõ ràng, Tiếp tục chờ trạng thái trang")
 
         outcome = _wait_after_email_otp_submit(driver, timeout=45)
-        logger.info("[Codex][Browser] 邮箱 OTP 提交后状态：%s", outcome)
+        logger.info("[Codex][Browser] email OTP trạng thái sau khi gửi: %s", outcome)
         if _is_mfa_challenge_page(driver):
             _fill_mfa_challenge_if_present(driver, email, timeout=15)
             return
@@ -490,17 +490,17 @@ def _fill_email_and_otp(driver, email: str, otp_provider, auth_url: str) -> None
             return
         if str(outcome).startswith("deactivated:"):
             error_code = str(outcome).split(":", 1)[1] or "account_deactivated"
-            raise AccountUnusableError(f"账号已废（{error_code}）", error_code=error_code)
+            raise AccountUnusableError(f"Tài khoản đã chết ({error_code}）", error_code=error_code)
 
         if otp_attempt >= max_otp_attempts:
-            raise RuntimeError("Codex 邮箱验证码连续错误/过期，已达到最大重试次数")
+            raise RuntimeError("Codex Mã OTP email sai liên tiếp/Hết hạn, Đã đạt số lần thử lại tối đa")
 
         logger.warning(
-            "[Codex][Browser] 邮箱验证码错误/过期或页面未跳转，准备重新发送并重新获取最新验证码（%s/%s）",
+            "[Codex][Browser] mã OTP email sai/hết hạn hoặc trang chưa chuyển hướng, chuẩn bị gửi lại và lấy lại mã OTP mới nhất (%s/%s)",
             otp_attempt + 1,
             max_otp_attempts,
         )
-        _restart_email_otp_flow("验证码错误/过期或页面未跳转，避免点击 resend 导致 500")
+        _restart_email_otp_flow("Mã OTP sai/hết hạn hoặc trang chưa chuyển hướng, tránh bấm resend dẫn đến 500")
 
 
 
@@ -520,9 +520,9 @@ def _wait_for_fresh_email_otp(otp_provider, email: str, after_ts: float, used_co
         last_code = code or last_code
         remaining = int(end - time.time())
         if remaining <= 0:
-            raise RuntimeError(f"等待新的邮箱验证码超时，取码接口仍返回已失败验证码：{last_code or '-'}")
+            raise RuntimeError(f"Chờ mã OTP email mới quá giờ, API lấy mã vẫn trả mã OTP đã thất bại: {last_code or '-'}")
         logger.warning(
-            "[Codex][Browser] 取码接口仍返回已提交过的旧 OTP=%s，继续等待最新验证码（剩余 %ss）",
+            "[Codex][Browser] API lấy mã vẫn trả về mã cũ đã gửi OTP=%s, tiếp tục chờ mã OTP mới nhất (còn lại %ss)",
             last_code or "-",
             remaining,
         )
@@ -588,7 +588,7 @@ def _install_email_otp_validate_hook(driver) -> None:
     try:
         driver.execute_script(script)
     except Exception as exc:
-        logger.debug("[Codex][Browser] 注入 email-otp/validate 响应 hook 失败：%s", exc)
+        logger.debug("[Codex][Browser] Inject email-otp/validate Phản hồi hook Thất bại: %s", exc)
 
 
 def _read_email_otp_validate_dead_code(driver) -> str:
@@ -604,7 +604,7 @@ def _read_email_otp_validate_dead_code(driver) -> str:
         code = detect_account_unusable_response_body(str(row.get("body") or ""))
         if code:
             logger.warning(
-                "[Codex][Browser] email-otp/validate 响应识别账号已废：code=%s status=%s",
+                "[Codex][Browser] email-otp/validate Phản hồi nhận diện tài khoản đã chết: code=%s status=%s",
                 code,
                 row.get("status"),
             )
@@ -634,7 +634,7 @@ def _wait_after_email_otp_submit(driver, timeout: int = 45) -> str:
                 return f"deactivated:{dead_code}"
             url = str(driver.current_url or "")
             if url != last_url:
-                logger.info("[Codex][Browser] 邮箱 OTP 后等待跳转：url=%s", url)
+                logger.info("[Codex][Browser] email OTP sau đó chờ chuyển trang: url=%s", url)
                 last_url = url
             if _is_callback_url(url):
                 return "accepted"
@@ -654,7 +654,7 @@ def _wait_after_email_otp_submit(driver, timeout: int = 45) -> str:
             ))
             if invalid or errors or error_hit:
                 logger.warning(
-                    "[Codex][Browser] 邮箱 OTP 提交后检测到错误/仍需验证码：errors=%s invalid=%s url=%s",
+                    "[Codex][Browser] email OTP sau khi gửi phát hiện lỗi/vẫn cần mã OTP: errors=%s invalid=%s url=%s",
                     errors[:3],
                     invalid,
                     url,
@@ -662,12 +662,12 @@ def _wait_after_email_otp_submit(driver, timeout: int = 45) -> str:
                 return "invalid"
 
             if time.time() - last_log > 6:
-                logger.info("[Codex][Browser] 邮箱 OTP 后仍在 email-verification，继续等待页面自动跳转")
+                logger.info("[Codex][Browser] email OTP sau đó vẫn ở email-verification, tiếp tục chờ trang tự động chuyển")
                 last_log = time.time()
         except Exception:
             pass
         time.sleep(0.5)
-    logger.warning("[Codex][Browser] 邮箱 OTP 后等待跳转超时，当前 url=%s，按验证码无效/过期处理", getattr(driver, "current_url", ""))
+    logger.warning("[Codex][Browser] email OTP sau đó chờ chuyển hướng timeout, Hiện tại url=%s, coi mã OTP không hợp lệ/xử lý hết hạn", getattr(driver, "current_url", ""))
     return "invalid"
 
 
@@ -698,7 +698,7 @@ def _select_sms_channel_or_raise(driver) -> None:
     has_whatsapp = any('whatsapp' in str(r.get('value','')).lower().replace(' ', '') for r in radios)
     has_sms = any(str(r.get('value','')).lower() in ('sms', 'text', 'text_message', 'text-message') for r in radios)
     if has_whatsapp and not has_sms:
-        raise RuntimeError(f"whatsapp_channel: 页面仅提供 WhatsApp 通道 state={state}")
+        raise RuntimeError(f"whatsapp_channel: trang chỉ cung cấp WhatsApp kênh state={state}")
     # 选择 SMS/text radio。无 radio 时可能默认 SMS。
     selected = driver.execute_script(r"""
     const radios = [...document.querySelectorAll('input[type=radio]')];
@@ -710,7 +710,7 @@ def _select_sms_channel_or_raise(driver) -> None:
     return true;
     """)
     if selected:
-        logger.info("[Codex][Browser] 已选择 SMS 短信通道")
+        logger.info("[Codex][Browser] đã chọn SMS kênh SMS")
 
 
 def _is_phone_code_state(state: dict) -> bool:
@@ -796,7 +796,7 @@ def _ensure_add_phone_input(driver, *, reason: str = ""):
 
     current = str(getattr(driver, "current_url", "") or "")
     if "email-verification" in current.lower():
-        logger.info("[Codex][Browser] 当前仍在 email-verification，先等待授权流程自动跳转，避免 invalid_auth_step")
+        logger.info("[Codex][Browser] hiện vẫn ở email-verification, chờ luồng uỷ quyền tự chuyển trước, tránh invalid_auth_step")
         _wait_after_email_otp_submit(driver, timeout=45)
         if _has_strict_add_phone_form(driver):
             return _find_any(driver, _PHONE_INPUT_SELECTORS, timeout=2)
@@ -804,7 +804,7 @@ def _ensure_add_phone_input(driver, *, reason: str = ""):
 
     target = _auth_origin(driver).rstrip("/") + "/add-phone"
     logger.info(
-        "[Codex][Browser] 当前不在手机号输入页，准备重新打开 add-phone 后换号：reason=%s url=%s target=%s",
+        "[Codex][Browser] hiện không ở trang nhập SĐT, chuẩn bị mở lại add-phone sau đó đổi số: reason=%s url=%s target=%s",
         reason or "retry", current, target,
     )
     try:
@@ -813,14 +813,14 @@ def _ensure_add_phone_input(driver, *, reason: str = ""):
         return _find_any(driver, _PHONE_INPUT_SELECTORS, timeout=10)
     except Exception as first_exc:
         # 某些流程不允许直接打开 /add-phone，尝试浏览器返回到上一页。
-        logger.info("[Codex][Browser] 直接打开 add-phone 未拿到输入框，尝试 history back：%s", str(first_exc)[:160])
+        logger.info("[Codex][Browser] Mở thẳng add-phone Chưa lấy được ô nhập, Thử history back: %s", str(first_exc)[:160])
         try:
             driver.back()
             human_delay("navigate")
             return _find_any(driver, _PHONE_INPUT_SELECTORS, timeout=8)
         except Exception as back_exc:
             raise RuntimeError(
-                f"无法回到手机号输入页以重新换号: direct={type(first_exc).__name__}: {first_exc}; "
+                f"Không thể quay lại trang nhập số điện thoại để đổi số lại: direct={type(first_exc).__name__}: {first_exc}; "
                 f"back={type(back_exc).__name__}: {back_exc}; state={_phone_page_state(driver)}"
             )
 
@@ -835,7 +835,7 @@ def _set_phone_value(driver, phone: str, *, timeout: int = 10) -> dict:
     - 触发 input/change 并 blur，让 React/React-Aria 完成校验。
     """
     if not _has_strict_add_phone_form(driver):
-        raise RuntimeError(f"当前不是 add-phone 手机号输入页，不能填写手机号: state={_phone_page_state(driver)}")
+        raise RuntimeError(f"hiện không phải add-phone trang nhập SĐT, không điền được SĐT: state={_phone_page_state(driver)}")
     result = driver.execute_script(r"""
     const rawPhone = String(arguments[0] || '').trim();
     const e164 = rawPhone.startsWith('+') ? rawPhone : ('+' + rawPhone.replace(/\D+/g, ''));
@@ -926,7 +926,7 @@ def _set_phone_value(driver, phone: str, *, timeout: int = 10) -> dict:
     };
     """, phone)
     if not result or not result.get("ok"):
-        raise RuntimeError(f"手机号写入失败 result={result} state={_phone_page_state(driver)}")
+        raise RuntimeError(f"ghi SĐT thất bại result={result} state={_phone_page_state(driver)}")
     actual = str(result.get("actualVisible") or "").strip()
     visible_value = str(result.get("visibleValue") or "").strip()
     hidden_value = str(result.get("hiddenValue") or "").strip()
@@ -939,13 +939,13 @@ def _set_phone_value(driver, phone: str, *, timeout: int = 10) -> dict:
     hidden_digits = ''.join(ch for ch in hidden_value if ch.isdigit())
     expected_visible_ok = bool(actual_digits) and (actual_digits == visible_digits or actual_digits == e164_digits)
     if not expected_visible_ok:
-        raise RuntimeError(f"手机号可见输入框校验失败 expected_digits={visible_digits or e164_digits} actual={actual} result={result} state={_phone_page_state(driver)}")
+        raise RuntimeError(f"kiểm tra ô nhập SĐT hiển thị thất bại expected_digits={visible_digits or e164_digits} actual={actual} result={result} state={_phone_page_state(driver)}")
     if hidden_value and hidden_digits != e164_digits:
-        raise RuntimeError(f"手机号隐藏字段校验失败 expected={e164} actual={hidden_value} result={result} state={_phone_page_state(driver)}")
+        raise RuntimeError(f"kiểm tra trường ẩn SĐT thất bại expected={e164} actual={hidden_value} result={result} state={_phone_page_state(driver)}")
     return result
 
 
-def _blur_active_input_and_wait(driver, *, label: str = "输入完成") -> None:
+def _blur_active_input_and_wait(driver, *, label: str = "nhập xong") -> None:
     """输入手机号后移开焦点，并给前端校验/格式化留处理时间。"""
     try:
         driver.execute_script(r"""
@@ -957,7 +957,7 @@ def _blur_active_input_and_wait(driver, *, label: str = "输入完成") -> None:
     except Exception:
         pass
     seconds = random.uniform(1.8, 3.2)
-    logger.info("[Codex][Browser] %s，已移开焦点，等待页面处理 %.1f 秒", label, seconds)
+    logger.info("[Codex][Browser] %s, đã rời focus, chờ trang xử lý %.1f giây", label, seconds)
     time.sleep(seconds)
 
 
@@ -981,21 +981,21 @@ def _verify_add_phone_value_before_submit(driver, expected_e164: str) -> dict:
     return {ok, visibleValue, hiddenValue, expected, visibleDigits, hiddenDigits, expectedDigits, url: location.href};
     """, expected_e164)
     if not result or not result.get("ok"):
-        raise RuntimeError(f"手机号提交前校验失败 result={result} state={_phone_page_state(driver)}")
+        raise RuntimeError(f"kiểm tra SĐT trước khi gửi thất bại result={result} state={_phone_page_state(driver)}")
     return result
 
 
 def _wait_page_settle_after_submit() -> None:
     """点击提交后先等待页面处理，再检查发送状态。"""
     seconds = random.uniform(2.0, 4.0)
-    logger.info("[Codex][Browser] 已点击提交，等待页面发送/跳转处理 %.1f 秒后检查状态", seconds)
+    logger.info("[Codex][Browser] đã nhấp gửi, chờ trang gửi/xử lý chuyển hướng %.1f giây sau kiểm tra trạng thái", seconds)
     time.sleep(seconds)
 
 
 def _refresh_add_phone_for_retry(driver, *, reason: str = "") -> None:
     """发送失败/换号前刷新手机号页，避免旧错误状态和旧号码残留。"""
     try:
-        logger.info("[Codex][Browser] 发送失败/准备换号，刷新手机号页面：%s", reason or "retry")
+        logger.info("[Codex][Browser] gửi thất bại/chuẩn bị đổi SĐT, tải lại trang SĐT: %s", reason or "retry")
         driver.refresh()
         human_delay("navigate")
         try:
@@ -1005,12 +1005,12 @@ def _refresh_add_phone_for_retry(driver, *, reason: str = "") -> None:
             pass
         # 如果刷新后仍不在输入页，强制回 add-phone。
         target = _auth_origin(driver).rstrip("/") + "/add-phone"
-        logger.info("[Codex][Browser] 刷新后未找到手机号输入框，重新打开：%s", target)
+        logger.info("[Codex][Browser] sau khi tải lại không thấy ô nhập SĐT, mở lại: %s", target)
         driver.get(target)
         human_delay("navigate")
         _find_any(driver, _PHONE_INPUT_SELECTORS, timeout=8)
     except Exception as exc:
-        logger.info("[Codex][Browser] 刷新手机号页失败，下一轮会再次尝试回到 add-phone：%s", str(exc)[:180])
+        logger.info("[Codex][Browser] Làm mới trang số điện thoại thất bại, Vòng sau sẽ thử quay lại lần nữa add-phone: %s", str(exc)[:180])
 
 
 def _click_add_phone_continue_button(driver, *, timeout: int = 10) -> dict:
@@ -1072,7 +1072,7 @@ def _click_add_phone_continue_button(driver, *, timeout: int = 10) -> dict:
         except Exception as exc:
             last = exc
         time.sleep(0.25)
-    raise RuntimeError(f"submit_missing: add-phone Continue/続行 submit button not found last={last} state={_phone_page_state(driver)}")
+    raise RuntimeError(f"submit_missing: add-phone Continue/tiếp tục submit button not found last={last} state={_phone_page_state(driver)}")
 
 
 def _force_submit_add_phone_form(driver) -> dict:
@@ -1119,13 +1119,13 @@ def _wait_after_phone_send(driver, timeout: int = 12) -> str:
             # Cloak/React-Aria 场景下 btn.click 可能只聚焦没触发表单提交；补一次 requestSubmit。
             if not force_submitted and time.time() > end - timeout + 3:
                 info = _force_submit_add_phone_form(driver)
-                logger.info("[Codex][Browser] add-phone 点击后仍停留本页，补执行 form.requestSubmit：%s", info)
+                logger.info("[Codex][Browser] add-phone sau khi bấm vẫn ở trang này, thực thi bù form.requestSubmit: %s", info)
                 force_submitted = True
                 time.sleep(2)
     if _is_phone_code_state(last) or _is_phone_code_page(driver):
         return 'code_page'
     if _is_add_phone_page(driver):
-        raise RuntimeError(f"send_not_accepted: 提交后仍停留在 add-phone state={last}")
+        raise RuntimeError(f"send_not_accepted: sau khi gửi vẫn dừng ở add-phone state={last}")
     return 'unknown'
 
 
@@ -1203,7 +1203,7 @@ def _sleep_before_phone_retry(attempt: int, max_retries: int, *, prefix: str = "
     if attempt >= max_retries:
         return
     seconds = random.uniform(3.0, 8.0)
-    logger.info("%s 换号前随机等待 %.1f 秒", prefix, seconds)
+    logger.info("%s chờ ngẫu nhiên trước khi đổi số %.1f giây", prefix, seconds)
     time.sleep(seconds)
 
 
@@ -1224,7 +1224,7 @@ def _do_phone_verification_if_present(driver) -> None:
             if not (_has_strict_add_phone_form(driver) or _is_phone_code_page(driver)):
                 raise RuntimeError("not_phone_flow")
         except Exception:
-            logger.info("[Codex][Browser] 未检测到手机号验证页，跳过手机步骤")
+            logger.info("[Codex][Browser] chưa phát hiện trang xác minh số điện thoại, bỏ qua bước điện thoại")
             return
 
         last_err = None
@@ -1232,50 +1232,50 @@ def _do_phone_verification_if_present(driver) -> None:
             activation_id = None
             try:
                 activation_id, phone = sms_provider.acquire_number(http)
-                logger.info("[Codex][Browser] 手机验证尝试 %s/%s，provider=%s，号码=+%s", attempt, max_retries, provider, phone)
-                logger.info("[Codex][Browser] 准备手机号输入页，重新设置新手机号")
+                logger.info("[Codex][Browser] lần thử xác minh điện thoại %s/%s, provider=%s, số=+%s", attempt, max_retries, provider, phone)
+                logger.info("[Codex][Browser] chuẩn bị trang nhập số điện thoại, đặt lại số điện thoại mới")
                 _ensure_add_phone_input(driver, reason=f"attempt-{attempt}")
                 phone_fill = _set_phone_value(driver, f"+{phone}", timeout=10)
                 logger.info(
-                    "[Codex][Browser] 已重新设置手机号：e164=%s visible=%s hidden=%s dialCode=%s country=%s",
+                    "[Codex][Browser] đã đặt lại số điện thoại: e164=%s visible=%s hidden=%s dialCode=%s country=%s",
                     phone_fill.get("e164"), phone_fill.get("actualVisible"), phone_fill.get("hiddenValue") or "-",
                     phone_fill.get("dialCode") or "-", (str(phone_fill.get("selectedText") or "-") + (" [changed]" if phone_fill.get("selectedChanged") else "")),
                 )
-                _blur_active_input_and_wait(driver, label="手机号输入完成")
+                _blur_active_input_and_wait(driver, label="Đã nhập xong số điện thoại")
                 phone_verify = _verify_add_phone_value_before_submit(driver, str(phone_fill.get("e164") or f"+{phone}"))
-                logger.info("[Codex][Browser] 手机号提交前校验通过：visible=%s hidden=%s", phone_verify.get("visibleValue"), phone_verify.get("hiddenValue") or "-")
-                logger.info("[Codex][Browser] 检查并选择 SMS 短信通道")
+                logger.info("[Codex][Browser] số điện thoại qua kiểm tra trước khi gửi: visible=%s hidden=%s", phone_verify.get("visibleValue"), phone_verify.get("hiddenValue") or "-")
+                logger.info("[Codex][Browser] kiểm tra và chọn SMS kênh SMS")
                 _select_sms_channel_or_raise(driver)
-                _blur_active_input_and_wait(driver, label="短信通道确认完成")
+                _blur_active_input_and_wait(driver, label="Đã xác nhận xong kênh SMS")
                 submit_info = _click_add_phone_continue_button(driver, timeout=10)
-                logger.info("[Codex][Browser] 已点击手机号 Continue/続行 按钮：%s，等待进入短信验证码页", submit_info)
+                logger.info("[Codex][Browser] đã bấm số điện thoại Continue/tiếp tục Nút: %s, chờ vào trang mã OTP SMS", submit_info)
                 _wait_page_settle_after_submit()
 
                 # 等待页面进入 phone-verification；若号码无效/无法发送/WhatsApp 通道，立即换号。
                 _wait_after_phone_send(driver, timeout=15)
-                logger.info("[Codex][Browser] 已进入手机验证码页")
+                logger.info("[Codex][Browser] đã vào trang mã OTP điện thoại")
 
                 sms_provider.set_status(activation_id, 1, http=http)
                 logger.info(
-                    "[Codex][Browser] 短信已发送，开始轮询验证码 activation_id=%s wait=%ss interval=%ss",
+                    "[Codex][Browser] đã gửi SMS, bắt đầu polling mã OTP activation_id=%s wait=%ss interval=%ss",
                     activation_id, sms_provider._cfg.SMS_CODE_WAIT, sms_provider._cfg.SMS_POLL_INTERVAL
                 )
                 sms_code = sms_provider.wait_for_sms_code(activation_id, http)
-                logger.info("[Codex][Browser] 手机 OTP 收到：%s", sms_code)
+                logger.info("[Codex][Browser] điện thoại OTP đã nhận: %s", sms_code)
                 _type_otp(driver, sms_code)
-                logger.info("[Codex][Browser] 已填写手机 OTP")
+                logger.info("[Codex][Browser] đã điền số điện thoại OTP")
                 human_delay("otp_input")
                 if not _click_if_present(driver, ["button[type='submit']", "input[type='submit']"], timeout=10):
                     raise RuntimeError(f"verify_submit_missing: phone verification submit not found state={_phone_page_state(driver)}")
-                logger.info("[Codex][Browser] 已提交手机 OTP，等待验证结果")
+                logger.info("[Codex][Browser] đã gửi số điện thoại OTP, chờ kết quả xác minh")
                 otp_outcome = _wait_after_phone_otp_submit(driver, timeout=25)
-                logger.info("[Codex][Browser] 手机 OTP 提交后状态：%s", otp_outcome)
+                logger.info("[Codex][Browser] điện thoại OTP trạng thái sau khi gửi: %s", otp_outcome)
                 sms_provider.complete(activation_id, http)
                 return
             except Exception as exc:
                 last_err = exc
                 err_text = str(exc) or ""
-                logger.warning("[Codex][Browser] 手机验证尝试失败，换号：%s", err_text[:240])
+                logger.warning("[Codex][Browser] Thử xác minh điện thoại thất bại, Đổi số: %s", err_text[:240])
                 if activation_id:
                     try:
                         sms_provider.cancel(activation_id, http)
@@ -1288,30 +1288,30 @@ def _do_phone_verification_if_present(driver) -> None:
                     "暂无可用号码", "没有可用号码", "insufficient", "not enough balance",
                 )):
                     raise RuntimeError(
-                        f"接码平台余额不足或无可用号码，已停止换号止损：{err_text[:180]}"
+                        f"Nền tảng nhận mã hết số dư hoặc không có số khả dụng, Đã dừng đổi số để cắt lỗ: {err_text[:180]}"
                     ) from exc
                 if "invalid_auth_step" in str(exc):
                     raise RuntimeError(
-                        "手机号流程进入 invalid_auth_step，说明授权状态还未从 email-verification 正常跳转或已失效；"
-                        "已停止继续换号，避免继续消耗号码"
+                        "Luồng số điện thoại vào invalid_auth_step: trạng thái uỷ quyền chưa nhảy đúng từ email-verification hoặc đã hết hiệu lực; "
+                        "đã dừng đổi số để tránh tiêu hao số"
                     ) from exc
                 # 如果已经离开手机号/验证码相关页面，认为通过或不再需要；
                 # 如果仍在 phone-verification，则下一轮必须回 add-phone 重新填新号码再提交。
                 try:
                     if _is_phone_code_page(driver):
-                        logger.info("[Codex][Browser] 当前仍在手机验证码页，下一轮将返回 add-phone 重新设置新号码")
+                        logger.info("[Codex][Browser] Hiện vẫn ở trang mã OTP điện thoại, Vòng sau sẽ quay lại add-phone Đặt lại số mới")
                     else:
                         _find_any(driver, _PHONE_INPUT_SELECTORS, timeout=2)
                 except Exception:
                     if _is_add_phone_page(driver) or _is_phone_code_page(driver):
-                        logger.info("[Codex][Browser] 仍处于手机号流程，继续换号重试")
+                        logger.info("[Codex][Browser] Vẫn đang trong luồng số điện thoại, Tiếp tục đổi số thử lại")
                     else:
-                        logger.info("[Codex][Browser] 手机输入页已消失，继续后续流程")
+                        logger.info("[Codex][Browser] Trang nhập số điện thoại đã biến mất, tiếp tục quy trình sau")
                         return
                 if attempt < max_retries:
                     _refresh_add_phone_for_retry(driver, reason=str(exc)[:120])
                 _sleep_before_phone_retry(attempt, max_retries)
-        raise RuntimeError(f"Roxy 手机验证重试 {max_retries} 次仍失败，最后错误：{last_err}")
+        raise RuntimeError(f"Roxy thử lại xác minh SĐT {max_retries} lần vẫn thất bại, Lỗi cuối: {last_err}")
     finally:
         try:
             http.close()
@@ -1353,36 +1353,36 @@ def clear_roxy_browser_auth_state(driver) -> None:
         "https://openai.com",
         "https://platform.openai.com",
     ]
-    logger.info("[Codex][Browser] 复用注册窗口：开始清理 Cookie / localStorage / sessionStorage / cache")
+    logger.info("[Codex][Browser] tái dùng cửa sổ đăng ký: bắt đầu dọn Cookie / localStorage / sessionStorage / cache")
     try:
         driver.execute_cdp_cmd("Network.enable", {})
     except Exception:
         pass
     try:
         driver.execute_cdp_cmd("Network.clearBrowserCookies", {})
-        logger.info("[Codex][Browser] 已清理浏览器 Cookie")
+        logger.info("[Codex][Browser] Đã dọn trình duyệt Cookie")
     except Exception as exc:
-        logger.info("[Codex][Browser] 清理 Cookie 失败，继续尝试其它缓存：%s", str(exc)[:160])
+        logger.info("[Codex][Browser] Dọn Cookie Thất bại, Tiếp tục thử cache khác: %s", str(exc)[:160])
     try:
         driver.execute_cdp_cmd("Network.clearBrowserCache", {})
-        logger.info("[Codex][Browser] 已清理浏览器 Cache")
+        logger.info("[Codex][Browser] Đã dọn trình duyệt Cache")
     except Exception as exc:
-        logger.info("[Codex][Browser] 清理 Cache 失败，继续：%s", str(exc)[:160])
+        logger.info("[Codex][Browser] Dọn Cache Thất bại, Tiếp tục: %s", str(exc)[:160])
     for origin in origins:
         try:
             driver.execute_cdp_cmd("Storage.clearDataForOrigin", {
                 "origin": origin,
                 "storageTypes": "all",
             })
-            logger.info("[Codex][Browser] 已清理站点数据：%s", origin)
+            logger.info("[Codex][Browser] Đã dọn dữ liệu site: %s", origin)
         except Exception as exc:
-            logger.debug("[Codex][Browser] 清理站点数据失败 %s: %s", origin, exc)
+            logger.debug("[Codex][Browser] xóa dữ liệu site thất bại %s: %s", origin, exc)
     try:
         driver.get("about:blank")
     except Exception:
         pass
     time.sleep(1.0)
-    logger.info("[Codex][Browser] 注册窗口登录态清理完成，准备开始 Codex 授权")
+    logger.info("[Codex][Browser] dọn xong session đăng nhập cửa sổ đăng ký, chuẩn bị bắt đầu Codex uỷ quyền")
 
 def _run_roxy_codex_oauth_once(
     email: str,
@@ -1404,7 +1404,7 @@ def _run_roxy_codex_oauth_once(
     if not force and not proto._cfg.ENABLE_CODEX_AUTO:
         return proto._codex_result(status="skipped", message="ENABLE_CODEX_AUTO=False")
     if not email:
-        return proto._codex_result(status="skipped", message="email 为空")
+        return proto._codex_result(status="skipped", message="email trống")
     if otp_provider is None:
         otp_provider = wait_for_otp
 
@@ -1420,36 +1420,36 @@ def _run_roxy_codex_oauth_once(
             cpa_auth = proto._request_cpa_authorize_url()
             state = cpa_auth["state"]
             auth_url = cpa_auth["auth_url"]
-            logger.info("[Codex][Browser] 当前使用 CPA 授权地址: %s", auth_url)
+            logger.info("[Codex][Browser] Đang dùng CPA Địa chỉ uỷ quyền: %s", auth_url)
         elif auth_source == "sub2":
             sub2_auth = proto._request_sub2_authorize_url()
             state = sub2_auth["state"]
             auth_url = sub2_auth["auth_url"]
-            logger.info("[Codex][Browser] 当前使用 sub2 授权地址: %s", auth_url)
+            logger.info("[Codex][Browser] Đang dùng sub2 Địa chỉ uỷ quyền: %s", auth_url)
         elif auth_source == "local":
             code_verifier, code_challenge = proto._generate_pkce()
             state = proto._generate_state()
             auth_url = proto._build_authorize_url(state, code_challenge, prompt="login")
-            logger.info("[Codex][Browser] 当前使用本地 PKCE 授权地址: %s", auth_url)
+            logger.info("[Codex][Browser] Hiện đang dùng local PKCE Địa chỉ uỷ quyền: %s", auth_url)
         else:
-            raise RuntimeError(f"[Codex][Browser] 不支持的 CODEX_AUTH_URL_SOURCE={auth_source!r}")
+            raise RuntimeError(f"[Codex][Browser] Không hỗ trợ CODEX_AUTH_URL_SOURCE={auth_source!r}")
 
         if not driver:
             driver = _build_driver(opened)
             _center_browser_window(driver)
         driver.set_page_load_timeout(int(_roxy_cfg.ROXY_SELENIUM_TIMEOUT))
-        logger.info("[Codex][Browser] 开始授权：%s，profile=%s，reuse_existing_profile=%s", email, opened.profile_id, reuse_existing_profile)
+        logger.info("[Codex][Browser] Bắt đầu uỷ quyền: %s, profile=%s, reuse_existing_profile=%s", email, opened.profile_id, reuse_existing_profile)
         if reuse_existing_profile and clear_existing_state:
             clear_roxy_browser_auth_state(driver)
 
         _fill_email_and_otp(driver, email, otp_provider, auth_url)
         human_delay("api")
-        logger.info("[Codex][Browser] 检查是否需要手机号验证")
+        logger.info("[Codex][Browser] Kiểm tra có cần xác minh số điện thoại không")
         _do_phone_verification_if_present(driver)
-        logger.info("[Codex][Browser] 手机验证处理完成/无需处理，等待授权确认和 callback")
+        logger.info("[Codex][Browser] Đã xử lý xong xác minh điện thoại/Không cần xử lý, Chờ xác nhận uỷ quyền và callback")
         callback_url = _finish_consent_workspace(driver)
         code = proto._extract_code(callback_url, state)
-        logger.info("[Codex][Browser] 已捕获 callback code：%s...", code[:24])
+        logger.info("[Codex][Browser] Đã bắt được callback code: %s...", code[:24])
 
         if auth_source == "cpa":
             submit_payload = proto._submit_cpa_callback(callback_url)
@@ -1494,7 +1494,7 @@ def _run_roxy_codex_oauth_once(
             )
 
         if not code_verifier:
-            raise RuntimeError("[Codex][Browser] local 模式缺少 code_verifier")
+            raise RuntimeError("[Codex][Browser] local Thiếu chế độ code_verifier")
         session = proto.BrowserSession(proxy=proxy, fingerprint_seed=f"account:{email.lower()}")
         token_resp = proto.exchange_codex_token(session, code, code_verifier)
         id_claims = proto._parse_id_token(token_resp.get("id_token", ""))
@@ -1510,15 +1510,15 @@ def _run_roxy_codex_oauth_once(
             message=f"{_codex_driver_name()} plan={id_claims.get('plan_type') or 'unknown'}",
         )
     except AccountUnusableError as exc:
-        logger.warning("[Codex][Browser] 账号已废：%s，%s", email, exc.error_code)
+        logger.warning("[Codex][Browser] Tài khoản đã chết: %s, %s", email, exc.error_code)
         return proto._codex_result(
             status="deactivated",
             email=email,
-            message=f"账号已废（{exc.error_code or 'account_deactivated'}）",
+            message=f"Tài khoản đã chết ({exc.error_code or 'account_deactivated'}）",
         )
     except Exception as exc:
-        logger.warning("[Codex][Browser] 失败：%s，%s: %s", email, type(exc).__name__, str(exc)[:240])
-        logger.debug("[Codex][Browser] 失败详情", exc_info=True)
+        logger.warning("[Codex][Browser] Thất bại: %s, %s: %s", email, type(exc).__name__, str(exc)[:240])
+        logger.debug("[Codex][Browser] Chi tiết thất bại", exc_info=True)
         return proto._codex_result(status="failed", email=email, message=f"{type(exc).__name__}: {str(exc)[:220]}")
     finally:
         # 注册后复用窗口时，driver/profile 生命周期由注册流程统一清理，
@@ -1554,7 +1554,7 @@ def run_roxy_codex_oauth(
     for round_no in range(1, max_rounds + 1):
         if round_no > 1:
             logger.warning(
-                "[Codex][Browser] CPA callback 返回 Timeout waiting for OAuth callback，重新开启第 %s/%s 轮 Codex 授权：%s",
+                "[Codex][Browser] CPA callback trả về Timeout waiting for OAuth callback, bắt đầu lại lần thứ %s/%s vòng Codex uỷ quyền: %s",
                 round_no, max_rounds, email,
             )
         result = _run_roxy_codex_oauth_once(
@@ -1575,6 +1575,6 @@ def run_roxy_codex_oauth(
             return result
     if last_result:
         last_result = dict(last_result)
-        last_result["message"] = f"CPA callback 超时，已重新授权 {max_rounds} 轮仍失败：{last_result.get('message') or ''}"
+        last_result["message"] = f"CPA callback quá thời gian, đã uỷ quyền lại {max_rounds} vòng vẫn thất bại: {last_result.get('message') or ''}"
         return last_result
-    return proto._codex_result(status="failed", email=email, message="CPA callback 超时，重新授权失败")
+    return proto._codex_result(status="failed", email=email, message="CPA callback quá thời gian, Uỷ quyền lại thất bại")
