@@ -1,73 +1,73 @@
 # -*- coding: utf-8 -*-
 """
-Browser Use Cloud 配置。
+Cấu hình Browser Use Cloud.
 
-文档：
+Tài liệu:
 - https://docs.browser-use.com/cloud/browser/stealth
 - https://docs.browser-use.com/cloud/browser/playwright-puppeteer-selenium
 
-用法：
-  1. 在 config/roxybrowser.py 设置 REGISTRATION_DRIVER = "browser_use"
-  2. 在 .env 填入 BROWSER_USE_API_KEY（也可用 WebUI 密钥字段写入 .env）
-  3. 推荐先关 Codex：ENABLE_CODEX_AUTO = False
+Cách dùng:
+  1. Trong config/roxybrowser.py đặt REGISTRATION_DRIVER = "browser_use"
+  2. Điền BROWSER_USE_API_KEY trong .env (cũng ghi được qua field khoá WebUI)
+  3. Nên tắt Codex trước: ENABLE_CODEX_AUTO = False
 """
 from config.env_loader import env_str, apply_env_overrides
 
-# Browser Use API Key（Cloud Dashboard 创建；优先读 .env / 环境变量）
+# Browser Use API Key (tạo ở Cloud Dashboard; ưu tiên đọc .env / biến môi trường)
 BROWSER_USE_API_KEY: str = env_str("BROWSER_USE_API_KEY", "")
 
-# 连接方式：
-#   "cdp_url" = 直接用官方 CDP websocket（推荐，最简单）
-#   "sdk"     = 先调 REST 创建 session（预留；默认仍走 cdp_url）
+# Cách kết nối:
+#   "cdp_url" = dùng thẳng CDP websocket chính thức (nên dùng, đơn giản nhất)
+#   "sdk"     = gọi REST tạo session trước (dự phòng; mặc định vẫn cdp_url)
 BROWSER_USE_CONNECT_MODE: str = "cdp_url"
 
-# CDP 连接地址模板。{api_key}/{proxy_country_code}/{profile_id} 会按需替换或追加 query。
+# Template địa chỉ kết nối CDP. {api_key}/{proxy_country_code}/{profile_id} được thay hoặc nối query khi cần.
 BROWSER_USE_CDP_BASE: str = "wss://connect.browser-use.com"
 
-# 可选 REST API 根地址（以后若改走显式 create/stop session 用）
+# Gốc REST API tuỳ chọn (dùng sau nếu chuyển sang create/stop session tường minh)
 BROWSER_USE_API_BASE: str = "https://api.browser-use.com/api/v2"
 
-# 代理国家代码，两位小写，例如 jp / us / sg / de；留空则用 Browser Use 默认出口
+# Mã quốc gia proxy, 2 chữ thường, ví dụ jp / us / sg / de; để trống thì dùng đầu ra mặc định Browser Use
 BROWSER_USE_PROXY_COUNTRY_CODE: str = "jp"
 
-# 是否使用 Browser Use 内置代理。False 时尽量不强制 cloud proxy（仍取决于服务端默认）
+# Có dùng proxy tích hợp Browser Use không. False thì cố không ép cloud proxy (vẫn phụ thuộc mặc định server)
 BROWSER_USE_USE_PROXY: bool = True
 
-# 可选：固定 Browser Use profileId，用于复用 cookies/localStorage。
-# 个人批量注册建议留空，让每次新会话更干净。
+# Tuỳ chọn: cố định profileId Browser Use để tái dùng cookies/localStorage.
+# Đăng ký hàng loạt cá nhân nên để trống, mỗi phiên mới sạch hơn.
 BROWSER_USE_PROFILE_ID: str = ""
 
-# Playwright / 页面超时
+# Timeout Playwright / trang
 BROWSER_USE_TIMEOUT: int = 90
 BROWSER_USE_NAVIGATION_TIMEOUT: int = 90
 
-# Browser Use 云端浏览器 keepAlive / 会话存活时间（分钟）。
-# 这会作为 connect URL 的 timeout 参数传给 Browser Use，用于让远端浏览器在等待 OTP、短信、callback 时保持活跃。
-# Browser Use 当前 timeout 单位是分钟，官方上限通常为 240；代码里会 clamp 到 1~240。
+# keepAlive / thời gian sống phiên trình duyệt cloud Browser Use (phút).
+# Truyền làm tham số timeout của connect URL, để trình duyệt remote còn sống khi chờ OTP, SMS, callback.
+# Timeout Browser Use hiện tính bằng phút, trần chính thức thường 240; code clamp về 1~240.
 BROWSER_USE_SESSION_TIMEOUT: int = 240
 
-# 快速模式：减少 Browser Use 流程里额外 human_delay 和长等待；默认开启。
+# Chế độ nhanh: giảm human_delay thêm và chờ dài trong luồng Browser Use; mặc định bật.
 BROWSER_USE_FAST_MODE: bool = True
 
-# 阶段耗时日志：打印 connect/goto/email/otp/phone/callback 等步骤耗时，方便定位慢点。
+# Log thời gian pha: in thời gian connect/goto/email/otp/phone/callback, để tìm chỗ chậm.
 BROWSER_USE_LOG_TIMING: bool = True
 
-# 资料页最大处理时间；超时后不再卡住，直接尝试读取 /api/auth/session 的 accessToken。
+# Thời gian xử lý tối đa trang hồ sơ; quá hạn không kẹt nữa, thử đọc accessToken từ /api/auth/session.
 BROWSER_USE_PROFILE_TIMEOUT: int = 28
 SKYVERN_PROFILE_TIMEOUT: int = 45
 
-# 资料页结束/超时后读取 accessToken 的最大等待时间；取不到则任务失败。
+# Thời gian chờ tối đa đọc accessToken sau khi trang hồ sơ xong/timeout; không lấy được thì tác vụ thất bại.
 BROWSER_USE_SESSION_ACCESS_TOKEN_TIMEOUT: int = 18
 SKYVERN_SESSION_ACCESS_TOKEN_TIMEOUT: int = 35
 
-# 任务结束后是否主动断开 CDP
+# Sau tác vụ có chủ động ngắt CDP không
 BROWSER_USE_KEEP_BROWSER_OPEN: bool = False
 
-# 额外 CDP query 参数，会合并到 connect URL；同名字段会覆盖上面的 BROWSER_USE_SESSION_TIMEOUT。
-# 例：{"timeout": "120"}  # 单位分钟
+# Tham số query CDP thêm, gộp vào connect URL; field trùng tên ghi đè BROWSER_USE_SESSION_TIMEOUT phía trên.
+# Ví dụ: {"timeout": "120"}  # đơn vị phút
 BROWSER_USE_EXTRA_QUERY: dict = {}
 
-# 打开的起始注册页
+# Trang đăng ký mở đầu
 BROWSER_USE_START_URL: str = "https://chatgpt.com/auth/login"
 
 # ---- .env overrides for WebUI editable fields ----

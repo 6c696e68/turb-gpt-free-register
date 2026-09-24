@@ -1,14 +1,14 @@
 # -*- coding: utf-8 -*-
 """
-OpenAI / ChatGPT OAuth 协议固定参数
+Tham số cố định giao thức OAuth OpenAI / ChatGPT
 
-来自抓包，OpenAI 自己的 client_id 是固定值。
-SENTINEL_SV 是 sdk.js 的版本号，会随 OpenAI 更新而变化，
-更新时去 https://sentinel.openai.com/sentinel/<version>/sdk.js 找当前版本。
+Từ bắt gói: client_id của OpenAI là giá trị cố định.
+SENTINEL_SV là phiên bản sdk.js, đổi theo bản OpenAI cập nhật.
+Khi cập nhật, xem bản hiện tại tại https://sentinel.openai.com/sentinel/<version>/sdk.js.
 """
 from config.env_loader import apply_env_overrides
 
-# OAuth 客户端 ID（固定）
+# OAuth client ID (cố định)
 OPENAI_CLIENT_ID = "app_X8zY6vW2pQ9tR3dE7nK1jL5gH"
 
 # OAuth scopes
@@ -21,41 +21,41 @@ OPENAI_SCOPE = (
 # OAuth audience
 OPENAI_AUDIENCE = "https://api.openai.com/v1"
 
-# OAuth 回调（chatgpt.com 端）
+# Callback OAuth (phía chatgpt.com)
 OPENAI_REDIRECT_URI = "https://chatgpt.com/api/auth/callback/openai"
 
-# Sentinel SDK 版本号（影响 sentinel iframe URL 与 referer header）
+# Phiên bản Sentinel SDK (ảnh hưởng URL iframe sentinel và header referer)
 SENTINEL_SV = "20260810913b"
 
-# ChatGPT 页面 build 标识（用于 Sentinel p[6] / documentElement data-build 模拟）
+# Định danh build trang ChatGPT (dùng giả lập Sentinel p[6] / documentElement data-build)
 OPENAI_BUILD_ID = "prod-d4e40d432de549a66bf9feb61d43c262b258386f"
 
-# ChatGPT 前端 CES / API 上报头，来自 2026-07-19 抓包。
+# Header báo cáo CES / API frontend ChatGPT, từ bắt gói 2026-07-19.
 OAI_CLIENT_BUILD_NUMBER = "10762726"
 OAI_CLIENT_VERSION = OPENAI_BUILD_ID
 
-# Statsig / Analytics SDK 版本，纯协议补齐前端同形态链路时使用。
+# Phiên bản Statsig / Analytics SDK, dùng khi giao thức thuần bổ sung chuỗi cùng dạng frontend.
 STATSIG_CLIENT_KEY = "client-nb0qtYlZuy2tCMN5s5ncnuIBCJncjRViT0IzFm7GqST"
 STATSIG_SDK_VERSION = "3.33.1"
 STATSIG_SDK_TYPE = "javascript-client"
 AB_CLIENT_KEY = "client-tN5GMyzpIPKXd3KNv7ANIfiqjRSvNNTTWbZdbdabF58"
 AB_SDK_VERSION = "3.32.7"
 
-# 2026-09-14 Roxy 成功样本中 email-otp/validate 同时携带 Sentinel 与 SO。
+# Mẫu Roxy thành công 2026-09-14: email-otp/validate mang cả Sentinel và SO.
 SEND_SENTINEL_ON_EMAIL_OTP_VALIDATE = True
 
-# 是否补齐 HAR 中 ChatGPT Web 首屏 bootstrap 预热链路。
+# Có bổ sung chuỗi warmup bootstrap màn đầu ChatGPT Web trong HAR không.
 CHATGPT_ANON_BOOTSTRAP_ENABLED = True
 CHATGPT_AUTH_BOOTSTRAP_ENABLED = True
-# True 时预热失败会中断主流程；默认 False，仅记录日志并继续。
+# True thì warmup thất bại cắt luồng chính; mặc định False, chỉ ghi log rồi tiếp tục.
 CHATGPT_BOOTSTRAP_STRICT = False
 
-# 纯协议注册遇到代理连接、TLS、超时、连接重置等临时网络故障时的重试配置。
-# 总尝试次数包含首次请求；退避间隔依次为 delay、delay*2、delay*4……
+# Cấu hình thử lại khi đăng ký giao thức gặp lỗi mạng tạm: kết nối proxy, TLS, timeout, reset.
+# Tổng số lần gồm request đầu; khoảng backoff lần lượt delay, delay*2, delay*4…
 OPENAI_PROXY_RETRY_MAX_ATTEMPTS = 3
 OPENAI_PROXY_RETRY_DELAY = 1.0
-# 登录页预检使用独立的短超时。代理端口可连接并不代表其上游 TLS 链路可用，
-# 避免失效节点按全局 30 秒超时长时间占住注册 worker。
+# Preflight trang đăng nhập dùng timeout ngắn riêng. Cổng proxy kết nối được không có nghĩa TLS upstream sống,
+# tránh node chết chiếm worker đăng ký theo timeout toàn cục 30 giây.
 OPENAI_PREFLIGHT_TIMEOUT = 12.0
 
 

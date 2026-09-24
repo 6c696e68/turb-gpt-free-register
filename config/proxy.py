@@ -1,13 +1,13 @@
 # -*- coding: utf-8 -*-
 """
-代理池配置
+Cấu hình kho proxy
 
-每次注册随机抽取一个代理，保证不同 sid 之间彼此独立，避免风控关联。
+Mỗi lần đăng ký rút ngẫu nhiên một proxy, các sid độc lập, giảm liên kết rủi ro.
 
-协议说明：
-    - http:// / https://   HTTP(S) 代理
-    - socks5://            SOCKS5（DNS 本地解析，可能泄漏）
-    - socks5h://           SOCKS5（DNS 在代理端解析，推荐，避免 DNS-IP 错配）
+Giao thức:
+    - http:// / https://   proxy HTTP(S)
+    - socks5://            SOCKS5 (DNS phân giải local, có thể lộ)
+    - socks5h://           SOCKS5 (DNS phân giải ở proxy, nên dùng, tránh lệch DNS-IP)
 """
 import random
 from urllib.parse import quote, urlparse
@@ -15,42 +15,42 @@ from urllib.parse import quote, urlparse
 from config.env_loader import apply_env_overrides
 
 
-# 本地代理入口；实际出口地区以代理/分流规则为准。
-# 推荐使用 socks5h://（DNS 在代理端解析），避免本地 DNS 与出口 IP 地区错配。
+# Cổng proxy local; vùng đầu ra thực tế theo rule proxy/chia tuyến.
+# Nên dùng socks5h:// (DNS phân giải ở proxy), tránh DNS local lệch vùng với IP đầu ra.
 PROXY_POOL = [
     "socks5://127.0.0.1:7897",
 ]
 
-# 代理池使用的本地上游代理。填写后形成：本地上游 -> 代理池目标代理 -> ChatGPT；
-# 留空则直接使用代理池中的目标代理，不启动链式中继。
+# Proxy upstream local của kho proxy. Điền thì thành: upstream local -> proxy đích trong kho -> ChatGPT;
+# để trống thì dùng thẳng proxy đích trong kho, không bật relay chuỗi.
 PROXY_POOL_UPSTREAM_PROXY = ""
 
-# 套餐/Plus 试用资格查询与 Codex Agent Token 生成共用这组独立网络策略，
-# 避免批量请求被注册代理池中的临时本地代理拖垮，也避免无条件直连造成出口策略失控。
-#   auto   = 优先使用 PLAN_CHECK_PROXY 或代理池；没有代理时才按 direct 运行
-#   proxy  = 强制使用 PLAN_CHECK_PROXY 或代理池，失败直接报错
-#   direct = 始终直连
+# Tra tư cách gói/dùng thử Plus và tạo Codex Agent Token dùng chung nhóm chính sách mạng này,
+# tránh request hàng loạt bị proxy local tạm trong kho đăng ký kéo sập, và tránh đi thẳng vô điều kiện làm mất kiểm soát đầu ra.
+#   auto   = ưu tiên PLAN_CHECK_PROXY hoặc kho proxy; không có proxy mới chạy direct
+#   proxy  = ép PLAN_CHECK_PROXY hoặc kho proxy, thất bại thì báo lỗi
+#   direct = luôn đi thẳng
 PLAN_CHECK_PROXY_MODE = "auto"
 
-# 套餐查询 / Codex Agent Token 生成专用代理。留空时 auto/proxy 模式从 PROXY_POOL 选择。
-# 代理可能包含账号密码，因此 WebUI 会把它保存到 .env。
+# Proxy riêng tra gói / tạo Codex Agent Token. auto/proxy để trống thì chọn từ PROXY_POOL.
+# Proxy có thể chứa tài khoản/mật khẩu, nên WebUI lưu vào .env.
 PLAN_CHECK_PROXY = []
 
-# 套餐查询 / Codex Agent Token 生成的上游代理。填写后形成：本地代理 -> 动态代理 -> ChatGPT。
-# 例如 http://127.0.0.1:7897；留空则直接连接 PLAN_CHECK_PROXY。
+# Proxy upstream cho tra gói / tạo Codex Agent Token. Điền thì thành: proxy local -> proxy động -> ChatGPT.
+# Ví dụ http://127.0.0.1:7897; để trống thì nối thẳng PLAN_CHECK_PROXY.
 PLAN_CHECK_UPSTREAM_PROXY = ""
 
-# 查套餐 / 生成 Codex Agent Token 使用独立的短超时和有限重试，避免后台任务长时间卡住。
+# Tra gói / tạo Codex Agent Token dùng timeout ngắn và số lần thử giới hạn riêng, tránh tác vụ nền kẹt lâu.
 PLAN_CHECK_TIMEOUT = 15.0
 PLAN_CHECK_MAX_ATTEMPTS = 3
 PLAN_CHECK_RETRY_DELAY = 2.0
 
-# 新注册账号的权益可能存在短暂同步延迟。首次查询失败，或返回 free 且暂未发现
-# Plus 试用资格时，等待该秒数后再复查一次；设为 0 可关闭复查。
+# Quyền lợi tài khoản mới đăng ký có thể trễ đồng bộ ngắn. Lần tra đầu thất bại, hoặc trả free và chưa thấy
+# tư cách dùng thử Plus, chờ số giây này rồi tra lại; 0 = tắt tra lại.
 PLAN_CHECK_REGISTRATION_RECHECK_DELAY = 2.0
 
-# 自动、手动和批量套餐查询共用同一个后台队列；Codex Agent Token 使用独立队列，
-# 但复用这里的网络模式、请求启动间隔与随机抖动，避免批量后台请求过于集中。
+# Tra gói tự động, thủ công và hàng loạt dùng chung một hàng đợi nền; Codex Agent Token dùng hàng đợi riêng,
+# nhưng tái dùng chế độ mạng, khoảng khởi động request và jitter ở đây, tránh request nền hàng loạt dồn cục.
 PLAN_CHECK_WORKERS = 3
 PLAN_CHECK_QUEUE_LIMIT = 500
 PLAN_CHECK_MIN_INTERVAL = 1.0
@@ -97,11 +97,11 @@ def normalize_proxy_list(values, default_scheme: str = "http") -> list[str]:
 
 
 def pick_proxy() -> str:
-    """从代理池中随机抽取一个代理 URL；池为空时返回空串（即不使用代理）。"""
+    """Rút ngẫu nhiên một URL proxy từ kho; kho trống thì trả chuỗi rỗng (không dùng proxy)."""
     return random.choice(PROXY_POOL) if PROXY_POOL else ""
 
 
-# 兼容入口：默认每次进程启动随机选一个，作为本次注册全程的固定代理
+# Cổng tương thích: mỗi lần tiến trình khởi động rút ngẫu nhiên một proxy, cố định suốt lần đăng ký đó
 PROXY = pick_proxy()
 
 # ---- .env overrides for WebUI editable fields ----

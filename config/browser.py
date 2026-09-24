@@ -1,14 +1,14 @@
 # -*- coding: utf-8 -*-
 """
-浏览器指纹与 HTTP 客户端配置。
+Cấu hình fingerprint trình duyệt và HTTP client.
 
-这里集中维护同一个“浏览器环境画像”，供三层同时使用：
-1. curl_cffi TLS / HTTP 头；
-2. Python 端生成 Sentinel 初始 p；
-3. Node VM 端运行 sdk.js。
+Giữ một "hồ sơ môi trường trình duyệt" dùng chung ba lớp:
+1. header TLS / HTTP của curl_cffi;
+2. Python sinh p ban đầu của Sentinel;
+3. Node VM chạy sdk.js.
 
-原则：同一 BrowserSession 内稳定，不同 BrowserSession 可自然分散；协议头、JS
-navigator/screen/timezone/client hints 不能互相打架。
+Nguyên tắc: ổn định trong một BrowserSession, phân tán tự nhiên giữa các session; header giao thức và JS
+navigator/screen/timezone/client hints không được mâu thuẫn nhau.
 """
 from __future__ import annotations
 
@@ -21,7 +21,7 @@ from zoneinfo import ZoneInfo
 
 
 def _latest_chrome_major(default: str = "146") -> str:
-    """兼容旧模块导入；必须与 curl_cffi 实际 TLS impersonate 版本一致。"""
+    """Tương thích import module cũ; phải khớp phiên bản TLS impersonate thực của curl_cffi."""
     return default
 
 
@@ -32,15 +32,15 @@ SAFARI_VERSION = ""
 SAFARI_WEBKIT_VERSION = "537.36"
 MAC_OS_UA_VERSION = "10_15_7"
 
-# ---------- curl_cffi 模拟浏览器 ----------
-# curl_cffi 0.15 当前最高内置到 chrome146。UA、Client Hints、JS navigator
-# 必须同步为 146；不能出现 TLS=146、HTTP/JS=149 的跨版本拼接指纹。
+# ---------- curl_cffi giả lập trình duyệt ----------
+# curl_cffi 0.15 cao nhất tích hợp là chrome146. UA, Client Hints, JS navigator
+# phải đồng bộ 146; không được ghép fingerprint lệch phiên bản TLS=146, HTTP/JS=149.
 IMPERSONATE = "chrome146"
 
-# ---------- 桌面 Chrome 画像 ----------
+# ---------- Hồ sơ Chrome desktop ----------
 BROWSER_FAMILY = "chrome"
 BROWSER_OS = "macOS"
-# OS 相关字段必须和 UA / Client Hints / JS navigator 三方一致。
+# Field liên quan OS phải khớp cả ba: UA / Client Hints / JS navigator.
 NAVIGATOR_PLATFORM = "MacIntel"
 NAVIGATOR_VENDOR = "Google Inc."
 USER_AGENT_DATA_PLATFORM = "macOS"
@@ -61,7 +61,7 @@ SEC_CH_UA_MODEL = '""'
 SEND_CLIENT_HINTS = True
 SEND_HIGH_ENTROPY_CLIENT_HINTS = False
 
-# ---------- 语言 / 时区 ----------
+# ---------- Ngôn ngữ / múi giờ ----------
 BROWSER_LOCALE_PROFILE = "jp"
 AUTO_BROWSER_LOCALE_FROM_IP = True
 IP_GEO_TIMEOUT = 6.0
@@ -71,8 +71,8 @@ IP_GEO_ENDPOINTS = [
     "https://ipwho.is/",
 ]
 
-# 代理出口质量诊断：默认不拦截，只在手动开启时拒绝云厂商/DC ASN。
-# 用户可能明确使用固定云出口复现实验抓包，因此默认 False。
+# Chẩn đoán chất lượng đầu ra proxy: mặc định không chặn, chỉ từ chối ASN cloud/DC khi bật tay.
+# Người dùng có thể cố ý dùng đầu ra cloud cố định để tái hiện bắt gói, nên mặc định False.
 REJECT_CLOUD_PROXY = False
 CLOUD_PROXY_ORG_KEYWORDS = [
     "amazon", "aws", "google cloud", "google llc", "microsoft", "azure",
@@ -81,26 +81,26 @@ CLOUD_PROXY_ORG_KEYWORDS = [
     "data center", "datacenter", "hosting", "host", "server", "cloud",
 ]
 
-# ---------- Roxy/Cloak 浏览器省流量模式 ----------
-# 默认关闭。开启后只拦截可选的图片/媒体，以及下面明确列出的统计/第三方 URL；
-# 不拦截登录所需的 document、核心 script、stylesheet、xhr/fetch、websocket；
-# Playwright 会放行带验证码/challenge 关键词的 URL。
-# 该模式仅应用于 Roxy/Cloak，本地浏览器才需要节省带宽；Browser Use/Skyvern 云端
-# 浏览器不会安装省流量拦截器。Selenium/CDP 只能按 URL 后缀拦截，若验证码异常可关闭。
+# ---------- Chế độ tiết kiệm data trình duyệt Roxy/Cloak ----------
+# Mặc định tắt. Bật thì chỉ chặn ảnh/media tuỳ chọn và URL thống kê/bên thứ ba liệt kê dưới;
+# không chặn document, script lõi, stylesheet, xhr/fetch, websocket cần cho đăng nhập;
+# Playwright cho qua URL có từ khoá mã OTP/challenge.
+# Chỉ áp Roxy/Cloak, trình duyệt local mới cần tiết kiệm băng thông; Browser Use/Skyvern cloud
+# không cài interceptor tiết kiệm data. Selenium/CDP chỉ chặn theo hậu tố URL; captcha lỗi thì tắt.
 BROWSER_DATA_SAVER_MODE: bool = False
-# 注册已经拿到 accessToken 后，阻断不再需要的 ChatGPT 应用壳/遥测资源。
-# 仅在 Roxy/Cloak 注册后阶段生效，不影响邮箱、验证码和登录页面。
+# Sau khi đăng ký đã có accessToken, chặn vỏ ứng dụng/telemetry ChatGPT không còn cần.
+# Chỉ có hiệu lực giai đoạn sau đăng ký Roxy/Cloak, không ảnh hưởng email, mã OTP và trang đăng nhập.
 BROWSER_DATA_SAVER_DEEP_MODE: bool = True
-# 每行一个 Playwright resource_type。可选 image/media/font/manifest/texttrack 等；
-# 默认只拦截 image、media；也可配置 stylesheet/font 等资源；Roxy 还会通过 Chromium 启动参数关闭图片加载，
-# 遇到页面布局或验证码异常时可关闭模式。
+# Mỗi dòng một Playwright resource_type. Có thể image/media/font/manifest/texttrack;
+# mặc định chỉ chặn image, media; cũng cấu hình được stylesheet/font. Roxy còn tắt tải ảnh qua tham số khởi động Chromium.
+# Layout hoặc captcha lỗi thì tắt chế độ.
 BROWSER_DATA_SAVER_BLOCKED_RESOURCE_TYPES: list[str] = ["image", "media"]
-# URL glob 级别的额外拦截。以下是资源明细中确认不参与邮箱密码注册主流程的
-# RUM/广告统计资源；Google GSI 仅用于 Google 登录，不使用 Google 登录时默认拦截。
-# 不要把 ChatGPT/auth.openai 的 CDN chunk 当作候选：即使某个 chunk 只有少量函数
-# 被调用，也可能负责路由、表单切换或懒加载；需经过单变量 A/B 验证后才能加入规则。
-# 不要把 chatgpt/openai 的核心 API 或 sentinel URL 加到这里。
-# `**` 用于匹配 URL 中的任意路径；Roxy/Cloak 的 Playwright/Selenium 会读取这组规则。
+# Chặn thêm cấp URL glob. Dưới đây là tài nguyên thống kê RUM/quảng cáo xác nhận không tham gia
+# luồng chính đăng ký email/mật khẩu; Google GSI chỉ cho đăng nhập Google, mặc định chặn khi không dùng Google.
+# Đừng coi CDN chunk ChatGPT/auth.openai là ứng viên: chunk chỉ vài hàm được gọi
+# vẫn có thể phụ trách route, đổi form hoặc lazy-load; phải A/B một biến rồi mới thêm rule.
+# Đừng thêm API lõi chatgpt/openai hoặc URL sentinel vào đây.
+# `**` khớp path bất kỳ trong URL; Playwright/Selenium của Roxy/Cloak đọc bộ rule này.
 BROWSER_DATA_SAVER_BLOCKED_URL_PATTERNS: list[str] = [
     "**://auth.openai.com/awe/api/v2/rum**",
     "**://chatgpt.com/awe/api/v2/rum**",
@@ -112,16 +112,16 @@ BROWSER_DATA_SAVER_BLOCKED_URL_PATTERNS: list[str] = [
     "**://accounts.google.com/gsi/client**",
 ]
 
-# ---------- Roxy/Cloak 浏览器流量明细日志 ----------
-# 默认关闭；开启后在每次注册结束时按单请求总字节降序输出资源 URL、类型、状态和大小。
-# URL 查询参数值会脱敏，不保存请求/响应 body 或完整 Header 内容。
+# ---------- Log chi tiết lưu lượng trình duyệt Roxy/Cloak ----------
+# Mặc định tắt; bật thì cuối mỗi lần đăng ký in URL, loại, trạng thái và kích thước tài nguyên, sắp theo tổng byte request giảm dần.
+# Giá trị query URL được che; không lưu body request/response hay header đầy đủ.
 BROWSER_TRAFFIC_DETAIL_LOG: bool = False
 BROWSER_TRAFFIC_DETAIL_MAX_ENTRIES: int = 2000
 
-# ---------- Roxy/Cloak 浏览器 JS 精确覆盖率 ----------
-# 开启后通过 Chrome DevTools Protocol Profiler 记录本次会话实际执行过的
-# JavaScript 函数/代码范围。只保存函数名、调用计数和 offset，不读取参数、返回值
-# 或源码；Browser Use/Skyvern 云端浏览器不启用该监听；默认关闭，避免给正常注册增加额外开销。
+# ---------- Coverage JS chính xác trình duyệt Roxy/Cloak ----------
+# Bật thì qua Chrome DevTools Protocol Profiler ghi hàm/vùng code JavaScript
+# thực sự chạy trong phiên. Chỉ lưu tên hàm, số lần gọi và offset, không đọc tham số, giá trị trả về
+# hay source; Browser Use/Skyvern cloud không bật listener này; mặc định tắt, tránh overhead cho đăng ký bình thường.
 BROWSER_JS_COVERAGE_LOG: bool = False
 BROWSER_JS_COVERAGE_MAX_ENTRIES: int = 1000
 COUNTRY_LOCALE_PROFILE_MAP = {
@@ -130,8 +130,8 @@ COUNTRY_LOCALE_PROFILE_MAP = {
     "VN": "vn",
 }
 
-# 没有专用完整画像的出口国家，至少自动匹配浏览器语言。时区仍直接采用 IP
-# 地理接口返回值；这样切换代理国家时不会退回固定的 ja-JP/Asia-Tokyo。
+# Quốc gia đầu ra chưa có hồ sơ đầy đủ riêng thì ít nhất tự khớp ngôn ngữ trình duyệt. Múi giờ vẫn lấy thẳng
+# giá trị API địa lý IP; đổi quốc gia proxy sẽ không rơi về ja-JP/Asia-Tokyo cố định.
 COUNTRY_LANGUAGE_TAG_MAP = {
     "TH": "th-TH", "ID": "id-ID", "MY": "ms-MY", "PH": "en-PH",
     "KR": "ko-KR", "IN": "en-IN", "BR": "pt-BR", "MX": "es-MX",
@@ -199,8 +199,8 @@ def _build_locale_from_geo(geo: dict | None) -> dict:
     locale = dict(BROWSER_LOCALE_PROFILES.get(key, BROWSER_LOCALE_PROFILES[BROWSER_LOCALE_PROFILE]))
     if geo and AUTO_BROWSER_LOCALE_FROM_IP:
         country = str(geo.get("country") or geo.get("country_code") or "").upper()
-        # 专用画像覆盖常见国家；其余已知国家动态生成语言字段。若地理接口
-        # 返回了未知国家，也使用中性的 en-US，而不是泄漏本机默认日语画像。
+        # Hồ sơ riêng phủ các quốc gia thường gặp; quốc gia đã biết còn lại sinh field ngôn ngữ động. Nếu API địa lý
+        # trả quốc gia không rõ, dùng en-US trung tính, không lộ hồ sơ tiếng Nhật mặc định của máy.
         if country not in COUNTRY_LOCALE_PROFILE_MAP:
             language_tag = COUNTRY_LANGUAGE_TAG_MAP.get(country, "en-US")
             resolved_profile = f"geo:{country.lower() or 'unknown'}"
@@ -236,14 +236,14 @@ TIMEZONE_IANA = _LOCALE["timezone_iana"]
 TIMEZONE_OFFSET_MINUTES = int(_LOCALE["timezone_offset_minutes"])
 TIMEZONE_NAME = _LOCALE["timezone_name"]
 
-# ---------- Sentinel / JS VM 环境 ----------
+# ---------- Môi trường Sentinel / JS VM ----------
 SCREEN_WIDTH = 1680
 SCREEN_HEIGHT = 1050
 HARDWARE_CONCURRENCY = 6
 JS_HEAP_SIZE_LIMIT = 4395630592
 DEVICE_MEMORY = 8
 
-# 这些列表必须与 sentinel/sentinel-runner.js 的 createBrowserContext 保持一致。
+# Các list này phải khớp createBrowserContext trong sentinel/sentinel-runner.js.
 NAVIGATOR_PROTO_SAMPLES = [
     "createAuctionNonce−function createAuctionNonce() { [native code] }",
     "clearOriginJoinedAdInterestGroups−function clearOriginJoinedAdInterestGroups() { [native code] }",
@@ -286,18 +286,18 @@ WINDOW_FEATURE_FLAGS = {
     "data": 0,
     "solana": 0,
     "dump": 0,
-    # HAR 样本 p[24] 为 0；默认不暴露，必要时由画像开关启用。
+    # Mẫu HAR p[24] là 0; mặc định không lộ, bật bằng công tắc hồ sơ khi cần.
     "requestIdleCallback": 0,
 }
 
-# ---------- HTTP 超时 ----------
+# ---------- Timeout HTTP ----------
 REQUEST_TIMEOUT = 30
 
-# HAR 参考画像：Default-all-domains-1784468371563.json 解码 p[0]/p[2]/p[16] 得出。
+# Hồ sơ tham chiếu HAR: giải mã p[0]/p[2]/p[16] từ Default-all-domains-1784468371563.json.
 HAR_CAPTURE_BASE_PROFILE = {"screen_width": 1680, "screen_height": 1050, "hardware_concurrency": 6, "device_memory": 8, "js_heap_size_limit": 4395630592, "device_pixel_ratio": 2}
 
-# 常见 macOS Chrome 桌面画像池。同一 session 内保持不变；不同 session 随机分散。
-# HAR_CAPTURE_BASE_PROFILE 只是候选之一，不全局固定。
+# Pool hồ sơ desktop Chrome macOS thường gặp. Giữ nguyên trong một session; phân tán ngẫu nhiên giữa session.
+# HAR_CAPTURE_BASE_PROFILE chỉ là một ứng viên, không cố định toàn cục.
 BROWSER_PROFILE_POOL = [
     HAR_CAPTURE_BASE_PROFILE,
     {"screen_width": 1440, "screen_height": 900,  "hardware_concurrency": 8,  "device_memory": 8, "js_heap_size_limit": 4294967296, "device_pixel_ratio": 2},
@@ -310,7 +310,7 @@ BROWSER_PROFILE_POOL = [
 
 
 def build_browser_environment(geo: dict | None = None, base_profile: dict | None = None) -> dict:
-    """构建完整浏览器环境画像，作为所有指纹字段的单一数据源。"""
+    """Dựng hồ sơ môi trường trình duyệt đầy đủ, nguồn dữ liệu duy nhất cho mọi field fingerprint."""
     locale = _build_locale_from_geo(geo)
     profile = dict(base_profile or random.choice(BROWSER_PROFILE_POOL))
     profile.update({
@@ -348,7 +348,7 @@ def build_browser_environment(geo: dict | None = None, base_profile: dict | None
         "window_feature_flags": dict(WINDOW_FEATURE_FLAGS),
         "build_id": __import__("config.openai_protocol", fromlist=["OPENAI_BUILD_ID"]).OPENAI_BUILD_ID,
     })
-    # Sentinel VM 与 HTTP 指纹必须使用同一组 screen/window/viewport/GPU 画像。
+    # Fingerprint Sentinel VM và HTTP phải dùng cùng bộ hồ sơ screen/window/viewport/GPU.
     screen_width = int(profile.get("screen_width", 1680))
     screen_height = int(profile.get("screen_height", 1050))
     profile.setdefault("screen_avail_width", screen_width)
@@ -369,35 +369,35 @@ def build_browser_environment(geo: dict | None = None, base_profile: dict | None
 
 
 def pick_browser_profile(geo: dict | None = None) -> dict:
-    """为一个 BrowserSession 随机挑选稳定桌面画像；HAR 尺寸只是候选之一。"""
+    """Chọn ngẫu nhiên một hồ sơ desktop ổn định cho một BrowserSession; kích thước HAR chỉ là một ứng viên."""
     return build_browser_environment(geo)
 
 
 def validate_browser_profile(profile: dict) -> list[str]:
-    """返回画像内部矛盾点，主要用于日志/自测。"""
+    """Trả các điểm mâu thuẫn trong hồ sơ, chủ yếu cho log/tự kiểm."""
     issues: list[str] = []
     ua = str(profile.get("user_agent") or "")
     family = str(profile.get("browser_family") or BROWSER_FAMILY)
     if family == "safari":
         if "Version/" not in ua or "Safari/" not in ua or "Chrome/" in ua or "Chromium/" in ua:
-            issues.append("Safari UA 不一致")
+            issues.append("Safari UA không khớp")
         if profile.get("send_client_hints"):
-            issues.append("Safari 不应发送 Chromium Client Hints")
+            issues.append("Safari không được gửi Chromium Client Hints")
     elif f"Chrome/{profile.get('chrome_full_version')}" not in ua:
-        issues.append("UA 与 chrome_full_version 不一致")
+        issues.append("UA không khớp chrome_full_version")
     if profile.get("browser_os") == "macOS":
         if "Macintosh; Intel Mac OS X" not in ua:
-            issues.append("macOS 画像但 UA 不是 Macintosh")
+            issues.append("Hồ sơ macOS nhưng UA không phải Macintosh")
         if str(profile.get("navigator_platform") or "") != "MacIntel":
-            issues.append("macOS 画像但 navigator.platform 不是 MacIntel")
+            issues.append("Hồ sơ macOS nhưng navigator.platform không phải MacIntel")
         if "macOS" not in str(profile.get("sec_ch_ua_platform") or ""):
-            issues.append("macOS 画像但 sec-ch-ua-platform 不是 macOS")
+            issues.append("Hồ sơ macOS nhưng sec-ch-ua-platform không phải macOS")
     if not profile.get("navigator_language"):
-        issues.append("navigator_language 为空")
+        issues.append("navigator_language trống")
     languages = profile.get("navigator_languages") or []
     if profile.get("navigator_language") and profile.get("navigator_language") not in languages:
-        issues.append("navigator.language 不在 navigator.languages 中")
-    # requestIdleCallback 是否暴露由画像决定。
+        issues.append("navigator.language không nằm trong navigator.languages")
+    # Hồ sơ quyết định có lộ requestIdleCallback không.
     return issues
 
 # ---- .env overrides for WebUI editable fields ----

@@ -18,7 +18,7 @@ class RemailConfigTests(unittest.TestCase):
         self.assertIn('"remail"', source)
 
     def test_secret_registry_includes_remail_api_key(self):
-        self.assertEqual(SECRET_ENV_KEYS["REMAIL_API_KEY"], "Remail 开放 API Key")
+        self.assertEqual(SECRET_ENV_KEYS["REMAIL_API_KEY"], "Remail Open API Key")
 
     def test_webui_exposes_remail_fields(self):
         fields = {item["key"]: item for item in EDITABLE_FIELDS}

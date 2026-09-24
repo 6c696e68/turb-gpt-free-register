@@ -1,25 +1,27 @@
-# L 取号 API 文档
+# Tài liệu API lấy số L
 
-只包含接入端需要的两个接口：获取号码、获取验证码。`service` 和 `country` 由接入端自行配置。
+Chỉ gồm các API phía tích hợp cần: lấy số, lấy mã OTP, giải phóng số. `service` và `country` do phía tích hợp tự cấu hình.
 
-## 基础信息
+Chuỗi `error` / `message` trong JSON mẫu là phản hồi gốc của dịch vụ (tiếng Trung). Bảng bên dưới gloss tiếng Việt để đối chiếu log research; đừng đổi payload khi gọi API.
 
-- API 基础地址：`http://localhost:8788`
-- 请求和响应格式：`application/json`
-- 后台接口需要授权：
+## Thông tin cơ bản
+
+- Địa chỉ gốc API: `http://localhost:8788`
+- Định dạng request/response: `application/json`
+- API admin cần uỷ quyền:
 
 ```http
 Authorization: Bearer <ADMIN_AUTH_CODE>
 Content-Type: application/json
 ```
 
-## 1. 获取号码
+## 1. Lấy số
 
 ```http
 POST /api/admin/l/take-phone
 ```
 
-请求参数：
+Tham số request:
 
 ```json
 {
@@ -29,15 +31,15 @@ POST /api/admin/l/take-phone
 }
 ```
 
-字段说明：
+Giải thích field:
 
-| 字段 | 必填 | 说明 |
+| Field | Bắt buộc | Mô tả |
 | --- | --- | --- |
-| `service` | 是 | 项目代码，由接入端自行配置 |
-| `country` | 是 | 国家 ID，由接入端自行配置 |
-| `maxPrice` | 否 | 最高可接受价格 |
+| `service` | Có | Mã dự án, phía tích hợp tự cấu hình |
+| `country` | Có | ID quốc gia, phía tích hợp tự cấu hình |
+| `maxPrice` | Không | Giá cao nhất chấp nhận |
 
-请求示例：
+Ví dụ request:
 
 ```sh
 curl -s "http://localhost:8788/api/admin/l/take-phone" \
@@ -46,7 +48,7 @@ curl -s "http://localhost:8788/api/admin/l/take-phone" \
   -d '{"service":"facebook","country":"10","maxPrice":"0.05"}'
 ```
 
-成功响应：
+Phản hồi thành công:
 
 ```json
 {
@@ -66,14 +68,14 @@ curl -s "http://localhost:8788/api/admin/l/take-phone" \
 }
 ```
 
-接入端需要保存：
+Phía tích hợp cần lưu:
 
-| 字段 | 用途 |
+| Field | Mục đích |
 | --- | --- |
-| `item.id` | 调后台获取验证码接口使用 |
-| `item.phone` | 获取到的手机号 |
+| `item.id` | Dùng khi gọi API admin lấy mã OTP |
+| `item.phone` | Số điện thoại đã lấy |
 
-常见错误：
+Lỗi thường gặp (payload gốc):
 
 ```json
 {"error":"请选择服务"}
@@ -82,13 +84,20 @@ curl -s "http://localhost:8788/api/admin/l/take-phone" \
 {"error":"取号失败：余额不足","raw":"NO_BALANCE"}
 ```
 
-## 2. 获取验证码
+| `error` gốc | Nghĩa |
+| --- | --- |
+| `请选择服务` | Vui lòng chọn dịch vụ |
+| `请选择国家` | Vui lòng chọn quốc gia |
+| `取号失败：暂无号码` | Lấy số thất bại: tạm hết số (`NO_NUMBERS`) |
+| `取号失败：余额不足` | Lấy số thất bại: hết số dư (`NO_BALANCE`) |
+
+## 2. Lấy mã OTP
 
 ```http
 POST /api/admin/l/fetch-code
 ```
 
-请求参数：
+Tham số request:
 
 ```json
 {
@@ -96,7 +105,7 @@ POST /api/admin/l/fetch-code
 }
 ```
 
-请求示例：
+Ví dụ request:
 
 ```sh
 curl -s "http://localhost:8788/api/admin/l/fetch-code" \
@@ -105,7 +114,7 @@ curl -s "http://localhost:8788/api/admin/l/fetch-code" \
   -d '{"id":"f1b8b315-8c2a-4e23-8a94-fd1c2e4a9d35"}'
 ```
 
-成功响应：
+Phản hồi thành công:
 
 ```json
 {
@@ -122,7 +131,9 @@ curl -s "http://localhost:8788/api/admin/l/fetch-code" \
 }
 ```
 
-暂未收到验证码：
+`message` gốc `L 验证码获取成功` = lấy mã OTP L thành công.
+
+Chưa nhận được mã OTP:
 
 ```json
 {
@@ -138,22 +149,31 @@ curl -s "http://localhost:8788/api/admin/l/fetch-code" \
 }
 ```
 
-常见错误：
+`message` gốc `等待验证码` = đang chờ mã OTP (`STATUS_WAIT_CODE`).
+
+Lỗi thường gặp (payload gốc):
 
 ```json
 {"error":"缺少号码 ID"}
 {"error":"号码不存在"}
 {"error":"号码已释放，不能取验证码"}
 ```
-## 3. 释放号码
+
+| `error` gốc | Nghĩa |
+| --- | --- |
+| `缺少号码 ID` | Thiếu ID số |
+| `号码不存在` | Số không tồn tại |
+| `号码已释放，不能取验证码` | Số đã giải phóng, không lấy được mã OTP |
+
+## 3. Giải phóng số
 
 ```http
 POST /api/admin/l/release
 ```
 
-用于取消/释放已获取的 L 号码。释放后该号码状态会变为 `released`，不能再通过获取验证码接口取码。
+Dùng để huỷ/giải phóng số L đã lấy. Sau khi giải phóng, trạng thái số thành `released` và không lấy mã OTP qua API lấy mã nữa.
 
-请求参数支持释放单个号码：
+Request giải phóng một số:
 
 ```json
 {
@@ -161,7 +181,7 @@ POST /api/admin/l/release
 }
 ```
 
-也支持批量释放号码：
+Cũng hỗ trợ giải phóng hàng loạt:
 
 ```json
 {
@@ -172,14 +192,14 @@ POST /api/admin/l/release
 }
 ```
 
-字段说明：
+Giải thích field:
 
-| 字段 | 必填 | 说明 |
+| Field | Bắt buộc | Mô tả |
 | --- | --- | --- |
-| `id` | 否 | 单个号码 ID，即获取号码接口返回的 `item.id` |
-| `ids` | 否 | 批量号码 ID 数组；`id` 和 `ids` 至少传一个 |
+| `id` | Không | ID một số, tức `item.id` từ API lấy số |
+| `ids` | Không | Mảng ID số hàng loạt; phải truyền ít nhất `id` hoặc `ids` |
 
-请求示例：
+Ví dụ request:
 
 ```sh
 curl -s "http://localhost:8788/api/admin/l/release" \
@@ -188,7 +208,7 @@ curl -s "http://localhost:8788/api/admin/l/release" \
   -d '{"id":"f1b8b315-8c2a-4e23-8a94-fd1c2e4a9d35"}'
 ```
 
-成功响应：
+Phản hồi thành công:
 
 ```json
 {
@@ -198,7 +218,7 @@ curl -s "http://localhost:8788/api/admin/l/release" \
 }
 ```
 
-部分失败响应示例：
+Ví dụ phản hồi một phần thất bại:
 
 ```json
 {
@@ -216,18 +236,26 @@ curl -s "http://localhost:8788/api/admin/l/release" \
 }
 ```
 
-响应字段说明：
+`message` gốc `订单不存在或已失效` = đơn không tồn tại hoặc đã hết hiệu lực (`NO_ACTIVATION`).
 
-| 字段 | 说明 |
+Giải thích field phản hồi:
+
+| Field | Mô tả |
 | --- | --- |
-| `updated` | 本次成功更新为已释放的数量；已释放号码重复释放也计入成功 |
-| `released` | 与 `updated` 相同，兼容前端释放数量展示 |
-| `failed` | 释放失败的号码列表；为空数组表示全部成功 |
+| `updated` | Số lượng lần này cập nhật thành đã giải phóng; giải phóng lại số đã released vẫn tính thành công |
+| `released` | Giống `updated`, tương thích hiển thị số lượng giải phóng ở frontend |
+| `failed` | Danh sách số giải phóng thất bại; mảng rỗng nghĩa là tất cả thành công |
 
-常见错误：
+Lỗi thường gặp (payload gốc):
 
 ```json
 {"error":"请选择号码"}
 {"error":"请先配置 LikeSim API Key"}
 {"error":"未找到号码"}
 ```
+
+| `error` gốc | Nghĩa |
+| --- | --- |
+| `请选择号码` | Vui lòng chọn số |
+| `请先配置 LikeSim API Key` | Hãy cấu hình LikeSim API Key trước |
+| `未找到号码` | Không tìm thấy số |

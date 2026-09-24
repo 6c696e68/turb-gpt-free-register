@@ -1,111 +1,111 @@
 # -*- coding: utf-8 -*-
 """
-邮箱服务配置。
+Cấu hình dịch vụ email.
 
-Outlook 注册邮箱与 OTP 的默认池行为：
-    1. 首次启动会把旧的 `用于注册的邮箱.txt` 迁移到 SQLite
-    2. 运行期间通过 WebUI「邮箱库」导入和管理邮箱
-    3. 注册时直接从 SQLite 邮箱库领取可用邮箱
+Hành vi kho mặc định cho email đăng ký Outlook và OTP:
+    1. Lần chạy đầu migrate `用于注册的邮箱.txt` cũ sang SQLite
+    2. Trong lúc chạy, nhập và quản lý email qua WebUI «Kho email»
+    3. Lúc đăng ký lấy thẳng email khả dụng từ kho SQLite
 """
 from config.env_loader import env_str, apply_env_overrides
 
 
-# True: REGISTER_EMAIL 留空时从 Outlook 账号池自动获取邮箱，OTP 自动收取
-# False: 走人工输入邮箱 + 人工填 OTP 的流程
+# True: REGISTER_EMAIL trống thì tự lấy email từ kho tài khoản Outlook, OTP tự nhận
+# False: nhập email tay và điền OTP tay
 USE_EMAIL_SERVICE = False
 
-# 可选值（也可以用英文逗号配置多个，按顺序兜底，例如 "outlook,generic_api,mailnest,remail"）：
-#   "outlook"           — 外购 Outlook 账号池 + mail.chatai.codes 远端取信
-#   "cloudflare_domain" — Cloudflare 域名邮箱（转发到 QQ 邮箱），通过 IMAP 取信
-#   "cloudflare" — Cloudflare Worker 临时邮箱（cloudflare_temp_email），API 创建并取码
-#   "generic_api"       — 通用 API 取码邮箱池（邮箱----取码地址）
-#   "imap"              — 通用 IMAP 邮箱池（每条素材包含服务器和登录凭证）
-#   "gptmail"           — GPTMail 临时邮箱 API（运行时随机生成邮箱并自动收码）
-#   "mailnest"          — MailNest/迈巢临时邮箱 API（运行时购买邮箱并自动收码）
-#   "cloudmail"         — CloudMail/Cloud Mail API（自动从平台获取域名并随机生成邮箱）
-#   "remail"            — Remail 开放 API（按项目下单并自动收取验证码）
+# Giá trị (có thể nhiều nguồn, phân tách bằng dấu phẩy, fallback theo thứ tự, ví dụ "outlook,generic_api,mailnest,remail"):
+#   "outlook"           — kho tài khoản Outlook mua ngoài + lấy thư remote mail.chatai.codes
+#   "cloudflare_domain" — email domain Cloudflare (forward sang email QQ), lấy thư qua IMAP
+#   "cloudflare" — email tạm Cloudflare Worker (cloudflare_temp_email), API tạo và lấy mã
+#   "generic_api"       — kho email lấy mã API chung (email----URL lấy mã)
+#   "imap"              — kho IMAP chung (mỗi vật liệu gồm server và thông tin đăng nhập)
+#   "gptmail"           — API email tạm GPTMail (lúc chạy sinh email ngẫu nhiên và tự nhận mã)
+#   "mailnest"          — API email tạm MailNest (lúc chạy mua email và tự nhận mã)
+#   "cloudmail"         — CloudMail/Cloud Mail API (tự lấy domain từ nền tảng và sinh email ngẫu nhiên)
+#   "remail"            — Remail Open API (đặt hàng theo dự án và tự nhận mã OTP)
 EMAIL_SOURCE = "outlook,generic_api,mailnest"
 
 
 # ============================================================
-# Outlook 模式（外购账号池 + 取信服务）
+# Chế độ Outlook (kho tài khoản mua ngoài + dịch vụ lấy thư)
 # ============================================================
 
 OUTLOOK_ACCOUNTS_FILE = "用于注册的邮箱.txt"
 
-# Outlook 取件模式：
-#   "auto"   = 先用远端 mail.chatai.codes；远端 402/DEPLOYMENT_DISABLED 时自动切 Microsoft Graph 直连
-#   "remote" = 只用远端 mail.chatai.codes
-#   "direct" = 只用 Microsoft Graph 直连（使用 clientId + refreshToken 换 access_token）
+# Chế độ lấy thư Outlook:
+#   "auto"   = remote mail.chatai.codes trước; remote 402/DEPLOYMENT_DISABLED thì chuyển Microsoft Graph trực tiếp
+#   "remote" = chỉ remote mail.chatai.codes
+#   "direct" = chỉ Microsoft Graph trực tiếp (clientId + refreshToken đổi access_token)
 OUTLOOK_FETCH_MODE = "auto"
 
-# 取邮件 API 的根 URL（远端模式使用）
+# Gốc URL API lấy thư (chế độ remote)
 OUTLOOK_API_BASE = "https://mail.chatai.codes"
 
 
 # ============================================================
-# OTP 轮询参数
+# Tham số poll OTP
 # ============================================================
 
 OTP_POLL_INTERVAL = 3
 OTP_MAX_WAIT = 90
 
-# Outlook 双协议取件：抓到一封 OTP 后再多等多少秒看是否有更晚到达的邮件。
+# Lấy thư Outlook hai giao thức: sau khi bắt được một OTP, chờ thêm bao nhiêu giây xem có thư đến muộn hơn.
 OTP_SETTLE_SECONDS = 5
 
-# 通用 API 取码专用代理；不读取代理池，也不套用代理池上游链式。
-# 你的本地接口代理直接填写 http://127.0.0.1:7897；留空则直连。
+# Proxy riêng lấy mã API chung; không đọc kho proxy, cũng không áp chuỗi upstream kho proxy.
+# Proxy API local điền thẳng http://127.0.0.1:7897; để trống thì đi thẳng.
 GENERIC_API_PROXY: str = "http://127.0.0.1:7897"
 
-# 通用 IMAP 邮箱默认收件箱目录；服务器、端口和凭证随邮箱素材导入。
+# Thư mục hộp thư mặc định IMAP chung; server, cổng và credential đi theo vật liệu email lúc nhập.
 IMAP_MAILBOX = "INBOX"
 
 
 # ============================================================
-# Cloudflare 域名邮箱模式（转发到 QQ 邮箱，通过 IMAP 取信）
+# Chế độ email domain Cloudflare (forward sang email QQ, lấy thư qua IMAP)
 # ============================================================
 
-# 你的 Cloudflare 域名，如 "mydomain.com"
-# 注册时会自动生成 random@mydomain.com 作为注册邮箱
+# Domain Cloudflare của bạn, ví dụ "mydomain.com"
+# Lúc đăng ký tự sinh random@mydomain.com làm email đăng ký
 EMAIL_DOMAIN = ""
 
-# QQ 邮箱 IMAP 服务器地址（固定为 imap.qq.com）
+# Địa chỉ server IMAP email QQ (cố định imap.qq.com)
 QQ_IMAP_SERVER = "imap.qq.com"
 
-# QQ 邮箱 IMAP 端口（SSL）
+# Cổng IMAP email QQ (SSL)
 QQ_IMAP_PORT = 993
 
-# QQ 邮箱地址（接收 Cloudflare 转发的邮件），如 "123456@qq.com"
+# Địa chỉ email QQ (nhận thư Cloudflare forward), ví dụ "123456@qq.com"
 QQ_EMAIL = ""
 
-# QQ 邮箱 IMAP 授权码（在 QQ 邮箱网页版 → 设置 → 账户 → POP3/IMAP/SMTP 服务 中生成）
-# 注意：这是 16 位授权码，不是 QQ 密码
+# Mã uỷ quyền IMAP email QQ (tạo ở webmail QQ → Cài đặt → Tài khoản → dịch vụ POP3/IMAP/SMTP)
+# Lưu ý: đây là mã uỷ quyền 16 ký tự, không phải mật khẩu QQ
 QQ_IMAP_PASSWORD = env_str("QQ_IMAP_PASSWORD", "")
 
 
 # ============================================================
-# GPTMail 临时邮箱 API（固定地址：https://mail.chatgpt.org.uk）
+# API email tạm GPTMail (địa chỉ cố định: https://mail.chatgpt.org.uk)
 # ============================================================
 
-# 选择 EMAIL_SOURCE="gptmail" 时必填；请在 WebUI「配置 → 邮箱 / OTP」填写。
+# Bắt buộc khi EMAIL_SOURCE="gptmail"; điền ở WebUI «Cấu hình → Email / OTP».
 GPTMAIL_API_KEY = env_str("GPTMAIL_API_KEY", "")
 
 
 # ============================================================
-# Cloudflare Worker 临时邮箱（cloudflare_temp_email 兼容）
-# EMAIL_SOURCE 含 "cloudflare" 时启用；与 cloudflare_domain（QQ IMAP）不同。
+# Email tạm Cloudflare Worker (tương thích cloudflare_temp_email)
+# Bật khi EMAIL_SOURCE chứa "cloudflare"; khác cloudflare_domain (QQ IMAP).
 # ============================================================
 
-# Worker API 根地址，例如 https://mail.example.com
+# Gốc API Worker, ví dụ https://mail.example.com
 CLOUDFLARE_API_BASE = env_str("CLOUDFLARE_API_BASE", "")
 
-# 匿名模式可留空；admin 模式填 ADMIN_PASSWORD
+# Chế độ ẩn danh có thể để trống; chế độ admin điền ADMIN_PASSWORD
 CLOUDFLARE_API_KEY = env_str("CLOUDFLARE_API_KEY", "")
 
 # none / bearer / x-api-key / x-admin-auth / query-key
 CLOUDFLARE_AUTH_MODE = "none"
 
-# Worker 全局密码（PASSWORDS），注入请求头 x-custom-auth
+# Mật khẩu toàn cục Worker (PASSWORDS), inject header x-custom-auth
 CLOUDFLARE_CUSTOM_AUTH = env_str("CLOUDFLARE_CUSTOM_AUTH", "")
 
 CLOUDFLARE_PATH_DOMAINS = "/api/domains"
@@ -113,7 +113,7 @@ CLOUDFLARE_PATH_ACCOUNTS = "/api/new_address"
 CLOUDFLARE_PATH_TOKEN = "/api/token"
 CLOUDFLARE_PATH_MESSAGES = "/api/mails"
 
-# 默认收信域名，多个可用换行或逗号分隔；留空则由 Worker 决定
+# Domain nhận thư mặc định, nhiều domain cách nhau bằng xuống dòng hoặc dấu phẩy; để trống thì Worker quyết định
 CLOUDFLARE_DEFAULT_DOMAINS = []
 
 CLOUDFLARE_REQUEST_TIMEOUT = 20
@@ -121,68 +121,68 @@ CLOUDFLARE_NAME_LENGTH = 10
 
 
 # ============================================================
-# MailNest-迈巢 Outlook 临时邮箱：https://mailnest.top/
+# Email tạm Outlook MailNest: https://mailnest.top/
 # ============================================================
 
-# 选择 EMAIL_SOURCE="mailnest" 时必填；请在 WebUI「配置 → 邮箱 / OTP」填写。
+# Bắt buộc khi EMAIL_SOURCE="mailnest"; điền ở WebUI «Cấu hình → Email / OTP».
 MAIL_NEST_API_KEY = env_str("MAIL_NEST_API_KEY", "")
 
-# MailNest 项目代码；OpenAI/ChatGPT 默认 chatgpt001。
+# Mã dự án MailNest; OpenAI/ChatGPT mặc định chatgpt001.
 MAIL_NEST_PROJECT_CODE = "chatgpt001"
 
 # ============================================================
-# CloudMail API 文档：https://doc.skymail.ink/api/api-doc
+# Tài liệu CloudMail API: https://doc.skymail.ink/api/api-doc
 # ============================================================
 
-# Cloud Mail Worker/API 地址，例如：https://mail.example.com
+# Địa chỉ Cloud Mail Worker/API, ví dụ: https://mail.example.com
 CLOUDMAIL_API_BASE = ""
 
-# CloudMail 管理员邮箱/密码；用于手动生成 Token，也用于域名被隐藏时自动登录获取域名。
+# Email/mật khẩu admin CloudMail; dùng tạo Token tay, và tự đăng nhập lấy domain khi domain bị ẩn.
 CLOUDMAIL_ADMIN_EMAIL = env_str("CLOUDMAIL_ADMIN_EMAIL", "")
 CLOUDMAIL_PASSWORD = env_str("CLOUDMAIL_PASSWORD", "")
 
-# CloudMail 生成 Token 接口路径；默认按 Cloud Mail 公共 API 风格。
+# Path API tạo Token CloudMail; mặc định theo kiểu public API Cloud Mail.
 CLOUDMAIL_TOKEN_PATH = "/api/public/genToken"
 
-# CloudMail/Cloud Mail API Authorization Token；可手动填写，也可由账号密码自动获取。
+# Authorization Token CloudMail/Cloud Mail API; điền tay hoặc tự lấy bằng tài khoản/mật khẩu.
 CLOUDMAIL_AUTH_TOKEN = env_str("CLOUDMAIL_AUTH_TOKEN", "")
 
-# 邮箱域名列表，每行一个或用英文逗号分隔；可留空，运行时会从 CloudMail 平台自动获取。
+# Danh sách domain email, mỗi dòng một domain hoặc phân tách bằng dấu phẩy; để trống thì lúc chạy tự lấy từ CloudMail.
 CLOUDMAIL_DOMAINS = []
 
-# 生成邮箱后是否调用 /api/public/addUser 创建邮箱用户。
+# Sau khi sinh email có gọi /api/public/addUser để tạo user email không.
 CLOUDMAIL_AUTO_ADD_USER = True
 
-# 随机邮箱 local-part 长度。
+# Độ dài local-part email ngẫu nhiên.
 CLOUDMAIL_RANDOM_LOCAL_LENGTH = 12
 
 
 # ============================================================
-# Remail 开放 API：https://remail.aishop6.com/docs
+# Remail Open API: https://remail.aishop6.com/docs
 # ============================================================
 
-# API 根地址；也兼容填写 https://remail.aishop6.com/docs，客户端会自动规范化。
+# Gốc API; cũng chấp nhận https://remail.aishop6.com/docs, client tự chuẩn hoá.
 REMAIL_API_BASE = "https://remail.aishop6.com"
 
-# Remail 控制台生成的 rk- 开头 API Key。
+# API Key đầu rk- tạo ở console Remail.
 REMAIL_API_KEY = env_str("REMAIL_API_KEY", "")
 
-# 在 Remail 项目列表中选择用于 ChatGPT/OpenAI 验证码的项目 ID，默认使用项目 2。
+# Chọn project ID mã OTP ChatGPT/OpenAI trong danh sách dự án Remail, mặc định dự án 2.
 REMAIL_PROJECT_ID = 2
 
-# 项目下单的邮箱后缀；outlook.com 为微软邮箱商品的常用选择。
+# Hậu tố email khi đặt hàng theo dự án; outlook.com là lựa chọn thường cho hàng email Microsoft.
 REMAIL_EMAIL_SUFFIX = "outlook.com"
 
-# code 为短效接码；purchase 为可重复收件的长效购买，默认使用 purchase。
+# code là nhận mã ngắn hạn; purchase là mua dài hạn nhận thư lặp lại, mặc định purchase.
 REMAIL_SERVICE_MODE = "purchase"
 
-# private_first 优先使用自己的库存；public_only 只使用公开库存，默认使用 public_only。
+# private_first ưu tiên tồn kho của mình; public_only chỉ dùng tồn kho công khai, mặc định public_only.
 REMAIL_SUPPLY_POLICY = "public_only"
 
-# 下单响应未立即返回 service token 时，等待订单详情补齐凭证的最长秒数。
+# Khi phản hồi đặt hàng chưa trả service token ngay, số giây tối đa chờ chi tiết đơn bổ sung credential.
 REMAIL_ORDER_WAIT_SECONDS = 30
 
-# Remail HTTP 请求超时。
+# Timeout request HTTP Remail.
 REMAIL_REQUEST_TIMEOUT = 20
 
 # ---- .env overrides for WebUI editable fields ----

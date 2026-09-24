@@ -1,72 +1,72 @@
 # -*- coding: utf-8 -*-
-"""sub2api 对接配置。"""
+"""Cấu hình nối sub2api."""
 from config.env_loader import apply_env_overrides
 
-# 生成 Codex Agent Token 成功后，是否自动同步到 sub2api。
+# Sau khi tạo Codex Agent Token thành công, có tự đồng bộ sang sub2api không.
 SUB2API_AUTO_EXPORT: bool = True
 
-# 同步模式：
-# api  = 直接调用 sub2api 接口上传
-# file = 只追加/更新本地 sub2api.json
-# both = 接口上传成功/失败不影响本地文件同步
+# Chế độ đồng bộ:
+# api  = gọi thẳng API sub2api để tải lên
+# file = chỉ nối/cập nhật sub2api.json local
+# both = tải API thành công/thất bại không ảnh hưởng đồng bộ file local
 SUB2API_SYNC_MODE: str = "api"
 
-# sub2api API 基址；Agent Token 上传和 Codex OAuth 都复用这个地址。
+# Gốc API sub2api; tải Agent Token và Codex OAuth đều dùng địa chỉ này.
 SUB2API_API_BASE: str = ""
 
-# 兼容旧配置：Agent Token 直接上传完整 URL。
+# Tương thích cấu hình cũ: Agent Token tải thẳng lên URL đầy đủ.
 SUB2API_API_URL: str = ""
 
-# sub2api 管理接口 API Key；为空则不带鉴权头。
+# API Key management sub2api; trống thì không gửi header xác thực.
 SUB2API_API_KEY: str = ""
 
-# 兼容旧配置名：SUB2API_API_TOKEN。
+# Tên cấu hình cũ: SUB2API_API_TOKEN.
 SUB2API_API_TOKEN: str = ""
 
-# sub2api 管理接口鉴权头：x-api-key: <your-admin-api-key>。
+# Header xác thực management sub2api: x-api-key: <your-admin-api-key>.
 SUB2API_API_AUTH_HEADER: str = "x-api-key"
 
-# x-api-key 不需要 Bearer 前缀。
+# x-api-key không cần tiền tố Bearer.
 SUB2API_API_AUTH_PREFIX: str = ""
 
-# 上传超时秒数。
+# Timeout tải lên (giây).
 SUB2API_API_TIMEOUT: int = 20
 
-# 本地 sub2api 配置文件输出路径；相对路径按项目根目录解析。
+# Đường dẫn xuất file cấu hình sub2api local; path tương đối tính từ gốc project.
 SUB2API_OUTPUT_PATH: str = "sub2api.json"
 
-# 可选代理键；写入 account.proxy_key，并在 sub2api.json proxies 为空时初始化 proxies[0].proxy_key。
+# Khoá proxy tuỳ chọn; ghi account.proxy_key, và khởi tạo proxies[0].proxy_key khi proxies trong sub2api.json trống.
 SUB2API_PROXY_KEY: str = ""
 
 
 # ============================================================
-# Codex OAuth 授权对接 sub2
-# 当 config.codex.CODEX_AUTH_URL_SOURCE="sub2" 时使用：
-#   1) 从 sub2 获取 Codex 授权链接
-#   2) 浏览器/协议流程拿到 localhost callback 后回传给 sub2
+# Nối uỷ quyền Codex OAuth với sub2
+# Dùng khi config.codex.CODEX_AUTH_URL_SOURCE="sub2":
+#   1) lấy link uỷ quyền Codex từ sub2
+#   2) sau khi luồng trình duyệt/giao thức có localhost callback thì gửi lại sub2
 # ============================================================
 
-# 兼容旧配置：sub2 Codex 管理 API 基址；为空时使用 SUB2API_API_BASE。
+# Tương thích cấu hình cũ: gốc API quản trị Codex sub2; trống thì dùng SUB2API_API_BASE.
 SUB2_CODEX_API_BASE: str = ""
 
-# 获取 Codex 授权链接接口路径。
-# sub2api 当前接口：POST /api/v1/admin/openai/generate-auth-url
+# Path API lấy link uỷ quyền Codex.
+# API sub2api hiện tại: POST /api/v1/admin/openai/generate-auth-url
 SUB2_CODEX_AUTH_URL_PATH: str = "/api/v1/admin/openai/generate-auth-url"
 
-# 上传/提交 OAuth callback 并创建账号接口路径。
-# sub2api 当前创建账号接口：POST /api/v1/admin/openai/create-from-oauth
+# Path API tải/nộp OAuth callback và tạo tài khoản.
+# API tạo tài khoản sub2api hiện tại: POST /api/v1/admin/openai/create-from-oauth
 SUB2_CODEX_CALLBACK_PATH: str = "/api/v1/admin/openai/create-from-oauth"
 
-# 兼容旧配置：sub2 Codex API 鉴权 Token；为空时复用 SUB2API_API_KEY / SUB2API_API_TOKEN。
+# Tương thích cấu hình cũ: token xác thực API Codex sub2; trống thì dùng lại SUB2API_API_KEY / SUB2API_API_TOKEN.
 SUB2_CODEX_API_TOKEN: str = ""
 
-# 鉴权头名称/前缀；为空时复用 SUB2API_API_AUTH_HEADER / SUB2API_API_AUTH_PREFIX。
+# Tên/tiền tố header xác thực; trống thì dùng lại SUB2API_API_AUTH_HEADER / SUB2API_API_AUTH_PREFIX.
 SUB2_CODEX_AUTH_HEADER: str = ""
 SUB2_CODEX_AUTH_PREFIX: str = ""
 
-# callback 上传 payload：
-# create_from_oauth => sub2api 原生创建账号：{"session_id","code","state","redirect_uri","name","concurrency","priority"}
-# exchange_code     => 只换 token，不创建账号（兼容旧逻辑）
+# Payload tải callback:
+# create_from_oauth => sub2api tạo tài khoản gốc: {"session_id","code","state","redirect_uri","name","concurrency","priority"}
+# exchange_code     => chỉ đổi token, không tạo tài khoản (tương thích logic cũ)
 SUB2_CODEX_CALLBACK_PAYLOAD_MODE: str = "create_from_oauth"
 
 apply_env_overrides(globals(), {

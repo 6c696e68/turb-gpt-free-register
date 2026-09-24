@@ -1,47 +1,47 @@
 # -*- coding: utf-8 -*-
 """
-人工操作节奏配置。
+Cấu hình nhịp thao tác người.
 
-协议请求本身很快；真实浏览器人工操作通常会有页面加载、阅读、输入、切换邮箱
-等停顿。这里集中配置轻量随机延迟，避免全流程固定节拍。
+Request giao thức rất nhanh; thao tác người trên trình duyệt thật thường có dừng tải trang, đọc, gõ,
+chuyển email. Tập trung delay ngẫu nhiên nhẹ ở đây, tránh nhịp cố định suốt luồng.
 """
 from config.env_loader import apply_env_overrides
 
-# 总开关。关闭后 delay() 直接返回。
+# Công tắc chính. Tắt thì delay() trả về ngay.
 ENABLE_HUMANIZE_DELAY = True
 
-# 延迟倍率；批量跑得太慢时可调小到 0.5。
+# Hệ số delay; hàng loạt quá chậm thì hạ xuống 0.5.
 HUMANIZE_DELAY_FACTOR = 1.0
 
-# Roxy/Cloak 浏览器自动化动作随机化。开启后会使用更接近人工的点击/输入：
-# - 点击前轻微滚动、移动到元素内随机位置、短暂停顿再点击
-# - 输入按字符/小段随机节奏，不再一次性整串 send_keys
-# - 页面打开后做少量随机停顿/鼠标移动
+# Ngẫu nhiên hoá thao tác tự động Roxy/Cloak. Bật thì click/gõ gần người hơn:
+# - Trước click cuộn nhẹ, di chuyển tới vị trí ngẫu nhiên trong phần tử, dừng ngắn rồi click
+# - Gõ theo nhịp ngẫu nhiên từng ký tự/đoạn nhỏ, không send_keys cả chuỗi một lần
+# - Sau khi mở trang, dừng ngẫu nhiên / di chuột một chút
 ENABLE_HUMANIZE_BROWSER_ACTIONS = True
 
-# 每类动作的随机停顿区间（秒）。
+# Khoảng dừng ngẫu nhiên mỗi loại thao tác (giây).
 HUMANIZE_DELAYS = {
-    # 普通 API 间隔：看起来像页面 JS 发完一个请求后处理状态。
+    # Khoảng API thường: giống JS trang xử lý trạng thái sau một request.
     "api": (0.45, 1.35),
-    # 页面跳转 / 重定向后等页面稳定。
+    # Sau chuyển trang / redirect, chờ trang ổn định.
     "navigate": (1.2, 3.2),
-    # Sentinel / Turnstile / PoW 相关，给 SDK 运行和 UI 等待留时间。
+    # Liên quan Sentinel / Turnstile / PoW, chừa thời gian SDK chạy và UI chờ.
     "challenge": (0.8, 2.4),
-    # 邮箱验证码到达后，模拟用户切回页面和输入。
+    # Sau khi mã OTP email tới, giả lập người quay lại trang và gõ.
     "otp_input": (2.5, 8.0),
-    # 填写姓名生日等表单。
+    # Điền form tên, ngày sinh.
     "form": (1.8, 5.0),
-    # 注册完成后进入应用、拉 session。
+    # Sau đăng ký vào app, kéo session.
     "post_auth": (1.5, 4.0),
-    # 并发任务错峰。
+    # Lệch pha tác vụ đồng thời.
     "job_stagger": (0.4, 1.8),
-    # 点击前观察/移动鼠标。
+    # Quan sát / di chuột trước khi click.
     "click": (0.15, 0.85),
-    # 单字符输入间隔。
+    # Khoảng cách gõ một ký tự.
     "keystroke": (0.035, 0.18),
-    # 输入中偶尔停顿。
+    # Thỉnh thoảng dừng giữa lúc gõ.
     "typing_pause": (0.18, 0.75),
-    # 页面打开后的短暂观察。
+    # Quan sát ngắn sau khi mở trang.
     "page_warmup": (0.7, 2.2),
 }
 

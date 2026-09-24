@@ -1,28 +1,28 @@
 # -*- coding: utf-8 -*-
 """
-注册基础信息（默认值）
+Thông tin đăng ký cơ bản (mặc định)
 
-CLI 走 main.py 时会优先读这里；Web 控制台批量注册时也会用同样的默认值。
-留空字段会触发交互式输入或自动生成（仅 USE_EMAIL_SERVICE=True 时邮箱会从 Outlook 池领取）。
+CLI qua main.py đọc ở đây trước; console Web đăng ký hàng loạt cũng dùng mặc định này.
+Field trống sẽ hỏi tương tác hoặc tự sinh (chỉ khi USE_EMAIL_SERVICE=True email được lấy từ kho Outlook).
 """
 from config.env_loader import apply_env_overrides
 
-# 注册邮箱（留空 + USE_EMAIL_SERVICE=True 时从 Outlook 池领取）
+# Email đăng ký (trống + USE_EMAIL_SERVICE=True thì lấy từ kho Outlook)
 REGISTER_EMAIL = ""
 
-# 注册密码（OTP-only 流程已不需要，留作备用）
+# Mật khẩu đăng ký (luồng OTP-only không cần, giữ dự phòng)
 REGISTER_PASSWORD = ""
 
-# 用户名（注册完成后设置的显示名称，留空会自动生成 "Foo Bar" 形式）
-# OpenAI 限制：name_invalid_chars —— 只允许字母和空格
+# Tên người dùng (tên hiển thị đặt sau đăng ký; trống thì sinh dạng "Foo Bar")
+# Giới hạn OpenAI: name_invalid_chars — chỉ chữ và khoảng trắng
 REGISTER_NAME = ""
 
-# 注册成功落库后是否自动查询套餐/Plus 资格。
-# 关闭后不会在注册完成后立刻访问 backend-api/accounts/check，后续可在账号列表手动查询。
+# Sau khi đăng ký lưu DB có tự tra cứu tư cách gói/Plus không.
+# Tắt thì không gọi backend-api/accounts/check ngay sau đăng ký; sau đó tra cứu tay trên danh sách tài khoản.
 AUTO_PLAN_CHECK_AFTER_REGISTER = False
 
-# 注册成功并拿到 accessToken 后，在浏览器里随机停留一段时间再关闭连接。
-# 格式：最小秒,最大秒。设为 "0,0" 表示不额外停留。
+# Sau đăng ký và có accessToken, dừng ngẫu nhiên trong trình duyệt rồi mới đóng kết nối.
+# Định dạng: giây tối thiểu,giây tối đa. "0,0" = không dừng thêm.
 POST_REGISTER_DWELL_SECONDS_RANGE = "5,15"
 
 # ---- .env overrides for WebUI editable fields ----

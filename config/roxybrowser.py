@@ -1,126 +1,126 @@
 # -*- coding: utf-8 -*-
 """
-RoxyBrowser 指纹浏览器自动化注册配置。
+Cấu hình đăng ký tự động bằng trình duyệt fingerprint RoxyBrowser.
 
-官方文档：
-- API 默认 host: http://127.0.0.1:50000
-- 所有接口请求头必须带 token
-- 可配合 Selenium / Puppeteer / Playwright 自动化
+Tài liệu chính thức:
+- API host mặc định: http://127.0.0.1:50000
+- Mọi API phải có header token
+- Kết hợp được Selenium / Puppeteer / Playwright
 """
 from config.env_loader import env_str, apply_env_overrides
 
 
-# 注册驱动：
-#   "protocol"     = 原有 curl_cffi 纯协议注册（容易封号，不建议）
-#   "roxy"         = 调用 RoxyBrowser 指纹浏览器 + Selenium 自动化注册
-#   "cloak"        = 调用 CloakBrowser + Playwright/Selenium 适配层注册
+# Driver đăng ký:
+#   "protocol"     = đăng ký thuần giao thức curl_cffi gốc (dễ bị khoá, không nên)
+#   "roxy"         = RoxyBrowser fingerprint + Selenium
+#   "cloak"        = CloakBrowser + lớp thích ứng Playwright/Selenium
 #   "browser_use"  = Browser Use Cloud stealth Chromium + Playwright
 #   "skyvern"      = Skyvern Browser Sessions + Playwright
 REGISTRATION_DRIVER: str = "roxy"
 
-# RoxyBrowser 本地 API
+# API local RoxyBrowser
 ROXY_API_BASE: str = "http://127.0.0.1:50100"
 ROXY_API_TOKEN: str = env_str("ROXY_API_TOKEN", "")
 
-# Roxy 环境/Profile ID；留空时使用 ROXY_PROFILE_CREATE_* 先创建临时环境（如果接口支持）
+# Roxy profile/môi trường ID; để trống thì dùng ROXY_PROFILE_CREATE_* tạo môi trường tạm trước (nếu API hỗ trợ)
 ROXY_PROFILE_ID: str = ""
 
-# Roxy 工作区 ID。Roxy 创建 Profile 时接口要求 workspaceId，必须填写。
-# 可在 Roxy 工作区/团队页面或 API 返回中查看。
+# Roxy workspace ID. API tạo Profile bắt buộc workspaceId.
+# Xem trên trang workspace/team Roxy hoặc trong phản hồi API.
 ROXY_WORKSPACE_ID: str = "90143"
 
-# Roxy 项目 ID。/browser/workspace 返回 project_details.projectId；创建 Profile 时一并提交。
+# Roxy project ID. /browser/workspace trả project_details.projectId; gửi kèm khi tạo Profile.
 ROXY_PROJECT_ID: str = "97471"
 
-# 获取团队/工作区列表接口路径。不同版本若不同，可在 WebUI 修改；客户端也会自动尝试多个常见路径。
+# Path API danh sách team/workspace. Bản khác thì sửa trên WebUI; client cũng tự thử vài path thường gặp.
 ROXY_WORKSPACE_LIST_PATH: str = "/browser/workspace"
 ROXY_WORKSPACE_LIST_METHOD: str = "GET"
 
-# 接口路径模板。不同版本如有差异，只改这里即可。
-# {profile_id} 会替换为 ROXY_PROFILE_ID。
+# Template path API. Bản khác thì chỉ sửa ở đây.
+# {profile_id} được thay bằng ROXY_PROFILE_ID.
 ROXY_OPEN_PATH: str = "/browser/open"
 ROXY_CLOSE_PATH: str = "/browser/close"
 ROXY_CREATE_PATH: str = "/browser/create"
 
-# 接口方法：常见 open/close 为 GET；若你的版本要求 POST，可在 WebUI/配置里改。
+# Method API: open/close thường là GET; bản của bạn bắt POST thì sửa trên WebUI/cấu hình.
 ROXY_OPEN_METHOD: str = "POST"
 ROXY_CLOSE_METHOD: str = "POST"
 ROXY_CREATE_METHOD: str = "POST"
 
-# 打开浏览器时是否无头启动：
-#   False = 显示 Roxy 浏览器窗口（便于观察/调试）
-#   True  = 无头启动，不显示窗口（如果当前 Roxy 版本支持 headless）
+# Có mở trình duyệt headless không:
+#   False = hiện cửa sổ Roxy (dễ quan sát/debug)
+#   True  = headless, không hiện cửa sổ (nếu bản Roxy hỗ trợ headless)
 ROXY_OPEN_HEADLESS: bool = False
 
-# 打开浏览器时附加参数；会合并到 /browser/open 请求体，优先级高于默认值。
+# Tham số thêm khi mở trình duyệt; gộp vào body /browser/open, ưu tiên hơn mặc định.
 ROXY_OPEN_EXTRA_PARAMS: dict = {}
 
-# Selenium 行为
+# Hành vi Selenium
 ROXY_SELENIUM_TIMEOUT: int = 90
 ROXY_KEEP_BROWSER_OPEN: bool = False
 
-# Roxy 跨 Profile 本地静态资源缓存（仅缓存 JS/CSS/font/image，认证/API 始终联网）。
-# 开启 config.browser.BROWSER_DATA_SAVER_MODE 后会自动启用，无需单独修改此开关。
+# Cache tài nguyên tĩnh local xuyên Profile Roxy (chỉ cache JS/CSS/font/image, auth/API luôn ra mạng).
+# Bật config.browser.BROWSER_DATA_SAVER_MODE thì tự bật, không cần sửa công tắc này riêng.
 ROXY_LOCAL_ASSET_CACHE_ENABLED: bool = False
 ROXY_LOCAL_ASSET_CACHE_MODE: str = "auto"
 ROXY_LOCAL_ASSET_CACHE_DIR: str = "./cache/roxy-assets"
 ROXY_LOCAL_ASSET_CACHE_MAX_AGE: int = 86400
 ROXY_LOCAL_ASSET_CACHE_MAX_ITEM_BYTES: int = 25 * 1024 * 1024
 
-# Roxy API transient 错误重试。create 接口默认不重试，避免超时后重复创建孤儿环境；open/close/delete 会重试。
+# Thử lại lỗi transient Roxy API. create mặc định không thử lại, tránh timeout rồi tạo môi trường mồ côi; open/close/delete có thử lại.
 ROXY_API_RETRIES: int = 3
 ROXY_API_RETRY_DELAY: int = 2
 ROXY_CREATE_RETRIES: int = 3
 ROXY_CREATE_RETRY_DELAY: int = 3
 
-# 多线程注册时，所有 worker 共用的 /browser/create 请求起始间隔（秒）。
-# Roxy 在上一个环境仍处于创建中时可能返回“正在创建中”，默认错开 1.5 秒。
+# Khi đăng ký đa luồng, khoảng khởi đầu chung của mọi worker cho /browser/create (giây).
+# Roxy có thể trả "đang tạo" khi môi trường trước chưa tạo xong; mặc định lệch 1.5 giây.
 ROXY_CREATE_INTERVAL: float = 1.5
 
-# 环境生命周期：
-#   True  = 一号一环境：每个账号强制创建新 Profile，用完关闭并删除，不允许复用 ROXY_PROFILE_ID
-#   False = 可复用 ROXY_PROFILE_ID 或只关闭不删除
+# Vòng đời môi trường:
+#   True  = một tài khoản một profile: mỗi tài khoản buộc tạo Profile mới, dùng xong đóng và xoá, không tái dùng ROXY_PROFILE_ID
+#   False = được tái dùng ROXY_PROFILE_ID hoặc chỉ đóng không xoá
 ROXY_ONE_PROFILE_PER_ACCOUNT: bool = True
 
-# 一号一环境结束后是否删除 Profile。建议保持 True。
+# Sau một tài khoản một profile có xoá Profile không. Nên giữ True.
 ROXY_DELETE_PROFILE_AFTER_RUN: bool = True
 
-# 删除环境接口路径/方法；如你的 Roxy 版本不同，只改这里。
+# Path/method API xoá môi trường; bản Roxy khác thì chỉ sửa ở đây.
 ROXY_DELETE_PATH: str = "/browser/delete"
 ROXY_DELETE_METHOD: str = "POST"
 
-# 创建 Roxy 环境时随机系统指纹；开启后每次 /browser/create 在 Windows / macOS 里随机选一个，
-# 避免固定 macOS 指纹。
+# Fingerprint OS ngẫu nhiên khi tạo môi trường Roxy; bật thì mỗi /browser/create chọn ngẫu nhiên Windows / macOS,
+# tránh fingerprint macOS cố định.
 ROXY_RANDOM_OS_ON_CREATE: bool = True
 ROXY_RANDOM_OS_CHOICES: str = "Windows,macOS"
 
-# 创建 Roxy 环境时随机名称；开启后会覆盖 ROXY_PROFILE_CREATE_PAYLOAD 里的固定 name。
+# Tên ngẫu nhiên khi tạo môi trường Roxy; bật thì ghi đè name cố định trong ROXY_PROFILE_CREATE_PAYLOAD.
 ROXY_RANDOM_PROFILE_NAME_ON_CREATE: bool = True
 ROXY_PROFILE_NAME_PREFIX: str = "rb"
 
-# 创建 Roxy 环境时默认系统指纹。仅在 ROXY_RANDOM_OS_ON_CREATE=False 时使用。
-# Roxy 官方 os 枚举：Windows / macOS / Linux / IOS / Android。
+# Fingerprint OS mặc định khi tạo môi trường Roxy. Chỉ dùng khi ROXY_RANDOM_OS_ON_CREATE=False.
+# Enum os chính thức Roxy: Windows / macOS / Linux / IOS / Android.
 ROXY_DEFAULT_OS: str = "macOS"
-# 留空则使用 Roxy 对应系统的默认/最大版本；如需固定可填 15.3.2、14.7 等。
+# Để trống thì dùng phiên bản mặc định/cao nhất của OS Roxy; muốn cố định thì điền 15.3.2, 14.7, v.v.
 ROXY_DEFAULT_OS_VERSION: str = ""
 
-# 创建 Roxy 环境时是否使用 config/proxy.py 的 PROXY_POOL：
-#   False = 不主动给 Roxy 环境设置代理
-#   True  = 每次创建环境时从 PROXY_POOL 随机取一个代理写入 proxyInfo
+# Khi tạo môi trường Roxy có dùng PROXY_POOL trong config/proxy.py không:
+#   False = không chủ động đặt proxy cho môi trường Roxy
+#   True  = mỗi lần tạo môi trường rút ngẫu nhiên một proxy từ PROXY_POOL ghi vào proxyInfo
 ROXY_CREATE_USE_PROXY_POOL: bool = False
 
-# Roxy 代理检测通道；留空则不传 checkChannel。
+# Kênh kiểm tra proxy Roxy; để trống thì không truyền checkChannel.
 ROXY_PROXY_CHECK_CHANNEL: str = "IPRust.io"
 
-# 没有 ROXY_PROFILE_ID 时创建环境的最小 payload；按你的 Roxy 版本字段调整。
-# 默认开启 ROXY_RANDOM_PROFILE_NAME_ON_CREATE，因此这里的 name 只是兜底值。
+# Payload tối thiểu tạo môi trường khi không có ROXY_PROFILE_ID; chỉnh field theo bản Roxy.
+# ROXY_RANDOM_PROFILE_NAME_ON_CREATE mặc định bật, nên name ở đây chỉ là giá trị dự phòng.
 ROXY_PROFILE_CREATE_PAYLOAD: dict = {
     "name": "gpt-free-register",
     "os": "macOS",
 }
 
 
-# Roxy Codex 授权等待 callback 的最长秒数
+# Số giây tối đa chờ callback uỷ quyền Codex trên Roxy
 ROXY_CODEX_CALLBACK_TIMEOUT: int = 180
 
 # ---- .env overrides for WebUI editable fields ----

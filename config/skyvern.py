@@ -1,31 +1,31 @@
 # -*- coding: utf-8 -*-
-"""Skyvern 云端浏览器配置。"""
+"""Cấu hình trình duyệt cloud Skyvern."""
 from config.env_loader import env_str, apply_env_overrides
 
-# Skyvern API Key（Skyvern Cloud Dashboard 创建；优先读 .env / 环境变量）
+# Skyvern API Key (tạo ở Skyvern Cloud Dashboard; ưu tiên đọc .env / biến môi trường)
 SKYVERN_API_KEY: str = env_str("SKYVERN_API_KEY", "")
 
-# Skyvern API 根地址。Cloud 默认：https://api.skyvern.com
+# Gốc Skyvern API. Cloud mặc định: https://api.skyvern.com
 SKYVERN_API_BASE: str = "https://api.skyvern.com"
 
-# Browser Session 创建参数
-SKYVERN_BROWSER_SESSION_TIMEOUT: int = 60  # 分钟
+# Tham số tạo Browser Session
+SKYVERN_BROWSER_SESSION_TIMEOUT: int = 60  # phút
 SKYVERN_BROWSER_PROFILE_ID: str = ""
-SKYVERN_PROXY_LOCATION: str = ""  # 可选：jp 会自动转成 RESIDENTIAL_JP；留空不传
+SKYVERN_PROXY_LOCATION: str = ""  # Tuỳ chọn: jp tự thành RESIDENTIAL_JP; để trống thì không truyền
 SKYVERN_GENERATE_BROWSER_PROFILE: bool = False
 SKYVERN_AD_BLOCKER: bool = True
 SKYVERN_BROWSER_TYPE: str = "stealth-chromium"
 
-# Playwright / 页面超时；留空时实际流程仍会使用 Browser Use 配置中的默认超时
+# Timeout Playwright / trang; để trống thì luồng thực tế vẫn dùng timeout mặc định trong cấu hình Browser Use
 SKYVERN_KEEP_BROWSER_OPEN: bool = False
 
-# Skyvern 手动注册不容易封时，自动化默认尽量贴近“手动操作”：
-# - 不走 Browser Use 的 fast mode；
-# - 不额外覆盖 UA/语言/时区/Client Hints；
-# - 保留较慢逐字输入、点击前停顿、提交后停留。
+# Khi đăng ký tay Skyvern ít bị khoá, tự động mặc định bám "thao tác tay":
+# - không đi fast mode của Browser Use;
+# - không ghi đè thêm UA/ngôn ngữ/múi giờ/Client Hints;
+# - giữ gõ từng ký tự chậm, dừng trước click, dừng sau submit.
 SKYVERN_HUMAN_MODE: bool = True
 
-# 打开的起始注册页
+# Trang đăng ký mở đầu
 SKYVERN_START_URL: str = "https://chatgpt.com/auth/login"
 
 # ---- .env overrides for WebUI editable fields ----

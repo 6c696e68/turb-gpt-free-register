@@ -1,26 +1,26 @@
 # -*- coding: utf-8 -*-
 """
-注册成功后自动触发 Flow 的配置项。
-设置 ENABLE_FLOW_TRIGGER = False 可完全跳过此步骤。
+Cấu hình tự gọi Flow sau khi đăng ký thành công.
+ENABLE_FLOW_TRIGGER = False thì bỏ hẳn bước này.
 """
 from config.env_loader import apply_env_overrides
 
-# 是否启用自动触发 Flow（False = 跳过，不影响注册结果）
+# Có tự gọi Flow không (False = bỏ qua, không ảnh hưởng kết quả đăng ký)
 ENABLE_FLOW_TRIGGER: bool = False
 
-# Flow 触发接口地址
+# Địa chỉ API trigger Flow
 FLOW_TRIGGER_URL: str = ""
 
-# Bearer Token（Authorization 头）
+# Bearer Token (header Authorization)
 FLOW_TRIGGER_BEARER: str = ""
 
-# Cookie 字符串
+# Chuỗi Cookie
 FLOW_TRIGGER_COOKIE: str = ""
 
-# 发送的 JSON payload（会把 access_token 注入进去）
+# JSON payload gửi đi (access_token được inject vào)
 FLOW_TRIGGER_PAYLOAD: dict = {}
 
-# 请求超时（秒）
+# Timeout request (giây)
 FLOW_TRIGGER_TIMEOUT: int = 15
 
 # ---- .env overrides for WebUI editable fields ----
