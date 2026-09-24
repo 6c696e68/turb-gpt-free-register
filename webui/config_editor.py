@@ -33,748 +33,748 @@ EXPLICIT_EMPTY_LIST_KEYS = {
 EDITABLE_FIELDS = [
     # ---- WebUI 授权 ----
     {
-        "key": "WEBUI_AUTH_CODE", "file": "codex.py", "type": "str", "group": "WebUI 授权",
-        "label": "WebUI 授权码", "help": "仅保存在 .env（WEBUI_AUTH_CODE），避免出现在进程命令行中；保存后重启 WebUI 生效",
+        "key": "WEBUI_AUTH_CODE", "file": "codex.py", "type": "str", "group": "Uỷ quyền WebUI",
+        "label": "Mã uỷ quyền WebUI", "help": "Chỉ lưu trong .env (WEBUI_AUTH_CODE), tránh hiện trên dòng lệnh tiến trình; sau khi lưu, khởi động lại WebUI để có hiệu lực",
         "storage": "env", "secret": True,
     },
     {
-        "key": "WEBUI_SESSION_SECRET", "file": "codex.py", "type": "str", "group": "WebUI 授权",
-        "label": "Session 签名密钥", "help": "可选，保存在 .env（WEBUI_SESSION_SECRET）；不填则从固定授权码派生，修改授权码会使已有登录失效",
+        "key": "WEBUI_SESSION_SECRET", "file": "codex.py", "type": "str", "group": "Uỷ quyền WebUI",
+        "label": "Khoá ký Session", "help": "Tuỳ chọn, lưu trong .env (WEBUI_SESSION_SECRET); để trống thì suy ra từ mã uỷ quyền cố định, sửa mã uỷ quyền sẽ làm đăng nhập hiện có hết hiệu lực",
         "storage": "env", "secret": True,
     },
     # ---- 功能开关 ----
     {
-        "key": "ENABLE_CODEX_AUTO", "file": "codex.py", "type": "bool", "group": "功能开关",
-        "label": "启用 Codex OAuth", "help": "注册成功后自动跑 Codex 授权（全新session+接码），落盘 codex-邮箱.json",
+        "key": "ENABLE_CODEX_AUTO", "file": "codex.py", "type": "bool", "group": "Công tắc tính năng",
+        "label": "Bật Codex OAuth", "help": "Sau khi đăng ký thành công tự chạy uỷ quyền Codex (session mới + nhận mã), ghi file codex-email.json",
     },
     {
-        "key": "REGISTRATION_DRIVER", "file": "roxybrowser.py", "type": "str", "group": "注册方式",
-        "label": "注册驱动", "help": "默认推荐 roxy；protocol=纯协议，容易封号不建议；roxy=RoxyBrowser；cloak=CloakBrowser；browser_use=Browser Use Cloud+Playwright；skyvern=Skyvern Browser Sessions+Playwright",
+        "key": "REGISTRATION_DRIVER", "file": "roxybrowser.py", "type": "str", "group": "Cách đăng ký",
+        "label": "Driver đăng ký", "help": "Mặc định nên dùng roxy; protocol=thuần giao thức, dễ khoá tài khoản, không khuyến nghị; roxy=RoxyBrowser; cloak=CloakBrowser; browser_use=Browser Use Cloud+Playwright; skyvern=Skyvern Browser Sessions+Playwright",
     },
     {
-        "key": "AUTO_PLAN_CHECK_AFTER_REGISTER", "file": "register.py", "type": "bool", "group": "注册方式",
-        "label": "注册后自动查套餐", "help": "注册成功后自动入队查询套餐/Plus 资格；关闭后仅保存账号，不自动查套餐",
+        "key": "AUTO_PLAN_CHECK_AFTER_REGISTER", "file": "register.py", "type": "bool", "group": "Cách đăng ký",
+        "label": "Tự tra cứu gói sau đăng ký", "help": "Sau khi đăng ký thành công, tự xếp hàng tra cứu gói/quyền Plus; tắt thì chỉ lưu tài khoản, không tự tra cứu gói",
     },
 
     # ---- CloakBrowser ----
     {
         "key": "CLOAK_HEADLESS", "file": "cloakbrowser.py", "type": "bool", "group": "CloakBrowser",
-        "label": "Cloak无头", "help": "True=无头运行；False=显示浏览器窗口",
+        "label": "Cloak headless", "help": "True=chạy headless; False=hiện cửa sổ trình duyệt",
     },
     {
         "key": "CLOAK_HUMANIZE", "file": "cloakbrowser.py", "type": "bool", "group": "CloakBrowser",
-        "label": "Cloak人工行为", "help": "启用 CloakBrowser humanize 鼠标/键盘/滚动行为",
+        "label": "Hành vi người Cloak", "help": "Bật hành vi humanize chuột/bàn phím/cuộn của CloakBrowser",
     },
     {
         "key": "CLOAK_GEOIP", "file": "cloakbrowser.py", "type": "bool", "group": "CloakBrowser",
-        "label": "Cloak按出口定位", "help": "按当前出口 IP 自动匹配时区/语言/WebRTC IP；支持显式代理、系统代理/VPN",
+        "label": "Cloak định vị theo IP đầu ra", "help": "Tự khớp múi giờ/ngôn ngữ/WebRTC IP theo IP egress hiện tại; hỗ trợ proxy chỉ định, proxy hệ thống/VPN",
     },
     {
         "key": "CLOAK_LOCALE", "file": "cloakbrowser.py", "type": "str", "group": "CloakBrowser",
-        "label": "Cloak语言", "help": "留空自动；日本可填 ja-JP，美国 en-US",
+        "label": "Ngôn ngữ Cloak", "help": "Để trống thì tự động; Nhật có thể điền ja-JP, Mỹ en-US",
     },
     {
         "key": "CLOAK_TIMEZONE", "file": "cloakbrowser.py", "type": "str", "group": "CloakBrowser",
-        "label": "Cloak时区", "help": "留空自动；日本可填 Asia/Tokyo，美国 America/Los_Angeles",
+        "label": "Múi giờ Cloak", "help": "Để trống thì tự động; Nhật có thể điền Asia/Tokyo, Mỹ America/Los_Angeles",
     },
     {
         "key": "CLOAK_USE_PROXY", "file": "cloakbrowser.py", "type": "bool", "group": "CloakBrowser",
-        "label": "Cloak使用代理", "help": "把本项目传入或代理池抽取的代理传给 CloakBrowser",
+        "label": "Cloak dùng proxy", "help": "Truyền proxy do dự án đưa vào hoặc lấy từ kho proxy cho CloakBrowser",
     },
     {
         "key": "CLOAK_LICENSE_KEY", "file": "cloakbrowser.py", "type": "str", "group": "CloakBrowser",
-        "label": "Cloak License", "help": "Pro license；留空使用免费 binary",
+        "label": "Cloak License", "help": "Pro license; để trống thì dùng binary miễn phí",
     },
     {
         "key": "CLOAK_FINGERPRINT_SEED", "file": "cloakbrowser.py", "type": "str", "group": "CloakBrowser",
-        "label": "Cloak指纹Seed", "help": "留空每次随机；固定值可保持同一指纹",
+        "label": "Seed fingerprint Cloak", "help": "Để trống thì mỗi lần ngẫu nhiên; giá trị cố định giữ cùng fingerprint",
     },
     {
         "key": "CLOAK_USER_DATA_DIR", "file": "cloakbrowser.py", "type": "str", "group": "CloakBrowser",
-        "label": "Cloak用户目录", "help": "留空使用临时上下文；填写路径则持久化 cookies/cache",
+        "label": "Thư mục người dùng Cloak", "help": "Để trống thì dùng ngữ cảnh tạm; điền đường dẫn để lưu cookies/cache",
     },
     {
         "key": "CLOAK_SELENIUM_TIMEOUT", "file": "cloakbrowser.py", "type": "int", "group": "CloakBrowser",
-        "label": "Cloak超时", "help": "页面和元素等待超时时间，秒",
+        "label": "Timeout Cloak", "help": "Timeout chờ trang và phần tử, giây",
     },
     {
         "key": "CLOAK_KEEP_BROWSER_OPEN", "file": "cloakbrowser.py", "type": "bool", "group": "CloakBrowser",
-        "label": "保留Cloak浏览器", "help": "调试时开启，任务结束后不自动关闭",
+        "label": "Giữ trình duyệt Cloak", "help": "Bật khi gỡ lỗi, không tự đóng sau khi tác vụ kết thúc",
     },
 
     # ---- Browser Use Cloud ----
     {
         "key": "BROWSER_USE_API_KEY", "file": "browser_use.py", "type": "str", "group": "Browser Use",
-        "label": "Browser Use API Key", "help": "保存在 .env（BROWSER_USE_API_KEY），不写回 config/*.py",
+        "label": "Browser Use API Key", "help": "Lưu trong .env (BROWSER_USE_API_KEY), không ghi lại config/*.py",
         "storage": "env", "secret": True,
     },
     {
         "key": "BROWSER_USE_PROXY_COUNTRY_CODE", "file": "browser_use.py", "type": "str", "group": "Browser Use",
-        "label": "代理国家代码", "help": "两位国家码，如 jp/us/sg；配合 Browser Use 内置 residential proxy",
+        "label": "Mã quốc gia proxy", "help": "Mã quốc gia hai ký tự, như jp/us/sg; dùng với residential proxy tích hợp của Browser Use",
     },
     {
         "key": "BROWSER_USE_USE_PROXY", "file": "browser_use.py", "type": "bool", "group": "Browser Use",
-        "label": "使用内置代理", "help": "True=连接参数带 proxyCountryCode；False=不强制传国家代理参数",
+        "label": "Dùng proxy tích hợp", "help": "True=tham số kết nối kèm proxyCountryCode; False=không bắt buộc gửi tham số proxy quốc gia",
     },
     {
         "key": "BROWSER_USE_PROFILE_ID", "file": "browser_use.py", "type": "str", "group": "Browser Use",
-        "label": "Profile ID", "help": "可选。填写则复用 Browser Use profile 的 cookies/localStorage；批量建议留空",
+        "label": "Profile ID", "help": "Tuỳ chọn. Nếu điền sẽ dùng lại cookies/localStorage của profile Browser Use; hàng loạt nên để trống",
     },
     {
         "key": "BROWSER_USE_CDP_BASE", "file": "browser_use.py", "type": "str", "group": "Browser Use",
-        "label": "CDP 地址", "help": "默认 wss://connect.browser-use.com",
+        "label": "Địa chỉ CDP", "help": "Mặc định wss://connect.browser-use.com",
     },
     {
         "key": "BROWSER_USE_TIMEOUT", "file": "browser_use.py", "type": "int", "group": "Browser Use",
-        "label": "操作超时(秒)", "help": "Playwright 默认操作超时",
+        "label": "Timeout thao tác (giây)", "help": "Timeout thao tác mặc định của Playwright",
     },
     {
         "key": "BROWSER_USE_SESSION_TIMEOUT", "file": "browser_use.py", "type": "int", "group": "Browser Use",
-        "label": "云端keepAlive(分钟)", "help": "传给 Browser Use connect URL 的 timeout/keepAlive；程序会自动限制到 1-240，建议 240",
+        "label": "keepAlive đám mây (phút)", "help": "timeout/keepAlive truyền cho Browser Use connect URL; chương trình tự giới hạn trong 1-240, nên dùng 240",
     },
     {
         "key": "BROWSER_USE_FAST_MODE", "file": "browser_use.py", "type": "bool", "group": "Browser Use",
-        "label": "快速模式", "help": "减少 Browser Use 额外等待和 humanize 延迟；建议开启，异常排查时可关闭",
+        "label": "Chế độ nhanh", "help": "Giảm chờ thêm và độ trễ humanize của Browser Use; nên bật, khi gỡ lỗi có thể tắt",
     },
     {
         "key": "BROWSER_USE_LOG_TIMING", "file": "browser_use.py", "type": "bool", "group": "Browser Use",
-        "label": "耗时日志", "help": "打印 Browser Use 各阶段耗时：连接、打开页面、邮箱、OTP、手机、callback",
+        "label": "Nhật ký thời gian", "help": "In thời gian từng giai đoạn Browser Use: kết nối, mở trang, email, OTP, điện thoại, callback",
     },
     {
         "key": "BROWSER_USE_KEEP_BROWSER_OPEN", "file": "browser_use.py", "type": "bool", "group": "Browser Use",
-        "label": "保留远端会话", "help": "调试时可不主动 browser.close()；默认 False",
+        "label": "Giữ phiên từ xa", "help": "Khi gỡ lỗi có thể không chủ động browser.close(); mặc định False",
     },
     {
         "key": "BROWSER_USE_START_URL", "file": "browser_use.py", "type": "str", "group": "Browser Use",
-        "label": "起始 URL", "help": "默认 https://chatgpt.com/auth/login",
+        "label": "URL bắt đầu", "help": "Mặc định https://chatgpt.com/auth/login",
     },
 
     # ---- Skyvern Cloud Browser ----
     {
         "key": "SKYVERN_API_KEY", "file": "skyvern.py", "type": "str", "group": "Skyvern",
-        "label": "Skyvern API Key", "help": "保存在 .env（SKYVERN_API_KEY），用于创建 Skyvern Browser Session",
+        "label": "Skyvern API Key", "help": "Lưu trong .env (SKYVERN_API_KEY), dùng để tạo Skyvern Browser Session",
         "storage": "env", "secret": True,
     },
     {
         "key": "SKYVERN_API_BASE", "file": "skyvern.py", "type": "str", "group": "Skyvern",
-        "label": "API 地址", "help": "默认 https://api.skyvern.com",
+        "label": "Địa chỉ API", "help": "Mặc định https://api.skyvern.com",
     },
     {
         "key": "SKYVERN_BROWSER_SESSION_TIMEOUT", "file": "skyvern.py", "type": "int", "group": "Skyvern",
-        "label": "Session 超时(分钟)", "help": "创建 Skyvern Browser Session 时传入的 timeout",
+        "label": "Timeout session (phút)", "help": "timeout truyền vào khi tạo Skyvern Browser Session",
     },
     {
         "key": "SKYVERN_BROWSER_PROFILE_ID", "file": "skyvern.py", "type": "str", "group": "Skyvern",
-        "label": "Browser Profile ID", "help": "可选，复用 Skyvern browser profile",
+        "label": "Browser Profile ID", "help": "Tuỳ chọn, dùng lại Skyvern browser profile",
     },
     {
         "key": "SKYVERN_PROXY_LOCATION", "file": "skyvern.py", "type": "str", "group": "Skyvern",
-        "label": "代理地区", "help": "可填 jp/us/gb 等简写；会自动转为 Skyvern 枚举，如 jp→RESIDENTIAL_JP；留空不传",
+        "label": "Vùng proxy", "help": "Có thể điền jp/us/gb và các viết tắt khác; sẽ tự chuyển thành enum Skyvern, ví dụ jp→RESIDENTIAL_JP; để trống thì không truyền",
     },
     {
         "key": "SKYVERN_BROWSER_TYPE", "file": "skyvern.py", "type": "str", "group": "Skyvern",
-        "label": "浏览器类型", "help": "Skyvern 支持 msedge / chrome / stealth-chromium；旧值 chromium-headful 会自动转为 stealth-chromium",
+        "label": "Loại trình duyệt", "help": "Skyvern hỗ trợ msedge / chrome / stealth-chromium；giá trị cũ chromium-headful sẽ tự chuyển thành stealth-chromium",
     },
     {
         "key": "SKYVERN_AD_BLOCKER", "file": "skyvern.py", "type": "bool", "group": "Skyvern",
-        "label": "广告拦截", "help": "创建 Skyvern Browser Session 时启用 ad_blocker",
+        "label": "Chặn quảng cáo", "help": "Bật ad_blocker khi tạo Skyvern Browser Session",
     },
     {
         "key": "SKYVERN_GENERATE_BROWSER_PROFILE", "file": "skyvern.py", "type": "bool", "group": "Skyvern",
-        "label": "保存浏览器Profile", "help": "Session 结束时是否让 Skyvern 生成/保存 browser profile",
+        "label": "Lưu Profile trình duyệt", "help": "Khi Session kết thúc có cho Skyvern tạo/lưu browser profile hay không",
     },
     {
         "key": "SKYVERN_KEEP_BROWSER_OPEN", "file": "skyvern.py", "type": "bool", "group": "Skyvern",
-        "label": "保留浏览器", "help": "调试时可开启，任务结束后不主动关闭 Skyvern Browser Session",
+        "label": "Giữ trình duyệt", "help": "Khi gỡ lỗi có thể bật, không chủ động đóng Skyvern Browser Session sau khi tác vụ kết thúc",
     },
     {
         "key": "SKYVERN_START_URL", "file": "skyvern.py", "type": "str", "group": "Skyvern",
-        "label": "起始 URL", "help": "默认 https://chatgpt.com/auth/login",
+        "label": "URL bắt đầu", "help": "Mặc định https://chatgpt.com/auth/login",
     },
     {
         "key": "ROXY_API_BASE", "file": "roxybrowser.py", "type": "str", "group": "RoxyBrowser",
-        "label": "Roxy API 地址", "help": "默认 http://127.0.0.1:50000；需在 Roxy 应用 API 配置中开启",
+        "label": "Địa chỉ Roxy API", "help": "Mặc định http://127.0.0.1:50000; cần bật trong cấu hình API của ứng dụng Roxy",
     },
     {
         "key": "ROXY_API_TOKEN", "file": "roxybrowser.py", "type": "str", "group": "RoxyBrowser",
-        "label": "Roxy API Key", "help": "保存在 .env（ROXY_API_TOKEN），不写回 config/*.py",
+        "label": "Roxy API Key", "help": "Lưu trong .env (ROXY_API_TOKEN), không ghi lại config/*.py",
         "storage": "env", "secret": True,
     },
     {
         "key": "ROXY_PROFILE_ID", "file": "roxybrowser.py", "type": "str", "group": "RoxyBrowser",
-        "label": "Roxy 环境ID", "help": "指定要打开的 Roxy 浏览器环境/Profile ID；留空则尝试创建临时环境",
+        "label": "ID môi trường Roxy", "help": "Chỉ định Profile ID / môi trường Roxy cần mở; để trống thì thử tạo môi trường tạm",
     },
     {
         "key": "ROXY_WORKSPACE_ID", "file": "roxybrowser.py", "type": "str", "group": "RoxyBrowser",
-        "label": "Roxy 工作区ID", "help": "创建一号一环境时必填，会作为 workspaceId 提交给 Roxy 创建 Profile 接口",
+        "label": "ID workspace Roxy", "help": "Bắt buộc khi tạo một tài khoản một môi trường, sẽ gửi làm workspaceId cho API tạo Profile của Roxy",
     },
     {
         "key": "ROXY_PROJECT_ID", "file": "roxybrowser.py", "type": "str", "group": "RoxyBrowser",
-        "label": "Roxy 项目ID", "help": "从 /browser/workspace 的 project_details.projectId 获取；创建 Profile 时会作为 projectId 提交",
+        "label": "ID dự án Roxy", "help": "Lấy từ project_details.projectId của /browser/workspace；khi tạo Profile sẽ gửi làm projectId",
     },
     {
         "key": "ROXY_WORKSPACE_LIST_PATH", "file": "roxybrowser.py", "type": "str", "group": "RoxyBrowser",
-        "label": "获取团队接口", "help": "默认 /browser/workspace；点击获取团队/项目时会先试此路径，再自动尝试常见兼容路径",
+        "label": "API lấy team", "help": "Mặc định /browser/workspace; khi bấm lấy team/dự án sẽ thử đường dẫn này trước, rồi tự thử các đường dẫn tương thích thường gặp",
     },
     {
         "key": "ROXY_OPEN_PATH", "file": "roxybrowser.py", "type": "str", "group": "RoxyBrowser",
-        "label": "打开接口路径", "help": "默认 /browser/open；如 Roxy 版本不同可在此调整",
+        "label": "Đường dẫn API mở", "help": "Mặc định /browser/open; chỉnh nếu bản Roxy khác",
     },
     {
         "key": "ROXY_CREATE_INTERVAL", "file": "roxybrowser.py", "type": "float", "group": "RoxyBrowser",
-        "label": "创建环境间隔", "help": "多线程时相邻 /browser/create 请求的最小间隔，默认 1.5 秒；设为 0 可关闭",
+        "label": "Khoảng cách tạo môi trường", "help": "Khoảng cách tối thiểu giữa các request /browser/create liền kề khi đa luồng, mặc định 1.5 giây; đặt 0 để tắt",
     },
     {
         "key": "ROXY_OPEN_HEADLESS", "file": "roxybrowser.py", "type": "bool", "group": "RoxyBrowser",
-        "label": "无头启动窗口", "help": "打开 Roxy 环境时向 /browser/open 传 headless；False=显示窗口，True=无头启动",
+        "label": "Mở cửa sổ headless", "help": "Khi mở môi trường Roxy, truyền headless tới /browser/open; False=hiện cửa sổ, True=khởi chạy headless",
     },
     {
         "key": "ROXY_CLOSE_PATH", "file": "roxybrowser.py", "type": "str", "group": "RoxyBrowser",
-        "label": "关闭接口路径", "help": "默认 /browser/close",
+        "label": "Đường dẫn API đóng", "help": "Mặc định /browser/close",
     },
     {
         "key": "ROXY_KEEP_BROWSER_OPEN", "file": "roxybrowser.py", "type": "bool", "group": "RoxyBrowser",
-        "label": "保留浏览器", "help": "调试时可开启，任务结束后不自动关闭 Roxy 环境",
+        "label": "Giữ trình duyệt", "help": "Khi gỡ lỗi có thể bật, không tự đóng môi trường Roxy sau khi tác vụ kết thúc",
     },
     {
         "key": "ROXY_ONE_PROFILE_PER_ACCOUNT", "file": "roxybrowser.py", "type": "bool", "group": "RoxyBrowser",
-        "label": "一号一环境", "help": "每个账号强制创建新 Roxy Profile，用完关闭并删除，禁止复用固定环境",
+        "label": "Một tài khoản một môi trường", "help": "Mỗi tài khoản bắt buộc tạo Roxy Profile mới, dùng xong thì đóng và xoá, cấm dùng lại môi trường cố định",
     },
     {
         "key": "ROXY_DELETE_PROFILE_AFTER_RUN", "file": "roxybrowser.py", "type": "bool", "group": "RoxyBrowser",
-        "label": "结束后删除环境", "help": "一号一环境模式下，任务结束后删除本轮创建的 Roxy Profile",
+        "label": "Xoá môi trường khi kết thúc", "help": "Ở chế độ một tài khoản một môi trường, xoá Roxy Profile đã tạo trong lượt này sau khi tác vụ kết thúc",
     },
     {
         "key": "ROXY_RANDOM_OS_ON_CREATE", "file": "roxybrowser.py", "type": "bool", "group": "RoxyBrowser",
-        "label": "创建环境随机OS", "help": "创建 Roxy 环境时每次在 Windows / macOS 中随机，不固定 macOS",
+        "label": "OS ngẫu nhiên khi tạo môi trường", "help": "Khi tạo môi trường Roxy, mỗi lần random Windows / macOS, không cố định macOS",
     },
     {
         "key": "ROXY_RANDOM_OS_CHOICES", "file": "roxybrowser.py", "type": "str", "group": "RoxyBrowser",
-        "label": "随机OS范围", "help": "逗号分隔，默认 Windows,macOS；Roxy 支持 Windows / macOS / Linux / IOS / Android",
+        "label": "Phạm vi OS ngẫu nhiên", "help": "Phân tách bằng dấu phẩy, mặc định Windows,macOS; Roxy hỗ trợ Windows / macOS / Linux / IOS / Android",
     },
     {
         "key": "ROXY_RANDOM_PROFILE_NAME_ON_CREATE", "file": "roxybrowser.py", "type": "bool", "group": "RoxyBrowser",
-        "label": "创建环境随机名称", "help": "创建 Roxy 环境时自动生成不同名称，避免固定 gpt-free-register",
+        "label": "Tên ngẫu nhiên khi tạo môi trường", "help": "Khi tạo môi trường Roxy, tự sinh tên khác nhau, tránh cố định gpt-free-register",
     },
     {
         "key": "ROXY_PROFILE_NAME_PREFIX", "file": "roxybrowser.py", "type": "str", "group": "RoxyBrowser",
-        "label": "随机名称前缀", "help": "默认 rb；实际名称格式类似 rb-时间戳-随机码",
+        "label": "Tiền tố tên ngẫu nhiên", "help": "Mặc định rb; tên thực tế dạng rb-timestamp-mã ngẫu nhiên",
     },
     {
         "key": "ROXY_CREATE_USE_PROXY_POOL", "file": "roxybrowser.py", "type": "bool", "group": "RoxyBrowser",
-        "label": "创建环境使用代理池", "help": "创建 Roxy 环境时从配置页「代理池」随机取一个代理，写入 Roxy proxyInfo",
+        "label": "Tạo môi trường dùng kho proxy", "help": "Khi tạo môi trường Roxy, lấy ngẫu nhiên một proxy từ「Kho proxy」trên trang cấu hình, ghi vào Roxy proxyInfo",
     },
     {
         "key": "ROXY_PROXY_CHECK_CHANNEL", "file": "roxybrowser.py", "type": "str", "group": "RoxyBrowser",
-        "label": "代理检测通道", "help": "写入 Roxy proxyInfo.checkChannel；留空则不传，默认 IPRust.io",
+        "label": "Kênh kiểm tra proxy", "help": "Ghi Roxy proxyInfo.checkChannel; để trống thì không gửi, mặc định IPRust.io",
     },
     {
         "key": "ROXY_DELETE_PATH", "file": "roxybrowser.py", "type": "str", "group": "RoxyBrowser",
-        "label": "删除接口路径", "help": "默认 /browser/delete；如 Roxy 版本不同可调整",
+        "label": "Đường dẫn API xoá", "help": "Mặc định /browser/delete; chỉnh nếu bản Roxy khác",
     },
     {
         "key": "CODEX_OAUTH_DRIVER", "file": "codex.py", "type": "str", "group": "Codex",
-        "label": "Codex授权驱动", "help": "默认推荐 roxy；protocol=原协议授权；roxy=用 RoxyBrowser；cloak=用 CloakBrowser；browser_use=用 Browser Use Cloud；skyvern=用 Skyvern；same_as_registration=跟随注册驱动",
+        "label": "Driver uỷ quyền Codex", "help": "Mặc định nên dùng roxy; protocol=uỷ quyền giao thức gốc; roxy=dùng RoxyBrowser; cloak=dùng CloakBrowser; browser_use=dùng Browser Use Cloud; skyvern=dùng Skyvern; same_as_registration=theo driver đăng ký",
     },
     {
         "key": "ROXY_CODEX_CALLBACK_TIMEOUT", "file": "roxybrowser.py", "type": "int", "group": "RoxyBrowser",
-        "label": "Codex回调超时", "help": "Roxy Codex OAuth 等待 localhost:1455 callback 的最长秒数",
+        "label": "Timeout callback Codex", "help": "Số giây tối đa Roxy Codex OAuth chờ callback localhost:1455",
     },
     {
-        "key": "ENABLE_2FA", "file": "twofa.py", "type": "bool", "group": "功能开关",
-        "label": "启用 2FA(TOTP)", "help": "注册完成后自动设置动态口令（会多收一封 OTP 邮件）",
+        "key": "ENABLE_2FA", "file": "twofa.py", "type": "bool", "group": "Công tắc tính năng",
+        "label": "Bật 2FA (TOTP)", "help": "Sau khi đăng ký xong, tự đặt mật khẩu động (sẽ nhận thêm một email OTP)",
     },
     {
-        "key": "TWOFA_PROXY_MODE", "file": "twofa.py", "type": "str", "group": "功能开关",
-        "label": "2FA代理模式", "help": "saved=优先使用账号保存的代理；pool=忽略保存代理，每次从代理池随机取一个；修改后需重启服务",
+        "key": "TWOFA_PROXY_MODE", "file": "twofa.py", "type": "str", "group": "Công tắc tính năng",
+        "label": "Chế độ proxy 2FA", "help": "saved=ưu tiên dùng proxy đã lưu của tài khoản; pool=bỏ qua proxy đã lưu, mỗi lần lấy ngẫu nhiên một proxy từ kho proxy; sau khi sửa cần khởi động lại dịch vụ",
         "choices": [
-            {"value": "saved", "label": "使用账号保存的代理"},
-            {"value": "pool", "label": "每次从代理池随机获取"},
+            {"value": "saved", "label": "Dùng proxy đã lưu của tài khoản"},
+            {"value": "pool", "label": "Mỗi lần lấy ngẫu nhiên từ kho proxy"},
         ],
     },
     {
-        "key": "TWOFA_WORKERS", "file": "twofa.py", "type": "int", "group": "功能开关",
-        "label": "2FA并发数", "help": "同时执行的2FA设置任务数，默认4，范围1-16；修改后需重启服务",
+        "key": "TWOFA_WORKERS", "file": "twofa.py", "type": "int", "group": "Công tắc tính năng",
+        "label": "Số luồng 2FA", "help": "Số tác vụ bật 2FA chạy cùng lúc, mặc định 4, khoảng 1-16; sửa xong cần khởi động lại dịch vụ",
     },
     {
-        "key": "TWOFA_QUEUE_LIMIT", "file": "twofa.py", "type": "int", "group": "功能开关",
-        "label": "2FA队列容量", "help": "允许排队等待的2FA任务总数，默认200",
+        "key": "TWOFA_QUEUE_LIMIT", "file": "twofa.py", "type": "int", "group": "Công tắc tính năng",
+        "label": "Sức chứa hàng đợi 2FA", "help": "Tổng số tác vụ 2FA được phép chờ hàng, mặc định 200",
     },
     {
-        "key": "ENABLE_FLOW_TRIGGER", "file": "flow_trigger.py", "type": "bool", "group": "功能开关",
-        "label": "启用 Flow 触发", "help": "注册成功后自动调用内部 Flow 接口（不影响注册结果）",
+        "key": "ENABLE_FLOW_TRIGGER", "file": "flow_trigger.py", "type": "bool", "group": "Công tắc tính năng",
+        "label": "Bật kích hoạt Flow", "help": "Sau khi đăng ký thành công, tự gọi API Flow nội bộ (không ảnh hưởng kết quả đăng ký)",
     },
     {
-        "key": "ENABLE_HUMANIZE_DELAY", "file": "humanize.py", "type": "bool", "group": "人工节奏",
-        "label": "启用随机停顿", "help": "在注册、OTP、授权等步骤之间加入随机等待，更接近人工操作节奏",
+        "key": "ENABLE_HUMANIZE_DELAY", "file": "humanize.py", "type": "bool", "group": "Nhịp thao tác",
+        "label": "Bật dừng ngẫu nhiên", "help": "Thêm chờ ngẫu nhiên giữa các bước đăng ký, OTP, uỷ quyền, gần nhịp thao tác người hơn",
     },
     {
-        "key": "HUMANIZE_DELAY_FACTOR", "file": "humanize.py", "type": "float", "group": "人工节奏",
-        "label": "停顿倍率", "help": "随机停顿整体倍率；1.0=默认，0.5=减半，2.0=加倍",
+        "key": "HUMANIZE_DELAY_FACTOR", "file": "humanize.py", "type": "float", "group": "Nhịp thao tác",
+        "label": "Hệ số dừng", "help": "Hệ số chờ ngẫu nhiên; 1.0=mặc định, 0.5=một nửa, 2.0=gấp đôi",
     },
     {
-        "key": "ENABLE_HUMANIZE_BROWSER_ACTIONS", "file": "humanize.py", "type": "bool", "group": "人工节奏",
-        "label": "浏览器动作随机化", "help": "Roxy/Cloak 点击、输入、页面观察使用随机鼠标落点和逐字输入，降低机械操作痕迹",
+        "key": "ENABLE_HUMANIZE_BROWSER_ACTIONS", "file": "humanize.py", "type": "bool", "group": "Nhịp thao tác",
+        "label": "Ngẫu nhiên hoá thao tác trình duyệt", "help": "Roxy/Cloak click, nhập, quan sát trang dùng điểm chuột ngẫu nhiên và nhập từng ký tự, giảm dấu vết thao tác máy",
     },
     # ---- 邮箱 / OTP ----
     {
-        "key": "USE_EMAIL_SERVICE", "file": "email.py", "type": "bool", "group": "邮箱 / OTP",
-        "label": "自动取邮箱+收码", "help": "True=从邮箱池自动领邮箱并自动收 OTP；False=手动模式：用 REGISTER_EMAIL，OTP 在任务页手填",
+        "key": "USE_EMAIL_SERVICE", "file": "email.py", "type": "bool", "group": "Email / OTP",
+        "label": "Tự lấy email và nhận mã", "help": "True=tự lấy email từ kho email và tự nhận OTP; False=chế độ thủ công: dùng REGISTER_EMAIL, OTP điền tay ở trang tác vụ",
     },
     {
-        "key": "REGISTER_EMAIL", "file": "register.py", "type": "str", "group": "邮箱 / OTP",
-        "label": "手动注册邮箱", "help": "USE_EMAIL_SERVICE=False 时必填。例如你的 outlook.com 地址；OTP 去网页邮箱看，再回任务页提交",
+        "key": "REGISTER_EMAIL", "file": "register.py", "type": "str", "group": "Email / OTP",
+        "label": "Email đăng ký thủ công", "help": "Bắt buộc khi USE_EMAIL_SERVICE=False. Ví dụ địa chỉ outlook.com của bạn; OTP xem ở email web, rồi quay lại trang tác vụ để gửi",
     },
     {
-        "key": "REGISTER_NAME", "file": "register.py", "type": "str", "group": "邮箱 / OTP",
-        "label": "显示名称", "help": "留空则自动生成英文名",
+        "key": "REGISTER_NAME", "file": "register.py", "type": "str", "group": "Email / OTP",
+        "label": "Tên hiển thị", "help": "Để trống thì tự tạo tên tiếng Anh",
     },
     {
-        "key": "OTP_MAX_WAIT", "file": "email.py", "type": "int", "group": "邮箱 / OTP",
-        "label": "OTP 最长等待(秒)", "help": "等待验证码邮件的最长秒数，超时判失败",
+        "key": "OTP_MAX_WAIT", "file": "email.py", "type": "int", "group": "Email / OTP",
+        "label": "Chờ OTP tối đa (giây)", "help": "Số giây tối đa chờ email OTP, hết giờ thì thất bại",
     },
     {
-        "key": "OTP_POLL_INTERVAL", "file": "email.py", "type": "int", "group": "邮箱 / OTP",
-        "label": "OTP 轮询间隔(秒)", "help": "每隔多少秒查一次新邮件",
+        "key": "OTP_POLL_INTERVAL", "file": "email.py", "type": "int", "group": "Email / OTP",
+        "label": "Chu kỳ hỏi OTP (giây)", "help": "Bao nhiêu giây thì kiểm tra thư mới một lần",
     },
     {
-        "key": "GENERIC_API_PROXY", "file": "email.py", "type": "str", "group": "邮箱 / OTP",
-        "label": "通用 API 取码代理", "help": "仅用于 generic_api 接口取码；默认直接走本地 HTTP 代理 http://127.0.0.1:7897，不读取代理池，也不套用代理池上游链式；留空则直连",
+        "key": "GENERIC_API_PROXY", "file": "email.py", "type": "str", "group": "Email / OTP",
+        "label": "Proxy lấy mã API chung", "help": "Chỉ dùng lấy mã qua API generic_api；mặc định đi thẳng proxy HTTP local http://127.0.0.1:7897, không đọc kho proxy, cũng không áp chuỗi upstream kho proxy；để trống thì kết nối trực tiếp",
         "storage": "env",
     },
     {
-        "key": "EMAIL_SOURCE", "file": "email.py", "type": "str", "group": "邮箱 / OTP",
-        "label": "邮箱来源", "help": "可填单个或多个，逗号分隔并按顺序兜底：outlook,generic_api,imap,cloudflare_domain,cloudflare,gptmail,mailnest,cloudmail,remail",
+        "key": "EMAIL_SOURCE", "file": "email.py", "type": "str", "group": "Email / OTP",
+        "label": "Nguồn email", "help": "Có thể điền một hoặc nhiều, cách nhau bằng dấu phẩy và fallback theo thứ tự：outlook,generic_api,imap,cloudflare_domain,cloudflare,gptmail,mailnest,cloudmail,remail",
     },
     {
-        "key": "IMAP_MAILBOX", "file": "email.py", "type": "str", "group": "邮箱 / OTP",
-        "label": "通用 IMAP 收件箱", "help": "通用 IMAP 邮箱默认目录，通常为 INBOX；服务器、端口、用户名和密码在邮箱池导入",
+        "key": "IMAP_MAILBOX", "file": "email.py", "type": "str", "group": "Email / OTP",
+        "label": "Hộp thư IMAP chung", "help": "Thư mục mặc định email IMAP chung, thường là INBOX; server, port, username và mật khẩu khi nhập kho email",
     },
     {
-        "key": "GPTMAIL_API_KEY", "file": "email.py", "type": "str", "group": "邮箱 / OTP",
-        "label": "GPTMail API Key", "help": "选择 gptmail 邮箱来源时必填；保存在 .env，不会写入 config 源码",
+        "key": "GPTMAIL_API_KEY", "file": "email.py", "type": "str", "group": "Email / OTP",
+        "label": "GPTMail API Key", "help": "Bắt buộc khi chọn nguồn email gptmail; lưu trong .env, không ghi vào mã nguồn config",
         "storage": "env", "secret": True,
     },
     {
-        "key": "CLOUDFLARE_API_BASE", "file": "email.py", "type": "str", "group": "邮箱 / OTP",
-        "label": "Cloudflare API 地址", "help": "Worker 临时邮箱 API 根地址，如 https://mail.example.com；选择 cloudflare 时必填",
+        "key": "CLOUDFLARE_API_BASE", "file": "email.py", "type": "str", "group": "Email / OTP",
+        "label": "Địa chỉ Cloudflare API", "help": "Địa chỉ gốc API email tạm của Worker, ví dụ https://mail.example.com; bắt buộc khi chọn cloudflare",
         "storage": "env",
     },
     {
-        "key": "CLOUDFLARE_API_KEY", "file": "email.py", "type": "str", "group": "邮箱 / OTP",
-        "label": "Cloudflare API Key", "help": "匿名可空；admin 模式填 ADMIN_PASSWORD；保存在 .env",
+        "key": "CLOUDFLARE_API_KEY", "file": "email.py", "type": "str", "group": "Email / OTP",
+        "label": "Cloudflare API Key", "help": "Ẩn danh có thể để trống; chế độ admin điền ADMIN_PASSWORD; lưu trong .env",
         "storage": "env", "secret": True,
     },
     {
-        "key": "CLOUDFLARE_AUTH_MODE", "file": "email.py", "type": "str", "group": "邮箱 / OTP",
-        "label": "Cloudflare 鉴权模式", "help": "none / bearer / x-api-key / x-admin-auth / query-key",
+        "key": "CLOUDFLARE_AUTH_MODE", "file": "email.py", "type": "str", "group": "Email / OTP",
+        "label": "Chế độ xác thực Cloudflare", "help": "none / bearer / x-api-key / x-admin-auth / query-key",
     },
     {
-        "key": "CLOUDFLARE_CUSTOM_AUTH", "file": "email.py", "type": "str", "group": "邮箱 / OTP",
-        "label": "Cloudflare 全局密码", "help": "Worker PASSWORDS，注入 x-custom-auth；保存在 .env",
+        "key": "CLOUDFLARE_CUSTOM_AUTH", "file": "email.py", "type": "str", "group": "Email / OTP",
+        "label": "Mật khẩu toàn cục Cloudflare", "help": "Worker PASSWORDS, gắn vào x-custom-auth; lưu trong .env",
         "storage": "env", "secret": True,
     },
     {
-        "key": "CLOUDFLARE_PATH_ACCOUNTS", "file": "email.py", "type": "str", "group": "邮箱 / OTP",
-        "label": "Cloudflare 创建路径", "help": "默认 /api/new_address；admin 常用 /admin/new_address",
+        "key": "CLOUDFLARE_PATH_ACCOUNTS", "file": "email.py", "type": "str", "group": "Email / OTP",
+        "label": "Đường dẫn tạo Cloudflare", "help": "Mặc định /api/new_address; admin thường dùng /admin/new_address",
     },
     {
-        "key": "CLOUDFLARE_PATH_MESSAGES", "file": "email.py", "type": "str", "group": "邮箱 / OTP",
-        "label": "Cloudflare 邮件路径", "help": "默认 /api/mails",
+        "key": "CLOUDFLARE_PATH_MESSAGES", "file": "email.py", "type": "str", "group": "Email / OTP",
+        "label": "Đường dẫn thư Cloudflare", "help": "Mặc định /api/mails",
     },
     {
-        "key": "CLOUDFLARE_PATH_DOMAINS", "file": "email.py", "type": "str", "group": "邮箱 / OTP",
-        "label": "Cloudflare 域名路径", "help": "默认 /api/domains（预留）",
+        "key": "CLOUDFLARE_PATH_DOMAINS", "file": "email.py", "type": "str", "group": "Email / OTP",
+        "label": "Đường dẫn tên miền Cloudflare", "help": "Mặc định /api/domains (dự phòng)",
     },
     {
-        "key": "CLOUDFLARE_PATH_TOKEN", "file": "email.py", "type": "str", "group": "邮箱 / OTP",
-        "label": "Cloudflare Token路径", "help": "默认 /api/token（fallback 预留）",
+        "key": "CLOUDFLARE_PATH_TOKEN", "file": "email.py", "type": "str", "group": "Email / OTP",
+        "label": "Đường dẫn Cloudflare Token", "help": "Mặc định /api/token (dự phòng fallback)",
     },
     {
-        "key": "CLOUDFLARE_DEFAULT_DOMAINS", "file": "email.py", "type": "list_str_multiline", "group": "邮箱 / OTP",
-        "label": "Cloudflare 默认域名", "help": "收信域名，每行一个或逗号分隔；创建时轮询使用，可留空",
+        "key": "CLOUDFLARE_DEFAULT_DOMAINS", "file": "email.py", "type": "list_str_multiline", "group": "Email / OTP",
+        "label": "Tên miền mặc định Cloudflare", "help": "Tên miền nhận thư, mỗi dòng một hoặc cách nhau bằng dấu phẩy; xoay vòng khi tạo, có thể để trống",
     },
     {
-        "key": "CLOUDFLARE_REQUEST_TIMEOUT", "file": "email.py", "type": "int", "group": "邮箱 / OTP",
-        "label": "Cloudflare 请求超时(秒)", "help": "HTTP 请求超时，默认 20",
+        "key": "CLOUDFLARE_REQUEST_TIMEOUT", "file": "email.py", "type": "int", "group": "Email / OTP",
+        "label": "Timeout request Cloudflare (giây)", "help": "Timeout request HTTP, mặc định 20",
     },
     {
-        "key": "CLOUDFLARE_NAME_LENGTH", "file": "email.py", "type": "int", "group": "邮箱 / OTP",
-        "label": "Cloudflare 随机名前缀长度", "help": "admin 创建时 local-part 长度，默认 10",
+        "key": "CLOUDFLARE_NAME_LENGTH", "file": "email.py", "type": "int", "group": "Email / OTP",
+        "label": "Độ dài tiền tố tên ngẫu nhiên Cloudflare", "help": "Độ dài local-part khi admin tạo, mặc định 10",
     },
     {
-        "key": "OUTLOOK_FETCH_MODE", "file": "email.py", "type": "str", "group": "邮箱 / OTP",
-        "label": "Outlook取件模式", "help": "auto=远端优先，远端 402/DEPLOYMENT_DISABLED 自动切 Graph 直连；direct=只用 Microsoft Graph 直连；remote=只用远端服务",
+        "key": "OUTLOOK_FETCH_MODE", "file": "email.py", "type": "str", "group": "Email / OTP",
+        "label": "Chế độ lấy thư Outlook", "help": "auto=ưu tiên remote, remote 402/DEPLOYMENT_DISABLED tự chuyển Graph trực tiếp；direct=chỉ Microsoft Graph trực tiếp；remote=chỉ dịch vụ remote",
     },
     {
-        "key": "EMAIL_DOMAIN", "file": "email.py", "type": "str", "group": "邮箱 / OTP",
-        "label": "转发域名(cloudflare_domain)", "help": "仅 cloudflare_domain 使用：Email Routing 的域名，如 mydomain.com；与 EMAIL_SOURCE=cloudflare 无关",
+        "key": "EMAIL_DOMAIN", "file": "email.py", "type": "str", "group": "Email / OTP",
+        "label": "Tên miền chuyển tiếp (cloudflare_domain)", "help": "Chỉ dùng cho cloudflare_domain：domain Email Routing, ví dụ mydomain.com；không liên quan EMAIL_SOURCE=cloudflare",
     },
     {
-        "key": "QQ_EMAIL", "file": "email.py", "type": "str", "group": "邮箱 / OTP",
-        "label": "QQ 邮箱地址", "help": "仅 cloudflare_domain：接收 Email Routing 转发的 QQ 邮箱，如 123456@qq.com",
+        "key": "QQ_EMAIL", "file": "email.py", "type": "str", "group": "Email / OTP",
+        "label": "Địa chỉ email QQ", "help": "Chỉ cloudflare_domain: email QQ nhận chuyển tiếp Email Routing, ví dụ 123456@qq.com",
     },
     {
-        "key": "QQ_IMAP_PASSWORD", "file": "email.py", "type": "str", "group": "邮箱 / OTP",
-        "label": "QQ 邮箱 IMAP 授权码", "help": "仅 cloudflare_domain：QQ IMAP 授权码，保存在 .env，不写回 config/*.py",
+        "key": "QQ_IMAP_PASSWORD", "file": "email.py", "type": "str", "group": "Email / OTP",
+        "label": "Mã uỷ quyền IMAP email QQ", "help": "Chỉ cloudflare_domain: mã uỷ quyền QQ IMAP, lưu trong .env, không ghi ngược vào config/*.py",
         "storage": "env", "secret": True,
     },
     {
-        "key": "MAIL_NEST_API_KEY", "file": "email.py", "type": "str", "group": "邮箱 / OTP",
-        "label": "MailNest API Key", "help": "选择 mailnest 邮箱来源时必填；保存在 .env，不会写入 config 源码",
+        "key": "MAIL_NEST_API_KEY", "file": "email.py", "type": "str", "group": "Email / OTP",
+        "label": "MailNest API Key", "help": "Bắt buộc khi chọn nguồn email mailnest; lưu trong .env, không ghi vào mã nguồn config",
         "storage": "env", "secret": True,
     },
     {
-        "key": "MAIL_NEST_PROJECT_CODE", "file": "email.py", "type": "str", "group": "邮箱 / OTP",
-        "label": "MailNest 项目代码", "help": "项目代码 默认 chatgpt001 获取页面 mailnest.top/buy-email",
+        "key": "MAIL_NEST_PROJECT_CODE", "file": "email.py", "type": "str", "group": "Email / OTP",
+        "label": "Mã dự án MailNest", "help": "Mã dự án mặc định chatgpt001 trang lấy mailnest.top/buy-email",
     },
     {
-        "key": "CLOUDMAIL_API_BASE", "file": "email.py", "type": "str", "group": "邮箱 / OTP",
-        "label": "CloudMail API 地址", "help": "Cloud Mail Worker/API 地址，例如 https://mail.example.com",
+        "key": "CLOUDMAIL_API_BASE", "file": "email.py", "type": "str", "group": "Email / OTP",
+        "label": "Địa chỉ CloudMail API", "help": "Địa chỉ Cloud Mail Worker/API, ví dụ https://mail.example.com",
     },
     {
-        "key": "CLOUDMAIL_ADMIN_EMAIL", "file": "email.py", "type": "str", "group": "邮箱 / OTP",
-        "label": "CloudMail管理员邮箱", "help": "用于生成 Token；域名被平台隐藏时也会用它登录读取域名",
+        "key": "CLOUDMAIL_ADMIN_EMAIL", "file": "email.py", "type": "str", "group": "Email / OTP",
+        "label": "Email quản trị CloudMail", "help": "Dùng để tạo Token; khi nền tảng ẩn tên miền cũng dùng nó để đăng nhập và đọc tên miền",
         "storage": "env",
     },
     {
-        "key": "CLOUDMAIL_PASSWORD", "file": "email.py", "type": "str", "group": "邮箱 / OTP",
-        "label": "CloudMail 密码", "help": "用于自动获取 Token；保存在 .env",
+        "key": "CLOUDMAIL_PASSWORD", "file": "email.py", "type": "str", "group": "Email / OTP",
+        "label": "Mật khẩu CloudMail", "help": "Dùng để tự lấy Token; lưu trong .env",
         "storage": "env", "secret": True,
     },
     {
-        "key": "CLOUDMAIL_TOKEN_PATH", "file": "email.py", "type": "str", "group": "邮箱 / OTP",
-        "label": "CloudMail Token路径", "help": "固定使用 /api/public/genToken；如部署版本不同可修改",
+        "key": "CLOUDMAIL_TOKEN_PATH", "file": "email.py", "type": "str", "group": "Email / OTP",
+        "label": "Đường dẫn CloudMail Token", "help": "Cố định dùng /api/public/genToken; sửa nếu bản triển khai khác",
     },
     {
-        "key": "CLOUDMAIL_AUTH_TOKEN", "file": "email.py", "type": "str", "group": "邮箱 / OTP",
-        "label": "CloudMail Token", "help": "CloudMail/Cloud Mail API Authorization Token；保存在 .env",
+        "key": "CLOUDMAIL_AUTH_TOKEN", "file": "email.py", "type": "str", "group": "Email / OTP",
+        "label": "CloudMail Token", "help": "CloudMail/Cloud Mail API Authorization Token; lưu trong .env",
         "storage": "env", "secret": True,
     },
     {
-        "key": "CLOUDMAIL_DOMAINS", "file": "email.py", "type": "list_str_multiline", "group": "邮箱 / OTP",
-        "label": "CloudMail 域名列表", "help": "可留空；运行时会自动从平台获取。也可点“获取 CloudMail 域名”缓存到这里",
+        "key": "CLOUDMAIL_DOMAINS", "file": "email.py", "type": "list_str_multiline", "group": "Email / OTP",
+        "label": "Danh sách tên miền CloudMail", "help": "Có thể để trống; lúc chạy sẽ tự lấy từ nền tảng. Cũng có thể bấm “Lấy tên miền CloudMail” để lưu cache tại đây",
     },
     {
-        "key": "CLOUDMAIL_AUTO_ADD_USER", "file": "email.py", "type": "bool", "group": "邮箱 / OTP",
-        "label": "CloudMail自动创建用户", "help": "生成随机邮箱后调用 /api/public/addUser 创建用户",
+        "key": "CLOUDMAIL_AUTO_ADD_USER", "file": "email.py", "type": "bool", "group": "Email / OTP",
+        "label": "CloudMail tự tạo người dùng", "help": "Sau khi tạo email ngẫu nhiên, gọi /api/public/addUser để tạo người dùng",
     },
     {
-        "key": "CLOUDMAIL_RANDOM_LOCAL_LENGTH", "file": "email.py", "type": "int", "group": "邮箱 / OTP",
-        "label": "CloudMail随机名前缀长度", "help": "生成邮箱 local-part 的长度，建议 10-16",
+        "key": "CLOUDMAIL_RANDOM_LOCAL_LENGTH", "file": "email.py", "type": "int", "group": "Email / OTP",
+        "label": "Độ dài tiền tố tên ngẫu nhiên CloudMail", "help": "Độ dài local-part của email, nên 10-16",
     },
     {
-        "key": "REMAIL_API_BASE", "file": "email.py", "type": "str", "group": "邮箱 / OTP",
-        "label": "Remail API 地址", "help": "默认 https://remail.aishop6.com；也可填写文档地址 https://remail.aishop6.com/docs",
+        "key": "REMAIL_API_BASE", "file": "email.py", "type": "str", "group": "Email / OTP",
+        "label": "Địa chỉ Remail API", "help": "Mặc định https://remail.aishop6.com; cũng có thể điền địa chỉ tài liệu https://remail.aishop6.com/docs",
         "external_url": "https://remail.aishop6.com/register?aff=AFFLGYQMTYIXH",
-        "external_label": "打开 Remail 官网",
+        "external_label": "Mở trang Remail",
     },
     {
-        "key": "REMAIL_API_KEY", "file": "email.py", "type": "str", "group": "邮箱 / OTP",
-        "label": "Remail API Key", "help": "Remail 控制台生成的 rk- 开头 API Key；选择 remail 来源时必填，保存在 .env",
+        "key": "REMAIL_API_KEY", "file": "email.py", "type": "str", "group": "Email / OTP",
+        "label": "Remail API Key", "help": "API Key bắt đầu bằng rk- do bảng điều khiển Remail tạo; bắt buộc khi chọn nguồn remail, lưu trong .env",
         "storage": "env", "secret": True,
     },
     {
-        "key": "REMAIL_PROJECT_ID", "file": "email.py", "type": "int", "group": "邮箱 / OTP",
-        "label": "Remail 项目 ID", "help": "Remail API 项目列表中的 projectId，用于匹配 ChatGPT/OpenAI 验证码项目",
+        "key": "REMAIL_PROJECT_ID", "file": "email.py", "type": "int", "group": "Email / OTP",
+        "label": "ID dự án Remail", "help": "projectId trong danh sách dự án Remail API, dùng để khớp dự án mã OTP ChatGPT/OpenAI",
     },
     {
-        "key": "REMAIL_EMAIL_SUFFIX", "file": "email.py", "type": "str", "group": "邮箱 / OTP",
-        "label": "Remail 邮箱后缀", "help": "下单时使用的邮箱后缀，默认 outlook.com；不要填写完整邮箱",
+        "key": "REMAIL_EMAIL_SUFFIX", "file": "email.py", "type": "str", "group": "Email / OTP",
+        "label": "Hậu tố email Remail", "help": "Hậu tố email khi đặt hàng, mặc định outlook.com; đừng điền email đầy đủ",
     },
     {
-        "key": "REMAIL_SERVICE_MODE", "file": "email.py", "type": "str", "group": "邮箱 / OTP",
-        "label": "Remail 服务模式", "help": "code=短效接码；purchase=长效购买（可重复收件，默认）",
+        "key": "REMAIL_SERVICE_MODE", "file": "email.py", "type": "str", "group": "Email / OTP",
+        "label": "Chế độ dịch vụ Remail", "help": "code=nhận mã ngắn hạn; purchase=mua dài hạn (nhận thư lặp lại, mặc định)",
     },
     {
-        "key": "REMAIL_SUPPLY_POLICY", "file": "email.py", "type": "str", "group": "邮箱 / OTP",
-        "label": "Remail 库存策略", "help": "private_first 优先自有库存；public_only 只使用公开库存（默认）",
+        "key": "REMAIL_SUPPLY_POLICY", "file": "email.py", "type": "str", "group": "Email / OTP",
+        "label": "Chiến lược kho Remail", "help": "private_first ưu tiên kho riêng; public_only chỉ dùng kho công khai (mặc định)",
     },
     {
-        "key": "REMAIL_ORDER_WAIT_SECONDS", "file": "email.py", "type": "int", "group": "邮箱 / OTP",
-        "label": "Remail 订单等待(秒)", "help": "下单后未立即返回 service token 时等待订单补齐凭证，默认 30 秒",
+        "key": "REMAIL_ORDER_WAIT_SECONDS", "file": "email.py", "type": "int", "group": "Email / OTP",
+        "label": "Chờ đơn Remail (giây)", "help": "Nếu sau khi đặt hàng chưa trả service token ngay, chờ đơn bổ sung thông tin xác thực, mặc định 30 giây",
     },
     {
-        "key": "REMAIL_REQUEST_TIMEOUT", "file": "email.py", "type": "int", "group": "邮箱 / OTP",
-        "label": "Remail 请求超时(秒)", "help": "Remail API 单次 HTTP 请求超时，默认 20 秒",
+        "key": "REMAIL_REQUEST_TIMEOUT", "file": "email.py", "type": "int", "group": "Email / OTP",
+        "label": "Timeout request Remail (giây)", "help": "Timeout mỗi request HTTP Remail API, mặc định 20 giây",
     },
     # ---- 浏览器地区画像 ----
     {
-        "key": "BROWSER_LOCALE_PROFILE", "file": "browser.py", "type": "str", "group": "浏览器画像",
-        "label": "地区画像", "help": "应与代理出口地区一致；可选 jp/cn/us/sg。当前本地代理实测为日本东京，推荐 jp",
+        "key": "BROWSER_LOCALE_PROFILE", "file": "browser.py", "type": "str", "group": "Hồ sơ trình duyệt",
+        "label": "Hồ sơ vùng", "help": "Nên khớp khu vực egress của proxy; tuỳ chọn jp/cn/us/sg. Proxy local hiện đo được là Tokyo, Nhật Bản, khuyến nghị jp",
     },
 
     {
-        "key": "AUTO_BROWSER_LOCALE_FROM_IP", "file": "browser.py", "type": "bool", "group": "浏览器画像",
-        "label": "按出口IP自动画像", "help": "开启后每个 BrowserSession 会用当前代理出口 IP 自动选择语言/时区；失败时回退到地区画像",
+        "key": "AUTO_BROWSER_LOCALE_FROM_IP", "file": "browser.py", "type": "bool", "group": "Hồ sơ trình duyệt",
+        "label": "Tự dựng hồ sơ theo IP đầu ra", "help": "Sau khi bật, mỗi BrowserSession dùng IP cổng ra proxy hiện tại để tự chọn ngôn ngữ/múi giờ; khi thất bại sẽ fallback về hồ sơ khu vực",
     },
     {
-        "key": "IP_GEO_TIMEOUT", "file": "browser.py", "type": "float", "group": "浏览器画像",
-        "label": "IP定位超时(秒)", "help": "出口 IP 地理信息接口的单次请求超时；接口失败会自动回退，不影响注册",
+        "key": "IP_GEO_TIMEOUT", "file": "browser.py", "type": "float", "group": "Hồ sơ trình duyệt",
+        "label": "Timeout định vị IP (giây)", "help": "Timeout mỗi request API vị trí IP đầu ra; lỗi API thì tự lùi, không ảnh hưởng đăng ký",
     },
     {
-        "key": "BROWSER_DATA_SAVER_MODE", "file": "browser.py", "type": "bool", "group": "浏览器画像",
-        "label": "本地浏览器省流量模式", "help": "仅 Roxy/Cloak 本地浏览器拦截图片和媒体等可选资源；Browser Use/Skyvern 云端浏览器不启用；默认关闭",
+        "key": "BROWSER_DATA_SAVER_MODE", "file": "browser.py", "type": "bool", "group": "Hồ sơ trình duyệt",
+        "label": "Chế độ tiết kiệm data trình duyệt local", "help": "Chỉ trình duyệt cục bộ Roxy/Cloak chặn tài nguyên tuỳ chọn như ảnh và media; trình duyệt đám mây Browser Use/Skyvern không bật; mặc định tắt",
     },
     {
-        "key": "BROWSER_DATA_SAVER_BLOCKED_RESOURCE_TYPES", "file": "browser.py", "type": "list_str_multiline", "group": "浏览器画像",
-        "label": "本地浏览器省流量拦截类型", "help": "仅 Roxy/Cloak 生效；每行一种，默认 image、media；可选 stylesheet、font、manifest、texttrack。不要填写 script/xhr/fetch/document/websocket",
+        "key": "BROWSER_DATA_SAVER_BLOCKED_RESOURCE_TYPES", "file": "browser.py", "type": "list_str_multiline", "group": "Hồ sơ trình duyệt",
+        "label": "Loại tài nguyên chặn để tiết kiệm data trình duyệt local", "help": "Chỉ có hiệu lực với Roxy/Cloak；mỗi dòng một loại, mặc định image、media；tuỳ chọn stylesheet、font、manifest、texttrack. Không điền script/xhr/fetch/document/websocket",
     },
     {
-        "key": "BROWSER_DATA_SAVER_BLOCKED_URL_PATTERNS", "file": "browser.py", "type": "list_str_multiline", "group": "浏览器画像",
-        "label": "本地浏览器省流量 URL 屏蔽规则", "help": "仅 Roxy/Cloak 生效；每行一条 URL glob；默认拦截 RUM/广告统计和 Google GSI（不用 Google 登录时）。不要屏蔽核心 API/sentinel；填 [] 可关闭默认规则",
+        "key": "BROWSER_DATA_SAVER_BLOCKED_URL_PATTERNS", "file": "browser.py", "type": "list_str_multiline", "group": "Hồ sơ trình duyệt",
+        "label": "Quy tắc chặn URL tiết kiệm data trình duyệt local", "help": "Chỉ có hiệu lực với Roxy/Cloak；mỗi dòng một URL glob；mặc định chặn RUM/thống kê quảng cáo và Google GSI（khi không dùng đăng nhập Google）. Không chặn API/sentinel cốt lõi；điền [] để tắt quy tắc mặc định",
     },
     {
-        "key": "BROWSER_TRAFFIC_DETAIL_LOG", "file": "browser.py", "type": "bool", "group": "浏览器画像",
-        "label": "本地浏览器流量明细日志", "help": "仅 Roxy/Cloak 生效；注册结束时输出每个资源的 URL、类型、方法、状态码和上传/下载大小；URL 查询值会脱敏，默认关闭",
+        "key": "BROWSER_TRAFFIC_DETAIL_LOG", "file": "browser.py", "type": "bool", "group": "Hồ sơ trình duyệt",
+        "label": "Nhật ký chi tiết traffic trình duyệt local", "help": "Chỉ có hiệu lực với Roxy/Cloak; khi đăng ký kết thúc, xuất URL, loại, phương thức, mã trạng thái và kích thước tải lên/tải xuống của từng tài nguyên; giá trị query URL sẽ được che, mặc định tắt",
     },
     {
-        "key": "BROWSER_TRAFFIC_DETAIL_MAX_ENTRIES", "file": "browser.py", "type": "int", "group": "浏览器画像",
-        "label": "流量明细最多条数", "help": "按单请求总字节降序输出，默认 2000，最大 10000；用于后续分析可屏蔽资源",
+        "key": "BROWSER_TRAFFIC_DETAIL_MAX_ENTRIES", "file": "browser.py", "type": "int", "group": "Hồ sơ trình duyệt",
+        "label": "Số dòng chi tiết traffic tối đa", "help": "Xuất theo tổng byte mỗi request giảm dần, mặc định 2000, tối đa 10000; dùng để phân tích tài nguyên có thể chặn",
     },
     {
-        "key": "BROWSER_JS_COVERAGE_LOG", "file": "browser.py", "type": "bool", "group": "浏览器画像",
-        "label": "记录本地浏览器 JS 覆盖率", "help": "仅 Roxy/Cloak 生效；通过 Chrome CDP 记录本次注册实际执行的 JS 函数和 offset；Browser Use/Skyvern 不启用；默认关闭",
+        "key": "BROWSER_JS_COVERAGE_LOG", "file": "browser.py", "type": "bool", "group": "Hồ sơ trình duyệt",
+        "label": "Ghi coverage JS trình duyệt local", "help": "Chỉ có hiệu lực với Roxy/Cloak；ghi JS function và offset thực thi của lần đăng ký này qua Chrome CDP；Browser Use/Skyvern không bật；mặc định tắt",
     },
     {
-        "key": "BROWSER_JS_COVERAGE_MAX_ENTRIES", "file": "browser.py", "type": "int", "group": "浏览器画像",
-        "label": "本地浏览器 JS 覆盖率最多条数", "help": "仅 Roxy/Cloak 生效；日志最多输出的已执行函数数，同时限制保存的脚本摘要数量，默认 1000，最大 10000",
+        "key": "BROWSER_JS_COVERAGE_MAX_ENTRIES", "file": "browser.py", "type": "int", "group": "Hồ sơ trình duyệt",
+        "label": "Số mục tối đa coverage JS trình duyệt local", "help": "Chỉ có hiệu lực với Roxy/Cloak; số hàm đã chạy tối đa mà nhật ký xuất ra, đồng thời giới hạn số bản tóm tắt script được lưu, mặc định 1000, tối đa 10000",
     },
 
     # ---- 代理池 ----
     {
-        "key": "PROXY_POOL", "file": "proxy.py", "type": "list_str_multiline", "group": "代理池",
-        "label": "代理池(每行一个)", "help": "每行一个代理 URL，留空行会被忽略；为空则不使用代理",
+        "key": "PROXY_POOL", "file": "proxy.py", "type": "list_str_multiline", "group": "Kho proxy",
+        "label": "Kho proxy (mỗi dòng một)", "help": "Mỗi dòng một URL proxy, dòng trống bị bỏ; để trống thì không dùng proxy",
         "recommended_links": [
             {
-                "label": "IPWO 家宽",
+                "label": "IP nhà IPWO",
                 "url": "https://www.ipwo.net/?code=XEP358YGZ",
-                "description": "IPWO 住宅代理提供覆盖195+国家和地区的住宅 IP 资源，支持多地区网络环境配置，适用于 AI 应用、浏览器自动化、海外服务访问及数据采集等场景。重点！2GB 动态住宅流量无门槛发放，",
-                "description_link_label": "领取入口",
+                "description": "IPWO proxy dân cư cung cấp tài nguyên IP dân cư phủ 195+ quốc gia và vùng lãnh thổ, hỗ trợ cấu hình môi trường mạng đa khu vực, phù hợp ứng dụng AI, tự động hoá trình duyệt, truy cập dịch vụ nước ngoài và thu thập dữ liệu. Quan trọng! 2GB lưu lượng dân cư động cấp không điều kiện,",
+                "description_link_label": "Cổng nhận",
                 "description_link_url": "https://www.ipwo.net/?code=XEP358YGZ",
-                "description_after_link": "，进群不定时 IP 福利发放。",
+                "description_after_link": ", vào nhóm để nhận ưu đãi IP không định kỳ.",
             },
             {
-                "label": "IPRocket 家宽",
+                "label": "IP nhà IPRocket",
                 "url": "https://iprocket.io?viteCode=1PVNyLuJ",
-                "description": "高性价比家宽，可通过 TG 联系作者购买流量",
+                "description": "IP nhà giá tốt, liên hệ tác giả qua TG để mua traffic",
             },
             {
-                "label": "Rola-IP 家宽",
+                "label": "IP nhà Rola-IP",
                 "url": "https://rola-ip.co/?code=0326C5HA",
-                "description": "Roxy 合作伙伴高质量家宽，注册可享 15% 优惠",
+                "description": "IP nhà chất lượng cao của đối tác Roxy, đăng ký được giảm 15%",
             },
         ],
     },
     {
-        "key": "PROXY_POOL_UPSTREAM_PROXY", "file": "proxy.py", "type": "str", "group": "代理池",
-        "label": "代理池上游代理", "help": "可选；代理池每个目标代理通过此本地上游连接。留空则不链式。地址明文显示，仅保存到 .env",
+        "key": "PROXY_POOL_UPSTREAM_PROXY", "file": "proxy.py", "type": "str", "group": "Kho proxy",
+        "label": "Proxy upstream kho proxy", "help": "Tuỳ chọn; mỗi proxy đích trong kho proxy kết nối qua upstream local này. Để trống thì không chain. Địa chỉ hiển thị plaintext, chỉ lưu vào .env",
         "storage": "env",
     },
     {
-        "key": "PLAN_CHECK_PROXY_MODE", "file": "proxy.py", "type": "str", "group": "代理池",
-        "label": "套餐/Agent网络模式", "help": "用于查套餐和生成 Agent Token；auto=本地代理可用则走代理、未监听则直连；proxy=强制代理；direct=强制直连",
+        "key": "PLAN_CHECK_PROXY_MODE", "file": "proxy.py", "type": "str", "group": "Kho proxy",
+        "label": "Chế độ mạng gói/Agent", "help": "Dùng để tra gói và tạo Agent Token; auto=proxy cục bộ khả dụng thì đi proxy, chưa lắng nghe thì kết nối trực tiếp; proxy=bắt buộc proxy; direct=bắt buộc kết nối trực tiếp",
     },
     {
-        "key": "PLAN_CHECK_PROXY", "file": "proxy.py", "type": "list_str_multiline", "group": "代理池",
-        "label": "套餐/Agent专用代理(每行一个)", "help": "用于查套餐、查活和生成 Agent Token；支持动态代理 URL，每行一条。仅保存到 .env",
+        "key": "PLAN_CHECK_PROXY", "file": "proxy.py", "type": "list_str_multiline", "group": "Kho proxy",
+        "label": "Proxy riêng gói/Agent (mỗi dòng một)", "help": "Dùng để tra gói, kiểm tra sống và tạo Agent Token; hỗ trợ URL proxy động, mỗi dòng một cái. Chỉ lưu vào .env",
         "storage": "env", "secret": True,
     },
     {
-        "key": "PLAN_CHECK_UPSTREAM_PROXY", "file": "proxy.py", "type": "str", "group": "代理池",
-        "label": "套餐/Agent本地上游代理", "help": "可选；仅用于套餐/Agent专用代理，形成“本地代理 -> 动态代理 -> ChatGPT”的代理链。留空则不链式。地址明文显示。仅保存到 .env",
+        "key": "PLAN_CHECK_UPSTREAM_PROXY", "file": "proxy.py", "type": "str", "group": "Kho proxy",
+        "label": "Proxy upstream local gói/Agent", "help": "Tuỳ chọn; chỉ dùng cho proxy chuyên dụng của gói/Agent, tạo chuỗi proxy \"proxy cục bộ -> proxy động -> ChatGPT\". Để trống thì không nối chuỗi. Địa chỉ hiển thị nguyên văn. Chỉ lưu vào .env",
         "storage": "env",
     },
     {
-        "key": "PLAN_CHECK_TIMEOUT", "file": "proxy.py", "type": "float", "group": "代理池",
-        "label": "套餐/Agent超时(秒)", "help": "查套餐和生成 Agent Token 的单次请求超时，建议 10-20 秒；独立于注册请求超时",
+        "key": "PLAN_CHECK_TIMEOUT", "file": "proxy.py", "type": "float", "group": "Kho proxy",
+        "label": "Timeout gói/Agent (giây)", "help": "Timeout mỗi request tra gói và tạo Agent Token, nên 10-20 giây; độc lập với timeout request đăng ký",
     },
     {
-        "key": "PLAN_CHECK_MAX_ATTEMPTS", "file": "proxy.py", "type": "int", "group": "代理池",
-        "label": "套餐/Agent最大尝试次数", "help": "查套餐和生成 Agent Token 遇到 403、429、5xx 或网络错误时的重试次数，建议 3 次",
+        "key": "PLAN_CHECK_MAX_ATTEMPTS", "file": "proxy.py", "type": "int", "group": "Kho proxy",
+        "label": "Số lần thử tối đa gói/Agent", "help": "Số lần thử lại khi tra cứu gói và tạo Agent Token gặp 403, 429, 5xx hoặc lỗi mạng, nên 3 lần",
     },
     {
-        "key": "PLAN_CHECK_RETRY_DELAY", "file": "proxy.py", "type": "float", "group": "代理池",
-        "label": "套餐/Agent重试间隔(秒)", "help": "查套餐和生成 Agent Token 的重试间隔，按尝试次数递增；服务端 Retry-After 优先",
+        "key": "PLAN_CHECK_RETRY_DELAY", "file": "proxy.py", "type": "float", "group": "Kho proxy",
+        "label": "Khoảng cách thử lại gói/Agent (giây)", "help": "Khoảng cách thử lại khi tra cứu gói và tạo Agent Token, tăng theo số lần thử; ưu tiên Retry-After của server",
     },
     {
-        "key": "PLAN_CHECK_REGISTRATION_RECHECK_DELAY", "file": "proxy.py", "type": "float", "group": "代理池",
-        "label": "新账号资格复查延迟(秒)", "help": "新注册 free 账号未发现试用资格或首次查询失败时复查一次；0 表示关闭",
+        "key": "PLAN_CHECK_REGISTRATION_RECHECK_DELAY", "file": "proxy.py", "type": "float", "group": "Kho proxy",
+        "label": "Độ trễ kiểm tra lại quyền tài khoản mới (giây)", "help": "Tài khoản free mới đăng ký chưa thấy quyền dùng thử hoặc lần tra cứu đầu thất bại thì kiểm tra lại một lần; 0 là tắt",
     },
     {
-        "key": "PLAN_CHECK_WORKERS", "file": "proxy.py", "type": "int", "group": "代理池",
-        "label": "套餐查询并发数", "help": "自动、手动和批量查套餐共用；Agent Token 生成使用独立队列；建议 2-4 个线程",
+        "key": "PLAN_CHECK_WORKERS", "file": "proxy.py", "type": "int", "group": "Kho proxy",
+        "label": "Số luồng tra cứu gói", "help": "Tự động, thủ công và tra cứu gói hàng loạt dùng chung; tạo Agent Token dùng hàng đợi riêng; nên 2-4 luồng",
     },
     {
-        "key": "PLAN_CHECK_QUEUE_LIMIT", "file": "proxy.py", "type": "int", "group": "代理池",
-        "label": "套餐查询队列上限", "help": "防止异常批量操作无限堆积，建议 100-1000",
+        "key": "PLAN_CHECK_QUEUE_LIMIT", "file": "proxy.py", "type": "int", "group": "Kho proxy",
+        "label": "Trần hàng đợi tra cứu gói", "help": "Chặn thao tác hàng loạt lỗi chồng vô hạn, nên 100-1000",
     },
     {
-        "key": "PLAN_CHECK_MIN_INTERVAL", "file": "proxy.py", "type": "float", "group": "代理池",
-        "label": "套餐/Agent请求最小间隔(秒)", "help": "限制查套餐和生成 Agent Token 的请求启动频率，降低 429 风险",
+        "key": "PLAN_CHECK_MIN_INTERVAL", "file": "proxy.py", "type": "float", "group": "Kho proxy",
+        "label": "Khoảng cách tối thiểu request gói/Agent (giây)", "help": "Giới hạn tần suất bắt đầu request tra cứu gói và tạo Agent Token, giảm rủi ro 429",
     },
     {
-        "key": "PLAN_CHECK_JITTER", "file": "proxy.py", "type": "float", "group": "代理池",
-        "label": "套餐/Agent请求随机抖动(秒)", "help": "在查套餐和生成 Agent Token 的最小间隔上增加随机延迟，避免请求过于规律",
+        "key": "PLAN_CHECK_JITTER", "file": "proxy.py", "type": "float", "group": "Kho proxy",
+        "label": "Độ lệch ngẫu nhiên request gói/Agent (giây)", "help": "Thêm độ trễ ngẫu nhiên vào khoảng cách tối thiểu của tra cứu gói và tạo Agent Token, tránh request quá đều",
     },
     # ---- 提链 ----
     {
-        "key": "EXTRACT_LINK_API_BASE", "file": "extract_link.py", "type": "str", "group": "提链",
-        "label": "提链服务地址", "help": "填写提链服务 API 地址",
+        "key": "EXTRACT_LINK_API_BASE", "file": "extract_link.py", "type": "str", "group": "Rút link",
+        "label": "Địa chỉ dịch vụ rút link", "help": "Điền địa chỉ API dịch vụ rút link",
     },
     {
-        "key": "EXTRACT_LINK_CDK", "file": "extract_link.py", "type": "str", "group": "提链",
-        "label": "提链 CDK", "help": "创建提链任务和监听任务事件使用；成功提链扣 1 次",
+        "key": "EXTRACT_LINK_CDK", "file": "extract_link.py", "type": "str", "group": "Rút link",
+        "label": "CDK rút link", "help": "Dùng khi tạo tác vụ rút link và theo dõi sự kiện; rút link thành công trừ 1 lượt",
         "storage": "env", "secret": True,
     },
     {
-        "key": "EXTRACT_LINK_TYPE", "file": "extract_link.py", "type": "str", "group": "提链",
-        "label": "提链类型", "help": "支持 pix / upi / kakao_pay / ideal",
+        "key": "EXTRACT_LINK_TYPE", "file": "extract_link.py", "type": "str", "group": "Rút link",
+        "label": "Loại rút link", "help": "Hỗ trợ pix / upi / kakao_pay / ideal",
     },
     {
-        "key": "EXTRACT_LINK_WORKERS", "file": "extract_link.py", "type": "int", "group": "提链",
-        "label": "提链并发数", "help": "批量提链后台线程数，建议 1-4",
+        "key": "EXTRACT_LINK_WORKERS", "file": "extract_link.py", "type": "int", "group": "Rút link",
+        "label": "Số luồng rút link", "help": "Số luồng nền rút link hàng loạt, nên 1-4",
     },
     # ---- Codex 配置 ----
     {
         "key": "SUB2API_AUTO_EXPORT", "file": "sub2api.py", "type": "bool", "group": "Codex",
-        "label": "Agent sub2 自动同步", "help": "生成 Codex Agent Token 成功后自动同步到 sub2api",
+        "label": "Tự đồng bộ Agent sub2", "help": "Sau khi tạo Codex Agent Token thành công, tự đồng bộ sang sub2api",
     },
     {
         "key": "SUB2API_SYNC_MODE", "file": "sub2api.py", "type": "str", "group": "Codex",
-        "label": "Agent sub2 同步模式", "help": "api=直接上传接口；file=写本地json；both=接口+本地json",
+        "label": "Chế độ đồng bộ Agent sub2", "help": "api=tải lên API trực tiếp; file=ghi json local; both=API + json local",
     },
     {
         "key": "SUB2API_API_BASE", "file": "sub2api.py", "type": "str", "group": "Codex",
-        "label": "sub2 API基址", "help": "sub2api 服务地址；Agent Token 上传和 Codex OAuth 共用，例如 http://127.0.0.1:8080",
+        "label": "Base URL sub2 API", "help": "Địa chỉ dịch vụ sub2api; Agent Token tải lên và Codex OAuth dùng chung, ví dụ http://127.0.0.1:8080",
     },
     {
         "key": "SUB2API_API_KEY", "file": "sub2api.py", "type": "str", "group": "Codex",
-        "label": "sub2 API Key", "help": "sub2api 管理接口 API Key；请求头使用 x-api-key；为空则不带鉴权头", "storage": "env", "secret": True,
+        "label": "sub2 API Key", "help": "API Key giao diện quản trị sub2api; header dùng x-api-key; để trống thì không gửi header xác thực", "storage": "env", "secret": True,
     },
     {
         "key": "SUB2API_API_TIMEOUT", "file": "sub2api.py", "type": "int", "group": "Codex",
-        "label": "sub2 超时", "help": "sub2api 请求超时秒数",
+        "label": "Timeout sub2", "help": "Số giây timeout request sub2api",
     },
     {
         "key": "SUB2API_OUTPUT_PATH", "file": "sub2api.py", "type": "str", "group": "Codex",
-        "label": "Agent sub2 本地路径", "help": "仅 SUB2API_SYNC_MODE=file/both 时使用；相对路径按项目根目录解析",
+        "label": "Đường dẫn local Agent sub2", "help": "Chỉ dùng khi SUB2API_SYNC_MODE=file/both; đường dẫn tương đối giải theo thư mục gốc dự án",
     },
     {
         "key": "SUB2API_PROXY_KEY", "file": "sub2api.py", "type": "str", "group": "Codex",
-        "label": "Agent sub2 代理键", "help": "可选；写入 account.proxy_key，并在 proxies 为空时初始化 proxies[0].proxy_key",
+        "label": "Khoá proxy Agent sub2", "help": "Tuỳ chọn; ghi vào account.proxy_key, và khởi tạo proxies[0].proxy_key khi proxies trống",
     },
     # ---- 接码平台 ----
     # ---- Codex：基础 / CPA / sub2api 配置 ----
     {
         "key": "CODEX_AUTH_URL_SOURCE", "file": "codex.py", "type": "str", "group": "Codex",
-        "label": "授权地址来源", "help": "cpa=CPA生成并上传CPA；sub2=sub2生成并上传sub2；local=本地PKCE",
+        "label": "Nguồn URL uỷ quyền", "help": "cpa=CPA tạo và tải lên CPA; sub2=sub2 tạo và tải lên sub2; local=PKCE local",
     },
     {
         "key": "CPA_MANAGEMENT_URL", "file": "codex.py", "type": "str", "group": "Codex",
-        "label": "CPA 管理地址", "help": "例如 http://localhost:8317/admin/oauth；程序会取 origin 调用 /v0/management/*",
+        "label": "Địa chỉ quản trị CPA", "help": "Ví dụ http://localhost:8317/admin/oauth; chương trình lấy origin rồi gọi /v0/management/*",
     },
     {
         "key": "CPA_MANAGEMENT_KEY", "file": "codex.py", "type": "str", "group": "Codex",
-        "label": "管理密钥", "help": "保存在 .env（CPA_MANAGEMENT_KEY），不写回 config/*.py",
+        "label": "Khoá quản trị", "help": "Lưu trong .env (CPA_MANAGEMENT_KEY), không ghi lại config/*.py",
         "storage": "env", "secret": True,
     },
     {
         "key": "CPA_REQUEST_TIMEOUT", "file": "codex.py", "type": "int", "group": "Codex",
-        "label": "CPA 超时(秒)", "help": "请求 CPA 管理接口的超时时间",
+        "label": "Timeout CPA (giây)", "help": "Timeout request API quản trị CPA",
     },
     {
         "key": "CPA_SAVE_CALLBACK_RECEIPT", "file": "codex.py", "type": "bool", "group": "Codex",
-        "label": "保存CPA回执", "help": "CPA 未返回完整授权文件时，本地仍保存一份回调提交记录",
+        "label": "Lưu biên nhận CPA", "help": "Khi CPA không trả file uỷ quyền đầy đủ, vẫn lưu local một bản ghi đã gửi callback",
     },
 
     {
-        "key": "SMS_PROVIDER", "file": "codex.py", "type": "str", "group": "接码平台",
-        "label": "接码通道", "help": "grizzly / smsbower / l / h；smsbower 使用 SMSBower handler_api，l/h 使用本地取号服务",
+        "key": "SMS_PROVIDER", "file": "codex.py", "type": "str", "group": "Nền tảng nhận OTP",
+        "label": "Kênh nhận OTP", "help": "grizzly / smsbower / l / h; smsbower dùng SMSBower handler_api, l/h dùng dịch vụ lấy số cục bộ",
     },
     {
-        "key": "SMS_COUNTRY", "file": "codex.py", "type": "str", "group": "接码平台",
-        "label": "国家代码", "help": "传给接码平台的 country；SMSBower 按其国家表填写，GrizzlySMS 常用美国=187；H 通道作为 H_API.md 的 country",
+        "key": "SMS_COUNTRY", "file": "codex.py", "type": "str", "group": "Nền tảng nhận OTP",
+        "label": "Mã quốc gia", "help": "country gửi nền tảng nhận mã；SMSBower điền theo bảng quốc gia, GrizzlySMS thường Mỹ=187；kênh H là country trong H_API.md",
     },
     {
-        "key": "SMS_SERVICE", "file": "codex.py", "type": "str", "group": "接码平台",
-        "label": "服务/项目代码", "help": "GrizzlySMS/L/SMSBower 作为 service；SMSBower 的 OpenAI (ChatGPT) 推荐填 dr，填 openai/chatgpt 时程序会自动转换；H 通道作为 projectId",
+        "key": "SMS_SERVICE", "file": "codex.py", "type": "str", "group": "Nền tảng nhận OTP",
+        "label": "Mã dịch vụ/dự án", "help": "GrizzlySMS/L/SMSBower làm service；OpenAI (ChatGPT) của SMSBower nên điền dr, điền openai/chatgpt thì chương trình tự chuyển；kênh H làm projectId",
     },
     {
-        "key": "SMS_MAX_PRICE", "file": "codex.py", "type": "str", "group": "接码平台",
-        "label": "最高号码价格", "help": "透传给接码平台的 maxPrice；留空不限。SMSBower 可用它筛选价格/号码等级",
+        "key": "SMS_MAX_PRICE", "file": "codex.py", "type": "str", "group": "Nền tảng nhận OTP",
+        "label": "Giá số tối đa", "help": "maxPrice truyền thẳng tới nền tảng nhận mã; để trống thì không giới hạn. SMSBower dùng để lọc giá/hạng số",
     },
     {
-        "key": "SMS_MAX_RETRIES", "file": "codex.py", "type": "int", "group": "接码平台",
-        "label": "换号重试次数", "help": "一个号收不到短信/被OpenAI拒时换下一个号，最多重试几次",
+        "key": "SMS_MAX_RETRIES", "file": "codex.py", "type": "int", "group": "Nền tảng nhận OTP",
+        "label": "Số lần đổi số", "help": "Một số không nhận được SMS hoặc bị OpenAI từ chối thì đổi số khác, tối đa bao nhiêu lần",
     },
     {
-        "key": "SMS_CODE_WAIT", "file": "codex.py", "type": "int", "group": "接码平台",
-        "label": "单号等短信(秒)", "help": "单个号等待短信到达的最长秒数，超时则换号",
+        "key": "SMS_CODE_WAIT", "file": "codex.py", "type": "int", "group": "Nền tảng nhận OTP",
+        "label": "Chờ SMS mỗi số (giây)", "help": "Số giây tối đa chờ SMS của một số, hết giờ thì đổi số",
     },
     {
-        "key": "SMS_API_KEY", "file": "codex.py", "type": "str", "group": "接码平台",
-        "label": "GrizzlySMS API密钥", "help": "GrizzlySMS 平台 API Key，保存在 .env（SMS_API_KEY），不写回 config/*.py",
+        "key": "SMS_API_KEY", "file": "codex.py", "type": "str", "group": "Nền tảng nhận OTP",
+        "label": "Khoá API GrizzlySMS", "help": "API Key nền tảng GrizzlySMS, lưu trong .env (SMS_API_KEY), không ghi lại config/*.py",
         "storage": "env", "secret": True,
     },
     {
-        "key": "SMSBOWER_API_BASE", "file": "codex.py", "type": "str", "group": "接码平台",
-        "label": "SMSBower API 地址", "help": "默认 https://smsbower.page/stubs/handler_api.php",
+        "key": "SMSBOWER_API_BASE", "file": "codex.py", "type": "str", "group": "Nền tảng nhận OTP",
+        "label": "Địa chỉ SMSBower API", "help": "Mặc định https://smsbower.page/stubs/handler_api.php",
     },
     {
-        "key": "SMSBOWER_API_KEY", "file": "codex.py", "type": "str", "group": "接码平台",
-        "label": "SMSBower API密钥", "help": "SMSBower 控制台 API Key，保存在 .env，不写回 config/*.py",
+        "key": "SMSBOWER_API_KEY", "file": "codex.py", "type": "str", "group": "Nền tảng nhận OTP",
+        "label": "Khoá API SMSBower", "help": "API Key console SMSBower, lưu trong .env, không ghi lại config/*.py",
         "storage": "env", "secret": True,
     },
     {
-        "key": "SMSBOWER_USE_V2", "file": "codex.py", "type": "bool", "group": "接码平台",
-        "label": "SMSBower 使用V2取号", "help": "官方客户端文档使用 getNumber；通常保持关闭。仅在确认账号支持 getNumberV2 时开启",
+        "key": "SMSBOWER_USE_V2", "file": "codex.py", "type": "bool", "group": "Nền tảng nhận OTP",
+        "label": "SMSBower dùng lấy số V2", "help": "Tài liệu client chính thức dùng getNumber; thường giữ tắt. Chỉ bật khi xác nhận tài khoản hỗ trợ getNumberV2",
     },
     {
-        "key": "SMSBOWER_PROVIDER_IDS", "file": "codex.py", "type": "str", "group": "接码平台",
-        "label": "SMSBower 供应商筛选", "help": "可选，供应商 ID 用逗号分隔；留空由平台自动选择",
+        "key": "SMSBOWER_PROVIDER_IDS", "file": "codex.py", "type": "str", "group": "Nền tảng nhận OTP",
+        "label": "Lọc nhà cung cấp SMSBower", "help": "Tuỳ chọn, ID nhà cung cấp cách nhau bằng dấu phẩy; để trống thì nền tảng tự chọn",
     },
     {
-        "key": "SMSBOWER_EXCEPT_PROVIDER_IDS", "file": "codex.py", "type": "str", "group": "接码平台",
-        "label": "SMSBower 排除供应商", "help": "可选，排除的供应商 ID 用逗号分隔",
+        "key": "SMSBOWER_EXCEPT_PROVIDER_IDS", "file": "codex.py", "type": "str", "group": "Nền tảng nhận OTP",
+        "label": "Loại trừ nhà cung cấp SMSBower", "help": "Tuỳ chọn, ID nhà cung cấp loại trừ cách nhau bằng dấu phẩy",
     },
     {
-        "key": "SMSBOWER_PHONE_EXCEPTION", "file": "codex.py", "type": "str", "group": "接码平台",
-        "label": "SMSBower 排除号码前缀", "help": "可选，号码前缀用逗号分隔；用于避开已知不可用号段",
+        "key": "SMSBOWER_PHONE_EXCEPTION", "file": "codex.py", "type": "str", "group": "Nền tảng nhận OTP",
+        "label": "Tiền tố số SMSBower loại trừ", "help": "Tuỳ chọn, tiền tố số cách nhau bằng dấu phẩy; dùng để tránh đầu số đã biết không dùng được",
     },
     {
-        "key": "SMSBOWER_MIN_PRICE", "file": "codex.py", "type": "str", "group": "接码平台",
-        "label": "SMSBower 最低价格", "help": "可选，透传 minPrice；与最高价格一起限定号码价格区间",
+        "key": "SMSBOWER_MIN_PRICE", "file": "codex.py", "type": "str", "group": "Nền tảng nhận OTP",
+        "label": "Giá tối thiểu SMSBower", "help": "Tuỳ chọn, truyền thẳng minPrice; cùng giá cao nhất để giới hạn khoảng giá số",
     },
     {
-        "key": "H_API_BASE", "file": "codex.py", "type": "str", "group": "接码平台",
-        "label": "H API 地址", "help": "H 取号服务基础地址，例如 http://localhost:8788",
+        "key": "H_API_BASE", "file": "codex.py", "type": "str", "group": "Nền tảng nhận OTP",
+        "label": "Địa chỉ H API", "help": "Địa chỉ gốc dịch vụ lấy số H, ví dụ http://localhost:8788",
     },
     {
-        "key": "H_ADMIN_AUTH_CODE", "file": "codex.py", "type": "str", "group": "接码平台",
-        "label": "H 授权码", "help": "保存在 .env（H_ADMIN_AUTH_CODE），不写回 config/*.py",
+        "key": "H_ADMIN_AUTH_CODE", "file": "codex.py", "type": "str", "group": "Nền tảng nhận OTP",
+        "label": "Mã uỷ quyền H", "help": "Lưu trong .env (H_ADMIN_AUTH_CODE), không ghi lại config/*.py",
         "storage": "env", "secret": True,
     },
     {
-        "key": "H_PHONE_PREFIX", "file": "codex.py", "type": "str", "group": "接码平台",
-        "label": "H 号码前缀", "help": "H 返回号码不含国家码时填写，例如美国 10 位本地号填 1；留空则不补",
+        "key": "H_PHONE_PREFIX", "file": "codex.py", "type": "str", "group": "Nền tảng nhận OTP",
+        "label": "Tiền tố số H", "help": "Điền khi số H trả về không có mã quốc gia, ví dụ số local Mỹ 10 số thì điền 1; để trống thì không thêm",
     },
     {
-        "key": "H_PHONE_ACQUIRE_MODE", "file": "codex.py", "type": "str", "group": "接码平台",
-        "label": "H 取号方式", "help": "reusable=优先复用历史可用号码；new=每次都取一个新号码",
+        "key": "H_PHONE_ACQUIRE_MODE", "file": "codex.py", "type": "str", "group": "Nền tảng nhận OTP",
+        "label": "Cách lấy số H", "help": "reusable=ưu tiên dùng lại số còn dùng được; new=mỗi lần lấy một số mới",
     },
     {
-        "key": "L_API_BASE", "file": "codex.py", "type": "str", "group": "接码平台",
-        "label": "L API 地址", "help": "L 取号服务基础地址，例如 http://localhost:8788",
+        "key": "L_API_BASE", "file": "codex.py", "type": "str", "group": "Nền tảng nhận OTP",
+        "label": "Địa chỉ L API", "help": "Địa chỉ gốc dịch vụ lấy số L, ví dụ http://localhost:8788",
     },
     {
-        "key": "L_ADMIN_AUTH_CODE", "file": "codex.py", "type": "str", "group": "接码平台",
-        "label": "L 授权码", "help": "保存在 .env（L_ADMIN_AUTH_CODE），不写回 config/*.py",
+        "key": "L_ADMIN_AUTH_CODE", "file": "codex.py", "type": "str", "group": "Nền tảng nhận OTP",
+        "label": "Mã uỷ quyền L", "help": "Lưu trong .env (L_ADMIN_AUTH_CODE), không ghi lại config/*.py",
         "storage": "env", "secret": True,
     },
     {
-        "key": "L_PHONE_PREFIX", "file": "codex.py", "type": "str", "group": "接码平台",
-        "label": "L 号码前缀", "help": "L 返回号码不含国家码时填写，例如美国 10 位本地号填 1；留空则不补",
+        "key": "L_PHONE_PREFIX", "file": "codex.py", "type": "str", "group": "Nền tảng nhận OTP",
+        "label": "Tiền tố số L", "help": "Điền khi số L trả về không có mã quốc gia, ví dụ số local Mỹ 10 số thì điền 1; để trống thì không thêm",
     },
 ]
 
@@ -789,7 +789,7 @@ def _config_path(filename: str) -> Path:
     path = (_CONFIG_DIR / filename).resolve()
     # 防目录穿越：必须落在 config/ 下
     if _CONFIG_DIR not in path.parents:
-        raise ValueError(f"非法配置路径: {filename}")
+        raise ValueError(f"Đường dẫn cấu hình không hợp lệ: {filename}")
     return path
 
 
@@ -959,7 +959,7 @@ def get_config() -> list[dict]:
 
 
 _PLACEHOLDER_EMPTY = {
-    "", "-", "—", "无", "空", "none", "null", "n/a", "na", "未设置", "未配置",
+    "", "-", "—", "无", "空", "none", "null", "n/a", "na", "未设置", "未配置", "Chưa đặt", "Chưa cấu hình", "Không", "Trống",
 }
 
 
@@ -1003,7 +1003,7 @@ def _format_literal(value, vtype: str) -> str:
         s = str(value)
         # 用 repr 保证转义安全，但统一成双引号风格
         return '"' + s.replace("\\", "\\\\").replace('"', '\\"') + '"'
-    raise ValueError(f"_format_literal 不支持的类型: {vtype}")
+    raise ValueError(f"_format_literal không hỗ trợ kiểu: {vtype}")
 
 
 def _replace_scalar(source: str, key: str, literal: str) -> str:
@@ -1015,7 +1015,7 @@ def _replace_scalar(source: str, key: str, literal: str) -> str:
         re.MULTILINE,
     )
     if not pattern.search(source):
-        raise ValueError(f"未在源码中找到可替换的赋值: {key}")
+        raise ValueError(f"Không tìm thấy phép gán có thể thay trong mã nguồn: {key}")
     return pattern.sub(lambda m: f"{m.group('head')}{literal}{m.group('tail')}", source, count=1)
 
 
@@ -1054,7 +1054,7 @@ def _replace_proxy_pool(source: str, lines: list[str]) -> str:
                     + src_lines[end:]
                 )
                 return "".join(new_lines)
-    raise ValueError("未找到 PROXY_POOL 赋值")
+    raise ValueError("Không tìm thấy phép gán PROXY_POOL")
 
 
 def _atomic_write(path: Path, text: str) -> None:
@@ -1109,7 +1109,7 @@ def update_config(updates: dict) -> dict:
         if choices:
             allowed = {str(item.get("value")) for item in choices}
             if str(value) not in allowed:
-                raise ValueError(f"{key} 的值无效，可选：{', '.join(sorted(allowed))}")
+                raise ValueError(f"{key} có giá trị không hợp lệ, chọn:{', '.join(sorted(allowed))}")
         env_updates[key] = _format_env_value(
             value,
             field["type"],

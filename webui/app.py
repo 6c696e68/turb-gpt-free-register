@@ -178,7 +178,7 @@ def _account_secret_value(row: dict, field: str) -> str:
         return pyotp.TOTP(secret).now() if secret else ""
     if field == "login_credentials":
         password = _account_secret_value(row, "password")
-        if password == "未设置":
+        if password in ("未设置", "Chưa đặt"):
             password = ""
         return "---".join((
             str(row.get("email") or "").strip(), password, str(row.get("totp_secret") or "").strip(),
@@ -193,7 +193,7 @@ def _account_secret_value(row: dict, field: str) -> str:
                 extra = {}
         elif isinstance(extra_raw, dict):
             extra = extra_raw
-        return str(extra.get("registration_password") or row.get("registration_password") or "未设置")
+        return str(extra.get("registration_password") or row.get("registration_password") or "Chưa đặt")
     if field == "full_export":
         try:
             from core.db import _account_full_export_line
@@ -201,7 +201,7 @@ def _account_secret_value(row: dict, field: str) -> str:
             return str(_account_full_export_line(row) or "")
         except Exception:
             return ""
-    raise ValueError("field 仅支持 access_token/copy_line/codex_agent_token/totp_secret/totp_code/password/login_credentials/full_export")
+    raise ValueError("field chỉ hỗ trợ access_token/copy_line/codex_agent_token/totp_secret/totp_code/password/login_credentials/full_export")
 
 
 def _compact_job_for_list(row: dict) -> dict:
@@ -306,7 +306,7 @@ def create_app(auth_code: str | None = None) -> Flask:
     def api_prepared_download(download_id: str):
         item = _prepared_downloads.pop(str(download_id or ""), None)
         if not item:
-            return jsonify({"ok": False, "error": "下载已过期或不存在，请重新生成"}), 404
+            return jsonify({"ok": False, "error": "Bản tải đã hết hạn hoặc không tồn tại, hãy tạo lại"}), 404
         content = item.get("content") or b""
         filename = item.get("filename") or "download.zip"
         mimetype = item.get("mimetype") or "application/octet-stream"
@@ -327,22 +327,22 @@ def create_app(auth_code: str | None = None) -> Flask:
     register_auth_routes(app)
     recovered_plan_checks = db.recover_interrupted_plan_checks()
     if recovered_plan_checks:
-        logger.warning("已恢复 %s 个因 WebUI 重启中断的套餐查询状态", recovered_plan_checks)
+        logger.warning("Đã khôi phục %s trạng thái tra cứu gói bị gián đoạn do WebUI khởi động lại", recovered_plan_checks)
     recovered_extract_links = db.recover_interrupted_extract_links()
     if recovered_extract_links:
-        logger.warning("已恢复 %s 个因 WebUI 重启中断的提链状态", recovered_extract_links)
+        logger.warning("Đã khôi phục %s trạng thái rút link bị gián đoạn do WebUI khởi động lại", recovered_extract_links)
     recovered_live_checks = db.recover_interrupted_live_checks()
     if recovered_live_checks:
-        logger.warning("已恢复 %s 个因 WebUI 重启中断的查活状态", recovered_live_checks)
+        logger.warning("Đã khôi phục %s trạng thái kiểm tra sống bị gián đoạn do WebUI khởi động lại", recovered_live_checks)
     recovered_codex_agents = db.recover_interrupted_codex_agents()
     if recovered_codex_agents:
-        logger.warning("已恢复 %s 个因 WebUI 重启中断的 Codex Agent Token 状态", recovered_codex_agents)
+        logger.warning("Đã khôi phục %s trạng thái Codex Agent Token bị gián đoạn do WebUI khởi động lại", recovered_codex_agents)
     recovered_totp_setups = db.recover_interrupted_totp_setups()
     if recovered_totp_setups:
-        logger.warning("已恢复 %s 个因 WebUI 重启中断的 2FA 状态", recovered_totp_setups)
+        logger.warning("Đã khôi phục %s trạng thái 2FA bị gián đoạn do WebUI khởi động lại", recovered_totp_setups)
     recovered_email_changes = db.recover_interrupted_email_changes()
     if recovered_email_changes:
-        logger.warning("已恢复 %s 个因 WebUI 重启中断的邮箱换绑状态", recovered_email_changes)
+        logger.warning("Đã khôi phục %s trạng thái đổi email bị gián đoạn do WebUI khởi động lại", recovered_email_changes)
 
     # ----------------------------------------------------------
     # 页面
@@ -464,7 +464,7 @@ def create_app(auth_code: str | None = None) -> Flask:
         field = str(request.args.get("field") or "").strip()
         acc = db.get_account(acc_id)
         if not acc:
-            return jsonify({"ok": False, "error": "账号不存在"}), 404
+            return jsonify({"ok": False, "error": "Tài khoản không tồn tại"}), 404
         try:
             value = _account_secret_value(acc, field)
         except ValueError as exc:
@@ -478,9 +478,9 @@ def create_app(auth_code: str | None = None) -> Flask:
         ids = data.get("account_ids") or data.get("ids") or []
         field = str(data.get("field") or "").strip()
         if not isinstance(ids, list) or not ids:
-            return jsonify({"ok": False, "error": "account_ids 必须是非空数组"}), 400
+            return jsonify({"ok": False, "error": "account_ids phải là mảng không rỗng"}), 400
         if len(ids) > 5000:
-            return jsonify({"ok": False, "error": "单次最多读取 5000 个账号"}), 400
+            return jsonify({"ok": False, "error": "Mỗi lần đọc tối đa 5000 tài khoản"}), 400
         values = []
         skipped = []
         seen = set()
@@ -488,14 +488,14 @@ def create_app(auth_code: str | None = None) -> Flask:
             try:
                 acc_id = int(raw)
             except (TypeError, ValueError):
-                skipped.append({"id": raw, "reason": "ID 非法"})
+                skipped.append({"id": raw, "reason": "ID không hợp lệ"})
                 continue
             if acc_id in seen:
                 continue
             seen.add(acc_id)
             acc = db.get_account(acc_id)
             if not acc:
-                skipped.append({"id": acc_id, "reason": "账号不存在"})
+                skipped.append({"id": acc_id, "reason": "Tài khoản không tồn tại"})
                 continue
             try:
                 value = _account_secret_value(acc, field)
@@ -504,7 +504,7 @@ def create_app(auth_code: str | None = None) -> Flask:
             if value:
                 values.append({"id": acc_id, "email": acc.get("email"), "value": value})
             else:
-                skipped.append({"id": acc_id, "email": acc.get("email"), "reason": "值为空"})
+                skipped.append({"id": acc_id, "email": acc.get("email"), "reason": "Giá trị trống"})
         return jsonify({"ok": True, "field": field, "values": values, "count": len(values), "skipped": skipped})
 
     @app.post("/api/accounts/<int:acc_id>/archive")
@@ -514,7 +514,7 @@ def create_app(auth_code: str | None = None) -> Flask:
         archived = bool(data.get("archived", True))
         updated = db.archive_account(acc_id=acc_id, archived=archived)
         if not updated:
-            return jsonify({"ok": False, "error": "账号不存在"}), 404
+            return jsonify({"ok": False, "error": "Tài khoản không tồn tại"}), 404
         return jsonify({"ok": True, "updated": True, "id": acc_id, "archived": archived})
 
     @app.post("/api/accounts/archive-bulk")
@@ -524,9 +524,9 @@ def create_app(auth_code: str | None = None) -> Flask:
         ids = data.get("account_ids") or data.get("ids") or []
         archived = bool(data.get("archived", True))
         if not isinstance(ids, list) or not ids:
-            return jsonify({"ok": False, "error": "account_ids 必须是非空数组"}), 400
+            return jsonify({"ok": False, "error": "account_ids phải là mảng không rỗng"}), 400
         if len(ids) > 5000:
-            return jsonify({"ok": False, "error": "单次最多归档 5000 个账号"}), 400
+            return jsonify({"ok": False, "error": "Mỗi lần lưu trữ tối đa 5000 tài khoản"}), 400
         account_ids = []
         skipped = []
         seen = set()
@@ -534,7 +534,7 @@ def create_app(auth_code: str | None = None) -> Flask:
             try:
                 acc_id = int(raw)
             except (TypeError, ValueError):
-                skipped.append({"id": raw, "reason": "ID 非法"})
+                skipped.append({"id": raw, "reason": "ID không hợp lệ"})
                 continue
             if acc_id in seen:
                 continue
@@ -549,7 +549,7 @@ def create_app(auth_code: str | None = None) -> Flask:
         """删除一个已注册账号记录。只删除本地保存的账号/token记录，不改邮箱池状态。"""
         deleted = db.delete_account(acc_id=acc_id)
         if not deleted:
-            return jsonify({"ok": False, "error": "账号不存在"}), 404
+            return jsonify({"ok": False, "error": "Tài khoản không tồn tại"}), 404
         return jsonify({"ok": True, "deleted": True})
 
     @app.post("/api/accounts/delete-bulk")
@@ -558,9 +558,9 @@ def create_app(auth_code: str | None = None) -> Flask:
         data = request.get_json(silent=True) or {}
         ids = data.get("account_ids") or data.get("ids") or []
         if not isinstance(ids, list) or not ids:
-            return jsonify({"ok": False, "error": "account_ids 必须是非空数组"}), 400
+            return jsonify({"ok": False, "error": "account_ids phải là mảng không rỗng"}), 400
         if len(ids) > 5000:
-            return jsonify({"ok": False, "error": "单次最多删除 5000 个账号"}), 400
+            return jsonify({"ok": False, "error": "Mỗi lần xoá tối đa 5000 tài khoản"}), 400
         account_ids = []
         skipped = []
         seen = set()
@@ -568,7 +568,7 @@ def create_app(auth_code: str | None = None) -> Flask:
             try:
                 acc_id = int(raw)
             except (TypeError, ValueError):
-                skipped.append({"id": raw, "reason": "ID 非法"})
+                skipped.append({"id": raw, "reason": "ID không hợp lệ"})
                 continue
             if acc_id in seen:
                 continue
@@ -589,10 +589,10 @@ def create_app(auth_code: str | None = None) -> Flask:
         data = request.get_json(silent=True) or {}
         note = str(data.get("note") or "")
         if len(note) > 2000:
-            return jsonify({"ok": False, "error": "备注最多 2000 个字符"}), 400
+            return jsonify({"ok": False, "error": "Ghi chú tối đa 2000 ký tự"}), 400
         updated = db.update_account_note(acc_id=acc_id, note=note)
         if not updated:
-            return jsonify({"ok": False, "error": "账号不存在"}), 404
+            return jsonify({"ok": False, "error": "Tài khoản không tồn tại"}), 404
         return jsonify({"ok": True, "updated": True, "id": acc_id, "note": note})
 
     @app.post("/api/accounts/<int:acc_id>/totp-setup")
@@ -600,17 +600,17 @@ def create_app(auth_code: str | None = None) -> Flask:
         """为单个账号开启 2FA/TOTP，成功后自动把 secret 写回账号记录。"""
         acc = db.get_account(acc_id)
         if not acc:
-            return jsonify({"ok": False, "error": "账号不存在"}), 404
+            return jsonify({"ok": False, "error": "Tài khoản không tồn tại"}), 404
         token = str(acc.get("access_token") or "").strip()
         if not token:
-            return jsonify({"ok": False, "error": "该账号没有 access_token"}), 400
+            return jsonify({"ok": False, "error": "Tài khoản này không có access_token"}), 400
         if bool(acc.get("totp_secret")):
-            return jsonify({"ok": False, "error": "该账号已经开启 2FA"}), 400
+            return jsonify({"ok": False, "error": "Tài khoản này đã bật 2FA"}), 400
 
         try:
             from core import twofa_service
         except Exception as exc:
-            return jsonify({"ok": False, "error": f"2FA 服务加载失败：{type(exc).__name__}: {exc}"}), 503
+            return jsonify({"ok": False, "error": f"Không tải được dịch vụ 2FA:{type(exc).__name__}: {exc}"}), 503
 
         queued = twofa_service.enqueue_account_totp_setup(
             account_id=acc_id,
@@ -638,12 +638,12 @@ def create_app(auth_code: str | None = None) -> Flask:
         source = str(data.get("source") or "").strip().lower()
         allowed = {"outlook", "generic_api", "imap", "cloudflare_domain", "cloudflare", "gptmail", "mailnest", "cloudmail", "remail"}
         if source not in allowed:
-            return jsonify({"ok": False, "error": "请选择有效的邮箱来源"}), 400
+            return jsonify({"ok": False, "error": "Hãy chọn nguồn email hợp lệ"}), 400
         acc = db.get_account(acc_id)
         if not acc:
-            return jsonify({"ok": False, "error": "账号不存在"}), 404
+            return jsonify({"ok": False, "error": "Tài khoản không tồn tại"}), 404
         if not str(acc.get("access_token") or "").strip():
-            return jsonify({"ok": False, "error": "账号缺少 access_token，请先查活刷新 AT"}), 400
+            return jsonify({"ok": False, "error": "Tài khoản thiếu access_token, hãy kiểm tra sống để làm mới AT"}), 400
         from core import email_change_service
         result = email_change_service.enqueue(acc_id, source, trigger="manual")
         public = {k: v for k, v in result.items() if k != "future"}
@@ -657,11 +657,11 @@ def create_app(auth_code: str | None = None) -> Flask:
         source = str(data.get("source") or "").strip().lower()
         allowed = {"outlook", "generic_api", "imap", "cloudflare_domain", "cloudflare", "gptmail", "mailnest", "cloudmail", "remail"}
         if source not in allowed:
-            return jsonify({"ok": False, "error": "请选择有效的邮箱来源"}), 400
+            return jsonify({"ok": False, "error": "Hãy chọn nguồn email hợp lệ"}), 400
         if not isinstance(ids, list) or not ids:
-            return jsonify({"ok": False, "error": "account_ids 必须是非空数组"}), 400
+            return jsonify({"ok": False, "error": "account_ids phải là mảng không rỗng"}), 400
         if len(ids) > 500:
-            return jsonify({"ok": False, "error": "单次最多提交 500 个账号"}), 400
+            return jsonify({"ok": False, "error": "Mỗi lần gửi tối đa 500 tài khoản"}), 400
         from core import email_change_service
         started, skipped = [], []
         seen_ids: set[int] = set()
@@ -669,17 +669,17 @@ def create_app(auth_code: str | None = None) -> Flask:
             try:
                 acc_id = int(raw_id)
             except (TypeError, ValueError):
-                skipped.append({"id": raw_id, "reason": "ID 非法"})
+                skipped.append({"id": raw_id, "reason": "ID không hợp lệ"})
                 continue
             if acc_id in seen_ids:
                 continue
             seen_ids.add(acc_id)
             acc = db.get_account(acc_id)
             if not acc:
-                skipped.append({"id": acc_id, "reason": "账号不存在"})
+                skipped.append({"id": acc_id, "reason": "Tài khoản không tồn tại"})
                 continue
             if not str(acc.get("access_token") or "").strip():
-                skipped.append({"id": acc_id, "email": acc.get("email"), "reason": "缺少 access_token"})
+                skipped.append({"id": acc_id, "email": acc.get("email"), "reason": "Thiếu access_token"})
                 continue
             result = email_change_service.enqueue(acc_id, source, trigger="manual_bulk")
             if result.get("accepted"):
@@ -694,9 +694,9 @@ def create_app(auth_code: str | None = None) -> Flask:
         data = request.get_json(silent=True) or {}
         ids = data.get("account_ids") or data.get("ids") or []
         if not isinstance(ids, list) or not ids:
-            return jsonify({"ok": False, "error": "account_ids 必须是非空数组"}), 400
+            return jsonify({"ok": False, "error": "account_ids phải là mảng không rỗng"}), 400
         if len(ids) > 500:
-            return jsonify({"ok": False, "error": "单次最多提交 500 个账号"}), 400
+            return jsonify({"ok": False, "error": "Mỗi lần gửi tối đa 500 tài khoản"}), 400
 
         account_ids = []
         skipped = []
@@ -705,7 +705,7 @@ def create_app(auth_code: str | None = None) -> Flask:
             try:
                 acc_id = int(raw)
             except (TypeError, ValueError):
-                skipped.append({"id": raw, "reason": "ID 非法"})
+                skipped.append({"id": raw, "reason": "ID không hợp lệ"})
                 continue
             if acc_id in seen:
                 continue
@@ -716,25 +716,25 @@ def create_app(auth_code: str | None = None) -> Flask:
         for acc_id in account_ids:
             acc = db.get_account(acc_id)
             if not acc:
-                skipped.append({"id": acc_id, "reason": "账号不存在"})
+                skipped.append({"id": acc_id, "reason": "Tài khoản không tồn tại"})
                 continue
             email = str(acc.get("email") or "").strip()
             token = str(acc.get("access_token") or "").strip()
             if not token:
-                skipped.append({"id": acc_id, "email": email, "reason": "缺少 access_token"})
+                skipped.append({"id": acc_id, "email": email, "reason": "Thiếu access_token"})
                 continue
             if str(acc.get("totp_secret") or "").strip():
-                skipped.append({"id": acc_id, "email": email, "reason": "该账号已经开启 2FA"})
+                skipped.append({"id": acc_id, "email": email, "reason": "Tài khoản này đã bật 2FA"})
                 continue
             if not email:
-                skipped.append({"id": acc_id, "reason": "邮箱为空"})
+                skipped.append({"id": acc_id, "reason": "Email trống"})
                 continue
             accounts.append(acc)
 
         try:
             from core import twofa_service
         except Exception as exc:
-            return jsonify({"ok": False, "error": f"2FA 服务加载失败：{type(exc).__name__}: {exc}"}), 503
+            return jsonify({"ok": False, "error": f"Không tải được dịch vụ 2FA:{type(exc).__name__}: {exc}"}), 503
 
         started = []
         busy = []
@@ -771,7 +771,7 @@ def create_app(auth_code: str | None = None) -> Flask:
 
         return jsonify({
             "ok": True,
-            "message": f"已入队 {len(started)} 个 2FA 设置任务",
+            "message": f"Đã xếp hàng {len(started)} tác vụ bật 2FA",
             "started": started,
             "started_count": len(started),
             "busy": busy,
@@ -790,11 +790,11 @@ def create_app(auth_code: str | None = None) -> Flask:
         ids = data.get("account_ids") or data.get("ids") or []
         note = str(data.get("note") or "")
         if not isinstance(ids, list) or not ids:
-            return jsonify({"ok": False, "error": "account_ids 必须是非空数组"}), 400
+            return jsonify({"ok": False, "error": "account_ids phải là mảng không rỗng"}), 400
         if len(ids) > 5000:
-            return jsonify({"ok": False, "error": "单次最多备注 5000 个账号"}), 400
+            return jsonify({"ok": False, "error": "Mỗi lần ghi chú tối đa 5000 tài khoản"}), 400
         if len(note) > 2000:
-            return jsonify({"ok": False, "error": "备注最多 2000 个字符"}), 400
+            return jsonify({"ok": False, "error": "Ghi chú tối đa 2000 ký tự"}), 400
 
         account_ids = []
         skipped = []
@@ -803,7 +803,7 @@ def create_app(auth_code: str | None = None) -> Flask:
             try:
                 acc_id = int(raw)
             except (TypeError, ValueError):
-                skipped.append({"id": raw, "reason": "ID 非法"})
+                skipped.append({"id": raw, "reason": "ID không hợp lệ"})
                 continue
             if acc_id in seen:
                 continue
@@ -825,9 +825,9 @@ def create_app(auth_code: str | None = None) -> Flask:
         data = request.get_json(silent=True) or {}
         ids = data.get("account_ids") or data.get("ids") or []
         if not isinstance(ids, list) or not ids:
-            return jsonify({"ok": False, "error": "account_ids 必须是非空数组"}), 400
+            return jsonify({"ok": False, "error": "account_ids phải là mảng không rỗng"}), 400
         if len(ids) > 500:
-            return jsonify({"ok": False, "error": "单次最多查活 500 个账号"}), 400
+            return jsonify({"ok": False, "error": "Mỗi lần kiểm tra sống tối đa 500 tài khoản"}), 400
 
         account_ids: list[int] = []
         skipped: list[dict] = []
@@ -836,7 +836,7 @@ def create_app(auth_code: str | None = None) -> Flask:
             try:
                 acc_id = int(raw)
             except (TypeError, ValueError):
-                skipped.append({"id": raw, "reason": "ID 非法"})
+                skipped.append({"id": raw, "reason": "ID không hợp lệ"})
                 continue
             if acc_id in seen:
                 continue
@@ -847,11 +847,11 @@ def create_app(auth_code: str | None = None) -> Flask:
         for acc_id in account_ids:
             acc = db.get_account(acc_id)
             if not acc:
-                skipped.append({"id": acc_id, "reason": "账号不存在"})
+                skipped.append({"id": acc_id, "reason": "Tài khoản không tồn tại"})
                 continue
             email = str(acc.get("email") or "").strip()
             if not email:
-                skipped.append({"id": acc_id, "reason": "邮箱为空"})
+                skipped.append({"id": acc_id, "reason": "Email trống"})
                 continue
             accounts.append(acc)
 
@@ -874,13 +874,13 @@ def create_app(auth_code: str | None = None) -> Flask:
                 started.append({"id": acc_id, "email": email, "status": "queued"})
             elif queued.get("busy"):
                 busy_count += 1
-                skipped.append({"id": acc_id, "email": email, "reason": queued.get("error") or "正在查活"})
+                skipped.append({"id": acc_id, "email": email, "reason": queued.get("error") or "Đang kiểm tra sống"})
             else:
-                failed.append({"id": acc_id, "email": email, "error": queued.get("error") or "入队失败"})
+                failed.append({"id": acc_id, "email": email, "error": queued.get("error") or "Xếp hàng thất bại"})
 
         return jsonify({
             "ok": True,
-            "message": f"已入队 {len(started)} 个查活任务",
+            "message": f"Đã xếp hàng {len(started)} tác vụ kiểm tra sống",
             "started": started,
             "started_count": len(started),
             "busy_count": busy_count,
@@ -906,10 +906,10 @@ def create_app(auth_code: str | None = None) -> Flask:
         if acc is None and email:
             acc = db.get_account_by_email(email)
         if not acc:
-            return jsonify({"ok": False, "error": "账号不存在"}), 404
+            return jsonify({"ok": False, "error": "Tài khoản không tồn tại"}), 404
         token = (acc.get("access_token") or "").strip()
         if not token:
-            return jsonify({"ok": False, "error": "该账号没有 access_token"}), 400
+            return jsonify({"ok": False, "error": "Tài khoản này không có access_token"}), 400
         account_id = int(acc.get("id"))
         queued = plan_check_service.enqueue_account_plan_check(
             account_id=account_id,
@@ -931,9 +931,9 @@ def create_app(auth_code: str | None = None) -> Flask:
         data = request.get_json(silent=True) or {}
         ids = data.get("account_ids") or data.get("ids") or []
         if not isinstance(ids, list) or not ids:
-            return jsonify({"ok": False, "error": "account_ids 必须是非空数组"}), 400
+            return jsonify({"ok": False, "error": "account_ids phải là mảng không rỗng"}), 400
         if len(ids) > 500:
-            return jsonify({"ok": False, "error": "单次最多查询 500 个账号"}), 400
+            return jsonify({"ok": False, "error": "Mỗi lần tra cứu tối đa 500 tài khoản"}), 400
         # 与单账号查询保持一致：未传时使用独立网络策略。
         proxy = data.get("proxy") if "proxy" in data else None
         timezone_offset_min = str(data.get("timezone_offset_min") or "-")
@@ -945,17 +945,17 @@ def create_app(auth_code: str | None = None) -> Flask:
             try:
                 acc_id = int(raw)
             except Exception:
-                skipped.append({"id": raw, "reason": "ID 非法"})
+                skipped.append({"id": raw, "reason": "ID không hợp lệ"})
                 continue
             if acc_id in seen:
                 continue
             seen.add(acc_id)
             acc = db.get_account(acc_id)
             if not acc:
-                skipped.append({"id": acc_id, "reason": "账号不存在"})
+                skipped.append({"id": acc_id, "reason": "Tài khoản không tồn tại"})
                 continue
             if not (acc.get("access_token") or "").strip():
-                skipped.append({"id": acc_id, "email": acc.get("email"), "reason": "缺少 access_token"})
+                skipped.append({"id": acc_id, "email": acc.get("email"), "reason": "Thiếu access_token"})
                 continue
             items.append(acc)
 
@@ -1013,12 +1013,12 @@ def create_app(auth_code: str | None = None) -> Flask:
         except Exception:
             acc = None
         if not acc:
-            return jsonify({"ok": False, "error": "账号不存在"}), 404
+            return jsonify({"ok": False, "error": "Tài khoản không tồn tại"}), 404
         if not _is_extract_eligible(acc):
-            return jsonify({"ok": False, "error": "仅支持 free(可Plus试用) 账号提链；请先查询套餐确认资格"}), 400
+            return jsonify({"ok": False, "error": "Chỉ rút link cho tài khoản free (có thể dùng thử Plus); hãy tra cứu gói trước để xác nhận"}), 400
         token = (acc.get("access_token") or "").strip()
         if not token:
-            return jsonify({"ok": False, "error": "该账号没有 access_token"}), 400
+            return jsonify({"ok": False, "error": "Tài khoản này không có access_token"}), 400
         try:
             queued = extract_link_service.enqueue_account_extract(
                 account_id=int(acc.get("id")),
@@ -1042,9 +1042,9 @@ def create_app(auth_code: str | None = None) -> Flask:
         data = request.get_json(silent=True) or {}
         ids = data.get("account_ids") or data.get("ids") or []
         if not isinstance(ids, list) or not ids:
-            return jsonify({"ok": False, "error": "account_ids 必须是非空数组"}), 400
+            return jsonify({"ok": False, "error": "account_ids phải là mảng không rỗng"}), 400
         if len(ids) > 500:
-            return jsonify({"ok": False, "error": "单次最多提链 500 个账号"}), 400
+            return jsonify({"ok": False, "error": "Mỗi lần rút link tối đa 500 tài khoản"}), 400
 
         started = []
         busy = []
@@ -1055,22 +1055,22 @@ def create_app(auth_code: str | None = None) -> Flask:
             try:
                 acc_id = int(raw)
             except Exception:
-                skipped.append({"id": raw, "reason": "ID 非法"})
+                skipped.append({"id": raw, "reason": "ID không hợp lệ"})
                 continue
             if acc_id in seen:
                 continue
             seen.add(acc_id)
             acc = db.get_account(acc_id)
             if not acc:
-                skipped.append({"id": acc_id, "reason": "账号不存在"})
+                skipped.append({"id": acc_id, "reason": "Tài khoản không tồn tại"})
                 continue
             email = acc.get("email")
             if not _is_extract_eligible(acc):
-                skipped.append({"id": acc_id, "email": email, "reason": "不是 free(可Plus试用)"})
+                skipped.append({"id": acc_id, "email": email, "reason": "Không phải free (có thể dùng thử Plus)"})
                 continue
             token = (acc.get("access_token") or "").strip()
             if not token:
-                skipped.append({"id": acc_id, "email": email, "reason": "缺少 access_token"})
+                skipped.append({"id": acc_id, "email": email, "reason": "Thiếu access_token"})
                 continue
             try:
                 queued = extract_link_service.enqueue_account_extract(
@@ -1113,10 +1113,10 @@ def create_app(auth_code: str | None = None) -> Flask:
         except Exception:
             acc = None
         if not acc:
-            return jsonify({"ok": False, "error": "账号不存在"}), 404
+            return jsonify({"ok": False, "error": "Tài khoản không tồn tại"}), 404
         token = (acc.get("access_token") or "").strip()
         if not token:
-            return jsonify({"ok": False, "error": "该账号没有 access_token"}), 400
+            return jsonify({"ok": False, "error": "Tài khoản này không có access_token"}), 400
         try:
             queued = codex_agent_service.enqueue_account_codex_agent(
                 account_id=int(acc.get("id")),
@@ -1139,9 +1139,9 @@ def create_app(auth_code: str | None = None) -> Flask:
         data = request.get_json(silent=True) or {}
         ids = data.get("account_ids") or data.get("ids") or []
         if not isinstance(ids, list) or not ids:
-            return jsonify({"ok": False, "error": "account_ids 必须是非空数组"}), 400
+            return jsonify({"ok": False, "error": "account_ids phải là mảng không rỗng"}), 400
         if len(ids) > 500:
-            return jsonify({"ok": False, "error": "单次最多提交 500 个账号"}), 400
+            return jsonify({"ok": False, "error": "Mỗi lần gửi tối đa 500 tài khoản"}), 400
 
         started = []
         busy = []
@@ -1152,19 +1152,19 @@ def create_app(auth_code: str | None = None) -> Flask:
             try:
                 acc_id = int(raw)
             except Exception:
-                skipped.append({"id": raw, "reason": "ID 非法"})
+                skipped.append({"id": raw, "reason": "ID không hợp lệ"})
                 continue
             if acc_id in seen:
                 continue
             seen.add(acc_id)
             acc = db.get_account(acc_id)
             if not acc:
-                skipped.append({"id": acc_id, "reason": "账号不存在"})
+                skipped.append({"id": acc_id, "reason": "Tài khoản không tồn tại"})
                 continue
             email = acc.get("email")
             token = (acc.get("access_token") or "").strip()
             if not token:
-                skipped.append({"id": acc_id, "email": email, "reason": "缺少 access_token"})
+                skipped.append({"id": acc_id, "email": email, "reason": "Thiếu access_token"})
                 continue
             try:
                 queued = codex_agent_service.enqueue_account_codex_agent(
@@ -1216,7 +1216,7 @@ def create_app(auth_code: str | None = None) -> Flask:
         if stored:
             return stored
 
-        raise RuntimeError("该账号还没有生成 Codex Agent Token")
+        raise RuntimeError("Tài khoản này chưa tạo Codex Agent Token")
 
     def _join_sub2_url(base: str, path: str) -> str:
         base = str(base or "").strip().rstrip("/")
@@ -1246,7 +1246,7 @@ def create_app(auth_code: str | None = None) -> Flask:
         try:
             auth_json = _json.loads(text)
         except Exception as exc:
-            raise RuntimeError(f"Agent Token JSON 无效: {exc}") from exc
+            raise RuntimeError(f"JSON Agent Token không hợp lệ: {exc}") from exc
 
         api_url = _sub2_codex_session_import_url()
         api_token = str(getattr(sub2api_cfg, "SUB2API_API_KEY", "") or getattr(sub2api_cfg, "SUB2API_API_TOKEN", "") or "").strip()
@@ -1270,13 +1270,13 @@ def create_app(auth_code: str | None = None) -> Flask:
             db.update_account_codex_agent(int(acc.get("id")), {
                 "ok": True,
                 "status": "success",
-                "message": "Agent Token 已上传 sub2api",
+                "message": "Agent Token đã tải lên sub2api",
                 "sub2api_url": result.get("url"),
                 "sub2api_mode": result.get("payload_mode"),
                 "sub2api_total": result.get("total"),
             })
         except Exception:
-            logger.exception("更新账号 sub2api 上传状态失败: account_id=%s", acc.get("id"))
+            logger.exception("Không cập nhật được trạng thái tải lên sub2api: account_id=%s", acc.get("id"))
         return result
 
     @app.post("/api/accounts/<int:acc_id>/codex-agent/upload-sub2")
@@ -1284,7 +1284,7 @@ def create_app(auth_code: str | None = None) -> Flask:
         """单账号把已生成的 Codex Agent Token 上传到 sub2api。"""
         acc = db.get_account(acc_id)
         if not acc:
-            return jsonify({"ok": False, "error": "账号不存在"}), 404
+            return jsonify({"ok": False, "error": "Tài khoản không tồn tại"}), 404
         try:
             result = _upload_account_codex_agent_to_sub2(acc)
         except Exception as exc:
@@ -1297,9 +1297,9 @@ def create_app(auth_code: str | None = None) -> Flask:
         data = request.get_json(silent=True) or {}
         ids = data.get("account_ids") or data.get("ids") or []
         if not isinstance(ids, list) or not ids:
-            return jsonify({"ok": False, "error": "account_ids 必须是非空数组"}), 400
+            return jsonify({"ok": False, "error": "account_ids phải là mảng không rỗng"}), 400
         if len(ids) > 500:
-            return jsonify({"ok": False, "error": "单次最多提交 500 个账号"}), 400
+            return jsonify({"ok": False, "error": "Mỗi lần gửi tối đa 500 tài khoản"}), 400
 
         uploaded, failed, skipped = [], [], []
         seen = set()
@@ -1307,18 +1307,18 @@ def create_app(auth_code: str | None = None) -> Flask:
             try:
                 acc_id = int(raw)
             except Exception:
-                skipped.append({"id": raw, "reason": "ID 非法"})
+                skipped.append({"id": raw, "reason": "ID không hợp lệ"})
                 continue
             if acc_id in seen:
                 continue
             seen.add(acc_id)
             acc = db.get_account(acc_id)
             if not acc:
-                skipped.append({"id": acc_id, "reason": "账号不存在"})
+                skipped.append({"id": acc_id, "reason": "Tài khoản không tồn tại"})
                 continue
             email = acc.get("email")
             if (acc.get("codex_agent_status") or "") != "success" and not (acc.get("codex_agent_token") or acc.get("codex_agent_auth_path")):
-                skipped.append({"id": acc_id, "email": email, "reason": "未生成 Agent Token"})
+                skipped.append({"id": acc_id, "email": email, "reason": "Chưa tạo Agent Token"})
                 continue
             try:
                 result = _upload_account_codex_agent_to_sub2(acc)
@@ -1340,7 +1340,7 @@ def create_app(auth_code: str | None = None) -> Flask:
         """下载单个账号的 Codex Agent auth.json。"""
         acc = db.get_account(acc_id)
         if not acc:
-            return jsonify({"ok": False, "error": "账号不存在"}), 404
+            return jsonify({"ok": False, "error": "Tài khoản không tồn tại"}), 404
         try:
             content, filename = _codex_agent_auth_for_account(acc)
         except Exception as exc:
@@ -1375,9 +1375,9 @@ def create_app(auth_code: str | None = None) -> Flask:
         else:
             ids = data.get("account_ids") or data.get("ids") or []
         if not isinstance(ids, list) or not ids:
-            return jsonify({"ok": False, "error": "account_ids 必须是非空数组"}), 400
+            return jsonify({"ok": False, "error": "account_ids phải là mảng không rỗng"}), 400
         if len(ids) > 1000:
-            return jsonify({"ok": False, "error": "单次最多下载 1000 个账号"}), 400
+            return jsonify({"ok": False, "error": "Mỗi lần tải tối đa 1000 tài khoản"}), 400
 
         added = []
         errors = []
@@ -1389,14 +1389,14 @@ def create_app(auth_code: str | None = None) -> Flask:
                 try:
                     acc_id = int(raw)
                 except Exception:
-                    errors.append({"id": raw, "error": "ID 非法"})
+                    errors.append({"id": raw, "error": "ID không hợp lệ"})
                     continue
                 if acc_id in seen:
                     continue
                 seen.add(acc_id)
                 acc = db.get_account(acc_id)
                 if not acc:
-                    errors.append({"id": acc_id, "error": "账号不存在"})
+                    errors.append({"id": acc_id, "error": "Tài khoản không tồn tại"})
                     continue
                 try:
                     content, filename = _codex_agent_auth_for_account(acc)
@@ -1419,7 +1419,7 @@ def create_app(auth_code: str | None = None) -> Flask:
             zf.writestr("manifest.json", _json.dumps(manifest, ensure_ascii=False, indent=2) + "\n")
 
         if not added:
-            return jsonify({"ok": False, "error": "没有可下载的 Codex Agent Token", "errors": errors}), 404
+            return jsonify({"ok": False, "error": "Không có Codex Agent Token để tải", "errors": errors}), 404
         now = _dt.now()
         dl_name = f"accounts-codex-agent-{now.strftime('%Y%m%d-%H%M%S')}.zip"
         buf.seek(0)
@@ -1457,14 +1457,14 @@ def create_app(auth_code: str | None = None) -> Flask:
         else:
             ids = data.get("account_ids") or data.get("ids") or []
         if not isinstance(ids, list) or not ids:
-            return jsonify({"ok": False, "error": "account_ids 必须是非空数组"}), 400
+            return jsonify({"ok": False, "error": "account_ids phải là mảng không rỗng"}), 400
         if len(ids) > 1000:
-            return jsonify({"ok": False, "error": "单次最多下载 1000 个账号"}), 400
+            return jsonify({"ok": False, "error": "Mỗi lần tải tối đa 1000 tài khoản"}), 400
 
         try:
             cpa_files = list_cpa_codex_auth_files()
         except Exception as exc:
-            return jsonify({"ok": False, "error": f"读取 CPA auth-files 失败: {type(exc).__name__}: {exc}"}), 502
+            return jsonify({"ok": False, "error": f"Không đọc được CPA auth-files: {type(exc).__name__}: {exc}"}), 502
 
         def _match_cpa_file(email: str, local_filename: str = "") -> dict | None:
             """在已缓存的 CPA 文件列表中匹配，避免每个账号都重新请求 auth-files。"""
@@ -1514,7 +1514,7 @@ def create_app(auth_code: str | None = None) -> Flask:
                 try:
                     acc_id = int(raw_id)
                 except (TypeError, ValueError):
-                    errors.append({"id": raw_id, "error": "ID 非法"})
+                    errors.append({"id": raw_id, "error": "ID không hợp lệ"})
                     continue
                 if acc_id in seen_ids:
                     continue
@@ -1522,11 +1522,11 @@ def create_app(auth_code: str | None = None) -> Flask:
 
                 acc = db.get_account(acc_id)
                 if not acc:
-                    errors.append({"id": acc_id, "error": "账号不存在"})
+                    errors.append({"id": acc_id, "error": "Tài khoản không tồn tại"})
                     continue
                 email = str(acc.get("email") or "").strip()
                 if not email:
-                    errors.append({"id": acc_id, "error": "账号缺少 email"})
+                    errors.append({"id": acc_id, "error": "Tài khoản thiếu email"})
                     continue
 
                 local_filename = local_by_email.get(email.lower(), "")
@@ -1534,7 +1534,7 @@ def create_app(auth_code: str | None = None) -> Flask:
                     meta = _match_cpa_file(email=email, local_filename=local_filename)
                     cpa_name_hint = str((meta or {}).get("name") or "").strip()
                     if not cpa_name_hint:
-                        raise RuntimeError(f"[Codex][CPA] 未在 CPA auth-files 中找到匹配的 Codex 凭证: {email}")
+                        raise RuntimeError(f"[Codex][CPA] Không thấy thông tin Codex khớp trong CPA auth-files: {email}")
                     cpa_text, cpa_name, meta = download_cpa_codex_auth_text(
                         cpa_name=cpa_name_hint,
                     )
@@ -1569,7 +1569,7 @@ def create_app(auth_code: str | None = None) -> Flask:
             zf.writestr("manifest.json", _json.dumps(manifest, ensure_ascii=False, indent=2) + "\n")
 
         if not added:
-            return jsonify({"ok": False, "error": "没有成功从 CPA 下载任何凭证", "errors": errors}), 502
+            return jsonify({"ok": False, "error": "Không tải được thông tin xác thực nào từ CPA", "errors": errors}), 502
         now = _dt.now()
         dl_name = f"accounts-cpa-bulk-{now.strftime('%Y%m%d-%H%M%S')}.zip"
         buf.seek(0)
@@ -1637,7 +1637,7 @@ def create_app(auth_code: str | None = None) -> Flask:
         data = request.get_json(silent=True) or {}
         source = (data.get("source") or data.get("type") or "").strip()
         if source not in ("outlook", "generic_api", "imap"):
-            return jsonify({"ok": False, "error": "导入时请选择具体类型：Outlook、通用 API 或通用 IMAP"}), 400
+            return jsonify({"ok": False, "error": "Khi nhập, hãy chọn loại cụ thể: Outlook, API chung hoặc IMAP chung"}), 400
         text = data.get("text") or ""
         as_registered = bool(data.get("as_registered", False))
         imap_server = str(data.get("imap_server") or "").strip()
@@ -1648,7 +1648,7 @@ def create_app(auth_code: str | None = None) -> Flask:
         imap_ssl_raw = data.get("imap_ssl", True)
         imap_ssl = imap_ssl_raw if isinstance(imap_ssl_raw, bool) else str(imap_ssl_raw).strip().lower() not in {"0", "false", "no", "off"}
         if source == "imap" and (not imap_server or not (1 <= imap_port <= 65535)):
-            return jsonify({"ok": False, "error": "通用 IMAP 导入必须填写有效的服务器和端口"}), 400
+            return jsonify({"ok": False, "error": "Nhập IMAP chung phải điền máy chủ và cổng hợp lệ"}), 400
         records = []
         for line in text.splitlines():
             line = line.strip()
@@ -1696,10 +1696,10 @@ def create_app(auth_code: str | None = None) -> Flask:
                 "totp_secret": parts[5] if len(parts) > 5 else "",
             })
         if not records:
-            need = ("2 段：邮箱----取码地址" if source == "generic_api" else
-                    "邮箱----IMAP密码 或 邮箱:IMAP密码" if source == "imap" else
-                    "4 段：email----password----clientId----refreshToken")
-            return jsonify({"ok": False, "error": f"未解析到有效邮箱行（需 {need}，---- 或 ==== 分隔）"}), 400
+            need = ("2 đoạn: email----địa chỉ lấy mã" if source == "generic_api" else
+                    "email----mật khẩu IMAP hoặc email:mật khẩu IMAP" if source == "imap" else
+                    "4 đoạn: email----password----clientId----refreshToken")
+            return jsonify({"ok": False, "error": f"Không phân tích được dòng email hợp lệ (cần {need}, phân tách bằng ---- hoặc ====)"}), 400
         if as_registered:
             inserted, skipped = db.import_registered_email_accounts(records, source=source)
         elif source == "generic_api":
@@ -1723,7 +1723,7 @@ def create_app(auth_code: str | None = None) -> Flask:
         email = (data.get("email") or "").strip()
         status = (data.get("status") or "").strip()
         if not email or status not in ("available", "used", "failed", "disabled"):
-            return jsonify({"ok": False, "error": "email 或 status 非法"}), 400
+            return jsonify({"ok": False, "error": "email hoặc status không hợp lệ"}), 400
         source = (data.get("source") or _pool_source_arg()).strip()
         if source == "all":
             source = "outlook"
@@ -1746,11 +1746,11 @@ def create_app(auth_code: str | None = None) -> Flask:
         note = data.get("note")
         default_source = (data.get("source") or _pool_source_arg()).strip()
         if status not in ("available", "used", "failed", "disabled"):
-            return jsonify({"ok": False, "error": "status 非法"}), 400
+            return jsonify({"ok": False, "error": "status không hợp lệ"}), 400
         if not isinstance(items, list) or not items:
-            return jsonify({"ok": False, "error": "items/emails 必须是非空数组"}), 400
+            return jsonify({"ok": False, "error": "items/emails phải là mảng không rỗng"}), 400
         if len(items) > 5000:
-            return jsonify({"ok": False, "error": "单次最多操作 5000 个邮箱"}), 400
+            return jsonify({"ok": False, "error": "Mỗi lần thao tác tối đa 5000 email"}), 400
 
         updated = []
         skipped = []
@@ -1766,7 +1766,7 @@ def create_app(auth_code: str | None = None) -> Flask:
                 item_source = "outlook"
             key = f"{item_source}:{email.lower()}"
             if not email:
-                skipped.append({"email": raw_item, "reason": "邮箱为空"})
+                skipped.append({"email": raw_item, "reason": "Email trống"})
                 continue
             if key in seen:
                 continue
@@ -1796,7 +1796,7 @@ def create_app(auth_code: str | None = None) -> Flask:
         data = request.get_json(silent=True) or {}
         email = str(data.get("email") or "").strip()
         if not email:
-            return jsonify({"ok": False, "error": "email 为空"}), 400
+            return jsonify({"ok": False, "error": "email trống"}), 400
         raw_source = data.get("source") or data.get("type")
         source = (
             _pool_source_arg()
@@ -1804,7 +1804,7 @@ def create_app(auth_code: str | None = None) -> Flask:
             else str(raw_source).strip().lower()
         )
         if source not in _POOL_SOURCE_VALUES:
-            return jsonify({"ok": False, "error": "邮箱来源非法"}), 400
+            return jsonify({"ok": False, "error": "Nguồn email không hợp lệ"}), 400
         deleted = db.delete_email_pool(email, source=source)
         return jsonify({"ok": True, "deleted": deleted})
 
@@ -1819,12 +1819,12 @@ def create_app(auth_code: str | None = None) -> Flask:
             else str(raw_source).strip().lower()
         )
         if source not in _POOL_SOURCE_VALUES:
-            return jsonify({"ok": False, "error": "邮箱来源非法"}), 400
+            return jsonify({"ok": False, "error": "Nguồn email không hợp lệ"}), 400
         emails = data.get("items") or data.get("emails") or []
         if not isinstance(emails, list) or not emails:
-            return jsonify({"ok": False, "error": "emails/items 必须是非空数组"}), 400
+            return jsonify({"ok": False, "error": "emails/items phải là mảng không rỗng"}), 400
         if len(emails) > 5000:
-            return jsonify({"ok": False, "error": "单次最多删除 5000 个邮箱"}), 400
+            return jsonify({"ok": False, "error": "Mỗi lần xoá tối đa 5000 email"}), 400
 
         deleted: list[dict] = []
         skipped: list[dict] = []
@@ -1842,10 +1842,10 @@ def create_app(auth_code: str | None = None) -> Flask:
                 email = (str(raw_item or "")).strip()
                 item_source = source
             if not email:
-                skipped.append({"email": raw_item, "reason": "邮箱为空"})
+                skipped.append({"email": raw_item, "reason": "Email trống"})
                 continue
             if item_source not in _POOL_SOURCE_VALUES:
-                skipped.append({"email": email, "source": item_source, "reason": "邮箱来源非法"})
+                skipped.append({"email": email, "source": item_source, "reason": "Nguồn email không hợp lệ"})
                 continue
             key = f"{item_source}:{email.casefold()}"
             if key in seen:
@@ -1863,7 +1863,7 @@ def create_app(auth_code: str | None = None) -> Flask:
             if deleted_ok:
                 deleted.append({"email": email, "source": item_source})
             else:
-                skipped.append({"email": email, "reason": "邮箱不存在"})
+                skipped.append({"email": email, "reason": "Email không tồn tại"})
 
         return jsonify({
             "ok": True,
@@ -1887,7 +1887,7 @@ def create_app(auth_code: str | None = None) -> Flask:
         email = (data.get("email") or "").strip()
         status = (data.get("status") or "").strip()
         if not email or status not in ("available", "used", "failed"):
-            return jsonify({"ok": False, "error": "email 或 status 非法"}), 400
+            return jsonify({"ok": False, "error": "email hoặc status không hợp lệ"}), 400
         db.release_domain_email(email, status=status, note=data.get("note"))
         return jsonify({"ok": True})
 
@@ -1896,7 +1896,7 @@ def create_app(auth_code: str | None = None) -> Flask:
         data = request.get_json(silent=True) or {}
         email = (data.get("email") or "").strip()
         if not email:
-            return jsonify({"ok": False, "error": "email 为空"}), 400
+            return jsonify({"ok": False, "error": "email trống"}), 400
         deleted = db.delete_domain_email(email)
         return jsonify({"ok": True, "deleted": deleted})
 
@@ -1948,13 +1948,13 @@ def create_app(auth_code: str | None = None) -> Flask:
         filename = str(data.get("filename") or "").strip()
         archived = bool(data.get("archived", True))
         if not filename:
-            return jsonify({"ok": False, "error": "filename 必填"}), 400
+            return jsonify({"ok": False, "error": "filename bắt buộc"}), 400
         try:
             rec = db.archive_codex(filename=filename, archived=archived)
         except ValueError as exc:
             return jsonify({"ok": False, "error": str(exc)}), 400
         if rec is None:
-            return jsonify({"ok": False, "error": f"凭证不存在: {filename}"}), 404
+            return jsonify({"ok": False, "error": f"Không có thông tin xác thực: {filename}"}), 404
         return jsonify({"ok": True, "filename": filename, "archived": archived, "record": rec})
 
     @app.post("/api/codex/archive-bulk")
@@ -1964,15 +1964,15 @@ def create_app(auth_code: str | None = None) -> Flask:
         filenames = data.get("filenames") or []
         archived = bool(data.get("archived", True))
         if not isinstance(filenames, list) or not filenames:
-            return jsonify({"ok": False, "error": "filenames 必须是非空数组"}), 400
+            return jsonify({"ok": False, "error": "filenames phải là mảng không rỗng"}), 400
         if len(filenames) > 1000:
-            return jsonify({"ok": False, "error": "单次最多 1000 个"}), 400
+            return jsonify({"ok": False, "error": "Mỗi lần tối đa 1000"}), 400
         updated = []
         skipped = []
         seen = set()
         for fname in filenames:
             if not isinstance(fname, str) or not fname:
-                skipped.append({"filename": str(fname), "reason": "非法文件名"})
+                skipped.append({"filename": str(fname), "reason": "Tên file không hợp lệ"})
                 continue
             if fname in seen:
                 continue
@@ -1983,7 +1983,7 @@ def create_app(auth_code: str | None = None) -> Flask:
                 skipped.append({"filename": fname, "reason": str(exc)})
                 continue
             if rec is None:
-                skipped.append({"filename": fname, "reason": "凭证不存在"})
+                skipped.append({"filename": fname, "reason": "Không có thông tin xác thực"})
             else:
                 updated.append({"filename": fname, "archived": archived})
         return jsonify({"ok": True, "updated": updated, "updated_count": len(updated), "archived": archived, "skipped": skipped})
@@ -2044,9 +2044,9 @@ def create_app(auth_code: str | None = None) -> Flask:
         data = request.get_json(silent=True) or {}
         filenames = data.get("filenames") or []
         if not isinstance(filenames, list) or not filenames:
-            return jsonify({"ok": False, "error": "filenames 必须是非空数组"}), 400
+            return jsonify({"ok": False, "error": "filenames phải là mảng không rỗng"}), 400
         if len(filenames) > 1000:
-            return jsonify({"ok": False, "error": "单次最多 1000 个"}), 400
+            return jsonify({"ok": False, "error": "Mỗi lần tối đa 1000"}), 400
 
         errors = []
         added = []
@@ -2055,7 +2055,7 @@ def create_app(auth_code: str | None = None) -> Flask:
         with zipfile.ZipFile(buf, "w", compression=zipfile.ZIP_DEFLATED) as zf:
             for fname in filenames:
                 if not isinstance(fname, str):
-                    errors.append({"filename": str(fname), "error": "非字符串"})
+                    errors.append({"filename": str(fname), "error": "Không phải chuỗi"})
                     continue
                 try:
                     content, real_fname = db.read_codex_credential(fname)
@@ -2085,7 +2085,7 @@ def create_app(auth_code: str | None = None) -> Flask:
             zf.writestr("manifest.json", _json.dumps(manifest, ensure_ascii=False, indent=2) + "\n")
 
         if not added:
-            return jsonify({"ok": False, "error": "没有成功从 CPA 下载任何凭证", "errors": errors}), 502
+            return jsonify({"ok": False, "error": "Không tải được thông tin xác thực nào từ CPA", "errors": errors}), 502
         now = _dt.now()
         dl_name = f"codex-cpa-bulk-{now.strftime('%Y%m%d-%H%M%S')}.zip"
         buf.seek(0)
@@ -2118,15 +2118,15 @@ def create_app(auth_code: str | None = None) -> Flask:
         data = request.get_json(silent=True) or {}
         filenames = data.get("filenames") or []
         if not isinstance(filenames, list) or not filenames:
-            return jsonify({"ok": False, "error": "filenames 必须是非空数组"}), 400
+            return jsonify({"ok": False, "error": "filenames phải là mảng không rỗng"}), 400
         if len(filenames) > 1000:
-            return jsonify({"ok": False, "error": "单次最多 1000 个"}), 400
+            return jsonify({"ok": False, "error": "Mỗi lần tối đa 1000"}), 400
 
         bundle = []
         errors = []
         for fname in filenames:
             if not isinstance(fname, str):
-                errors.append({"filename": str(fname), "error": "非字符串"})
+                errors.append({"filename": str(fname), "error": "Không phải chuỗi"})
                 continue
             try:
                 content, real_fname = db.read_codex_credential(fname)
@@ -2158,7 +2158,7 @@ def create_app(auth_code: str | None = None) -> Flask:
         data = request.get_json(silent=True) or {}
         fname = (data.get("filename") or "").strip()
         if not fname:
-            return jsonify({"ok": False, "error": "filename 为空"}), 400
+            return jsonify({"ok": False, "error": "filename trống"}), 400
         try:
             db.reset_codex_exported(fname)
         except Exception as exc:
@@ -2171,13 +2171,13 @@ def create_app(auth_code: str | None = None) -> Flask:
         data = request.get_json(silent=True) or {}
         fname = (data.get("filename") or "").strip()
         if not fname:
-            return jsonify({"ok": False, "error": "filename 为空"}), 400
+            return jsonify({"ok": False, "error": "filename trống"}), 400
         try:
             deleted = db.delete_codex_credential(fname)
         except Exception as exc:
             return jsonify({"ok": False, "error": str(exc)}), 400
         if not deleted:
-            return jsonify({"ok": False, "error": "凭证文件不存在"}), 404
+            return jsonify({"ok": False, "error": "File thông tin xác thực không tồn tại"}), 404
         return jsonify({"ok": True, "deleted": fname})
 
     @app.post("/api/codex/delete-bulk")
@@ -2186,9 +2186,9 @@ def create_app(auth_code: str | None = None) -> Flask:
         data = request.get_json(silent=True) or {}
         filenames = data.get("filenames") or []
         if not isinstance(filenames, list) or not filenames:
-            return jsonify({"ok": False, "error": "filenames 必须是非空数组"}), 400
+            return jsonify({"ok": False, "error": "filenames phải là mảng không rỗng"}), 400
         if len(filenames) > 1000:
-            return jsonify({"ok": False, "error": "单次最多删除 1000 个"}), 400
+            return jsonify({"ok": False, "error": "Mỗi lần xoá tối đa 1000"}), 400
         deleted = []
         skipped = []
         seen = set()
@@ -2202,7 +2202,7 @@ def create_app(auth_code: str | None = None) -> Flask:
                 if ok:
                     deleted.append(fname)
                 else:
-                    skipped.append({"filename": fname, "reason": "文件不存在"})
+                    skipped.append({"filename": fname, "reason": "File không tồn tại"})
             except Exception as exc:
                 skipped.append({"filename": fname, "reason": f"{type(exc).__name__}: {exc}"})
         return jsonify({"ok": True, "deleted": deleted, "deleted_count": len(deleted), "skipped": skipped})
@@ -2225,10 +2225,10 @@ def create_app(auth_code: str | None = None) -> Flask:
         data = request.get_json(silent=True) or {}
         email = (data.get("email") or "").strip()
         if not email:
-            return jsonify({"ok": False, "error": "email 为空"}), 400
+            return jsonify({"ok": False, "error": "email trống"}), 400
         acc = db.get_account_by_email(email)
         if acc is None:
-            return jsonify({"ok": False, "error": f"账号不存在: {email}"}), 404
+            return jsonify({"ok": False, "error": f"Tài khoản không tồn tại: {email}"}), 404
         result = codex_retry_service.request_stop(email)
         status = int(result.pop("status", 200) or 200)
         return jsonify(result), status
@@ -2251,9 +2251,9 @@ def create_app(auth_code: str | None = None) -> Flask:
                 if acc and acc.get("email"):
                     targets.append(str(acc.get("email") or "").strip())
         else:
-            return jsonify({"ok": False, "error": "emails 或 account_ids 必须是非空数组"}), 400
+            return jsonify({"ok": False, "error": "emails hoặc account_ids phải là mảng không rỗng"}), 400
         if len(targets) > 500:
-            return jsonify({"ok": False, "error": "单次最多停止 500 个"}), 400
+            return jsonify({"ok": False, "error": "Mỗi lần dừng tối đa 500"}), 400
         stopped = []
         skipped = []
         seen = set()
@@ -2264,16 +2264,16 @@ def create_app(auth_code: str | None = None) -> Flask:
             seen.add(key)
             acc = db.get_account_by_email(email)
             if acc is None:
-                skipped.append({"email": email, "reason": "账号不存在"})
+                skipped.append({"email": email, "reason": "Tài khoản không tồn tại"})
                 continue
             if (acc.get("codex_status") or "") != "retrying" and not codex_retry_service.is_retrying(email):
-                skipped.append({"email": email, "reason": "未处于补跑中"})
+                skipped.append({"email": email, "reason": "Không đang chạy bù"})
                 continue
             r = codex_retry_service.request_stop(email)
             if r.get("ok"):
                 stopped.append({"email": email, "injected": r.get("injected"), "running": r.get("running")})
             else:
-                skipped.append({"email": email, "reason": r.get("error") or "停止失败"})
+                skipped.append({"email": email, "reason": r.get("error") or "Dừng thất bại"})
         return jsonify({"ok": True, "stopped": stopped, "stopped_count": len(stopped), "skipped": skipped})
 
     @app.post("/api/codex/reset-retrying")
@@ -2287,19 +2287,19 @@ def create_app(auth_code: str | None = None) -> Flask:
         if raw_status in ("", "none", "null", "clear"):
             raw_status = "empty"
         if not email:
-            return jsonify({"ok": False, "error": "email 为空"}), 400
+            return jsonify({"ok": False, "error": "email trống"}), 400
         if raw_status not in ("failed", "skipped", "empty"):
-            return jsonify({"ok": False, "error": "status 仅支持 failed/skipped/empty"}), 400
+            return jsonify({"ok": False, "error": "status chỉ hỗ trợ failed/skipped/empty"}), 400
 
         acc = db.get_account_by_email(email)
         if acc is None:
-            return jsonify({"ok": False, "error": f"账号不存在: {email}"}), 404
+            return jsonify({"ok": False, "error": f"Tài khoản không tồn tại: {email}"}), 404
 
         new_status = "" if raw_status == "empty" else raw_status
-        err = None if raw_status == "empty" else "用户手动重置补跑中状态"
+        err = None if raw_status == "empty" else "Người dùng đặt lại thủ công trạng thái đang chạy bù"
         ok = db.update_account_codex_status(email, new_status, err)
         if not ok:
-            return jsonify({"ok": False, "error": f"账号不存在: {email}"}), 404
+            return jsonify({"ok": False, "error": f"Tài khoản không tồn tại: {email}"}), 404
 
         _release_codex_retry(email)
 
@@ -2308,12 +2308,12 @@ def create_app(auth_code: str | None = None) -> Flask:
             log_path.parent.mkdir(parents=True, exist_ok=True)
             with log_path.open("a", encoding="utf-8") as f:
                 ts = _dt.now().strftime("%H:%M:%S")
-                shown = new_status or "空"
-                f.write(f"{ts} [WARNING] [Codex 补跑] 用户手动重置补跑中状态，当前状态={shown}\n")
+                shown = new_status or "Trống"
+                f.write(f"{ts} [WARNING] [Codex chạy bù] Người dùng đã đặt lại trạng thái đang chạy bù, trạng thái hiện tại={shown}\n")
         except Exception:
-            logger.exception("写入 Codex 补跑重置日志失败")
+            logger.exception("Ghi nhật ký đặt lại chạy bù Codex thất bại")
 
-        return jsonify({"ok": True, "message": "已重置补跑中状态", "status": new_status})
+        return jsonify({"ok": True, "message": "Đã đặt lại trạng thái đang chạy bù", "status": new_status})
 
     @app.post("/api/codex/retry")
     def api_codex_retry():
@@ -2321,14 +2321,14 @@ def create_app(auth_code: str | None = None) -> Flask:
         data = request.get_json(silent=True) or {}
         email = (data.get("email") or "").strip()
         if not email:
-            return jsonify({"ok": False, "error": "email 为空"}), 400
+            return jsonify({"ok": False, "error": "email trống"}), 400
         acc = db.get_account_by_email(email)
         if acc is None:
-            return jsonify({"ok": False, "error": f"账号不存在: {email}"}), 404
+            return jsonify({"ok": False, "error": f"Tài khoản không tồn tại: {email}"}), 404
         if (acc.get("live_check_status") or "") == "deactivated":
-            return jsonify({"ok": False, "error": "账号已废号，不能补跑 Codex"}), 409
+            return jsonify({"ok": False, "error": "Tài khoản đã hỏng, không chạy bù Codex được"}), 409
         if not _reserve_codex_retry(email):
-            return jsonify({"ok": False, "error": "该账号正在补跑中，请稍候"}), 409
+            return jsonify({"ok": False, "error": "Tài khoản này đang chạy bù, vui lòng đợi"}), 409
 
         db.update_account_codex_status(email, "retrying", None)
         threading.Thread(
@@ -2337,7 +2337,7 @@ def create_app(auth_code: str | None = None) -> Flask:
             name=f"codex-retry-{email}",
             daemon=True,
         ).start()
-        return jsonify({"ok": True, "message": "已在后台开始补跑，~1-2 分钟后刷新查看"})
+        return jsonify({"ok": True, "message": "Đã bắt đầu chạy bù nền, làm mới sau khoảng 1-2 phút để xem"})
 
     @app.post("/api/codex/retry-bulk")
     def api_codex_retry_bulk():
@@ -2349,13 +2349,13 @@ def create_app(auth_code: str | None = None) -> Flask:
         ids = data.get("account_ids") or data.get("ids") or []
         workers = data.get("workers", 1)
         if not isinstance(ids, list) or not ids:
-            return jsonify({"ok": False, "error": "account_ids 必须是非空数组"}), 400
+            return jsonify({"ok": False, "error": "account_ids phải là mảng không rỗng"}), 400
         try:
             workers = max(1, min(16, int(workers)))
         except (TypeError, ValueError):
-            return jsonify({"ok": False, "error": "workers 必须是数字"}), 400
+            return jsonify({"ok": False, "error": "workers phải là số"}), 400
         if len(ids) > 500:
-            return jsonify({"ok": False, "error": "单次最多选择 500 个账号"}), 400
+            return jsonify({"ok": False, "error": "Mỗi lần chọn tối đa 500 tài khoản"}), 400
 
         selected = []
         skipped = []
@@ -2364,29 +2364,29 @@ def create_app(auth_code: str | None = None) -> Flask:
             try:
                 acc_id = int(raw)
             except (TypeError, ValueError):
-                skipped.append({"id": raw, "reason": "ID 非法"})
+                skipped.append({"id": raw, "reason": "ID không hợp lệ"})
                 continue
             if acc_id in seen_ids:
                 continue
             seen_ids.add(acc_id)
             acc = db.get_account(acc_id)
             if not acc:
-                skipped.append({"id": acc_id, "reason": "账号不存在"})
+                skipped.append({"id": acc_id, "reason": "Tài khoản không tồn tại"})
                 continue
             email = (acc.get("email") or "").strip()
             if not email:
-                skipped.append({"id": acc_id, "reason": "邮箱为空"})
+                skipped.append({"id": acc_id, "reason": "Email trống"})
                 continue
             if (acc.get("live_check_status") or "") == "deactivated":
-                skipped.append({"id": acc_id, "email": email, "reason": "账号已废号"})
+                skipped.append({"id": acc_id, "email": email, "reason": "Tài khoản đã hỏng"})
                 continue
             if not _reserve_codex_retry(email):
-                skipped.append({"id": acc_id, "email": email, "reason": "正在补跑中"})
+                skipped.append({"id": acc_id, "email": email, "reason": "Đang chạy bù"})
                 continue
             selected.append({"id": acc_id, "email": email})
 
         if not selected:
-            return jsonify({"ok": False, "error": "没有可补跑的账号", "skipped": skipped}), 409
+            return jsonify({"ok": False, "error": "Không có tài khoản để chạy bù", "skipped": skipped}), 409
 
         batch_id = _dt.now().strftime("%Y%m%d-%H%M%S")
         for item in selected:
@@ -2395,20 +2395,20 @@ def create_app(auth_code: str | None = None) -> Flask:
             log_path = codex_retry_service.log_path(email)
             log_path.parent.mkdir(parents=True, exist_ok=True)
             log_path.write_text(
-                f"{_dt.now().strftime('%H:%M:%S')} [INFO] [Codex 批量补跑] 已加入批量任务 batch={batch_id} workers={workers}，等待线程执行\n",
+                f"{_dt.now().strftime('%H:%M:%S')} [INFO] [Codex chạy bù hàng loạt] Đã thêm vào tác vụ hàng loạt batch={batch_id} workers={workers}, chờ luồng thực thi\n",
                 encoding="utf-8",
             )
 
         def _bulk_runner(items: list[dict], max_workers: int, batch: str):
-            logger.info(f"[Codex 批量补跑] 启动 batch={batch} count={len(items)} workers={max_workers}")
+            logger.info(f"[Codex chạy bù hàng loạt] Khởi chạy batch={batch} count={len(items)} workers={max_workers}")
             with ThreadPoolExecutor(max_workers=max_workers, thread_name_prefix=f"codex-bulk-{batch}") as ex:
                 futures = [ex.submit(_run_codex_retry_worker, it["email"], batch_label=f"{batch} #{idx}/{len(items)}", clear_log=False) for idx, it in enumerate(items, 1)]
                 for fut in as_completed(futures):
                     try:
                         fut.result()
                     except Exception:
-                        logger.exception(f"[Codex 批量补跑] 子任务异常 batch={batch}")
-            logger.info(f"[Codex 批量补跑] 完成 batch={batch}")
+                        logger.exception(f"[Codex chạy bù hàng loạt] Tác vụ con lỗi batch={batch}")
+            logger.info(f"[Codex chạy bù hàng loạt] Xong batch={batch}")
 
         threading.Thread(
             target=_bulk_runner,
@@ -2418,7 +2418,7 @@ def create_app(auth_code: str | None = None) -> Flask:
         ).start()
         return jsonify({
             "ok": True,
-            "message": f"已开始批量补跑 {len(selected)} 个账号，并发 {workers}",
+            "message": f"Đã bắt đầu chạy bù hàng loạt {len(selected)} tài khoản, song song {workers}",
             "started": selected,
             "started_count": len(selected),
             "skipped": skipped,
@@ -2430,7 +2430,7 @@ def create_app(auth_code: str | None = None) -> Flask:
         """读取某邮箱最近一次补跑的日志。?email=xxx"""
         email = (request.args.get("email") or "").strip()
         if not email:
-            return jsonify({"ok": False, "error": "email 为空"}), 400
+            return jsonify({"ok": False, "error": "email trống"}), 400
         p = codex_retry_service.log_path(email)
         if not p.exists():
             return jsonify({"ok": True, "log": "", "running": False})
@@ -2452,7 +2452,7 @@ def create_app(auth_code: str | None = None) -> Flask:
         from core import account_liveness
         email = (request.args.get("email") or "").strip()
         if not email:
-            return jsonify({"ok": False, "error": "email 为空"}), 400
+            return jsonify({"ok": False, "error": "email trống"}), 400
         p = account_liveness.log_path(email)
         data = _read_log_tail(p, max_bytes=80_000, running_fn=lambda: live_check_service.is_checking(email))
         return jsonify(data)
@@ -2463,7 +2463,7 @@ def create_app(auth_code: str | None = None) -> Flask:
         from core import twofa_service
         email = (request.args.get("email") or "").strip()
         if not email:
-            return jsonify({"ok": False, "error": "email 为空"}), 400
+            return jsonify({"ok": False, "error": "email trống"}), 400
         p = twofa_service.log_path(email)
         data = _read_log_tail(p, max_bytes=80_000, running_fn=lambda: False)
         try:
@@ -2479,7 +2479,7 @@ def create_app(auth_code: str | None = None) -> Flask:
         from core import email_change_service
         acc = db.get_account(acc_id)
         if not acc:
-            return jsonify({"ok": False, "error": "账号不存在"}), 404
+            return jsonify({"ok": False, "error": "Tài khoản không tồn tại"}), 404
         data = _read_log_tail(
             email_change_service.log_path(acc_id), max_bytes=80_000,
             running_fn=lambda: email_change_service.is_running(acc_id),
@@ -2528,15 +2528,15 @@ def create_app(auth_code: str | None = None) -> Flask:
         try:
             count = int(data.get("count", 1))
         except (TypeError, ValueError):
-            return jsonify({"ok": False, "error": "count 非法"}), 400
+            return jsonify({"ok": False, "error": "count không hợp lệ"}), 400
         if count < 1 or count > 200:
-            return jsonify({"ok": False, "error": "count 需在 1~200 之间"}), 400
+            return jsonify({"ok": False, "error": "count phải trong khoảng 1~200"}), 400
 
         # workers 控制本次新提交任务使用的线程池；若和上次不同，服务层会为新任务切换到新池。
         try:
             workers = max(1, min(16, int(data.get("workers", 3))))
         except (TypeError, ValueError):
-            return jsonify({"ok": False, "error": "workers 非法"}), 400
+            return jsonify({"ok": False, "error": "workers không hợp lệ"}), 400
 
         # 提交前先确认池里有足够可用邮箱，给前端一个温和提示（不阻断）
         from config import email as _email_cfg
@@ -2547,19 +2547,19 @@ def create_app(auth_code: str | None = None) -> Flask:
             if not reg_email:
                 return jsonify({
                     "ok": False,
-                    "error": "手动模式未配置 REGISTER_EMAIL。请到配置页填写「手动注册邮箱」，或开启自动取邮箱+收码。",
+                    "error": "Chế độ thủ công chưa cấu hình REGISTER_EMAIL. Hãy vào trang Cấu hình điền «Email đăng ký thủ công», hoặc bật tự động lấy email và nhận mã.",
                 }), 400
             if count > 1:
                 return jsonify({
                     "ok": False,
-                    "error": "手动模式建议每次只跑 1 个任务（同一 REGISTER_EMAIL）。请把数量设为 1。",
+                    "error": "Chế độ thủ công nên chạy 1 tác vụ mỗi lần (cùng REGISTER_EMAIL). Hãy đặt số lượng thành 1.",
                 }), 400
             jobs = svc.submit_registration(count=count, workers=workers)
             return jsonify({
                 "ok": True,
                 "submitted": len(jobs),
                 "jobs": jobs,
-                "warning": f"手动 OTP 模式：将使用 {reg_email}；验证码请在任务页提交",
+                "warning": f"Chế độ OTP thủ công: sẽ dùng {reg_email}; gửi mã OTP ở trang tác vụ",
                 "workers": workers,
             })
         sources = parse_email_sources(_email_cfg.EMAIL_SOURCE)
@@ -2568,14 +2568,14 @@ def create_app(auth_code: str | None = None) -> Flask:
             if not api_key:
                 return jsonify({
                     "ok": False,
-                    "error": "已选择 gptmail 邮箱来源，请填写 GPTMail API Key（配置 → 邮箱 / OTP）。",
+                    "error": "Đã chọn nguồn email gptmail, hãy điền GPTMail API Key (Cấu hình → Email / OTP).",
                 }), 400
         if "cloudflare" in sources:
             api_base = str(getattr(_email_cfg, "CLOUDFLARE_API_BASE", "") or "").strip()
             if not api_base:
                 return jsonify({
                     "ok": False,
-                    "error": "已选择 cloudflare 邮箱来源，请填写 Cloudflare API 地址（配置 → 邮箱 / OTP）。",
+                    "error": "Đã chọn nguồn email cloudflare, vui lòng điền địa chỉ Cloudflare API (Cấu hình → Email / OTP).",
                 }), 400
             auth_mode = str(getattr(_email_cfg, "CLOUDFLARE_AUTH_MODE", "none") or "none").strip().lower()
             accounts_path = str(getattr(_email_cfg, "CLOUDFLARE_PATH_ACCOUNTS", "/api/new_address") or "").strip().lower()
@@ -2584,7 +2584,7 @@ def create_app(auth_code: str | None = None) -> Flask:
             if needs_key and not api_key:
                 return jsonify({
                     "ok": False,
-                    "error": "Cloudflare admin/鉴权模式需要填写 Cloudflare API Key（配置 → 邮箱 / OTP）。",
+                    "error": "Chế độ Cloudflare admin/xác thực cần điền Cloudflare API Key (Cấu hình → Email / OTP).",
                 }), 400
         if "mailnest" in sources:
             api_key = str(getattr(_email_cfg, "MAIL_NEST_API_KEY", "") or "").strip()
@@ -2592,12 +2592,12 @@ def create_app(auth_code: str | None = None) -> Flask:
             if not api_key:
                 return jsonify({
                     "ok": False,
-                    "error": "已选择 mailnest 邮箱来源，请填写 MailNest API Key（配置 → 邮箱 / OTP）。",
+                    "error": "Đã chọn nguồn email mailnest, vui lòng điền MailNest API Key (Cấu hình → Email / OTP).",
                 }), 400
             if not project_code:
                 return jsonify({
                     "ok": False,
-                    "error": "已选择 mailnest 邮箱来源，请填写 MailNest 项目代码（配置 → 邮箱 / OTP）。",
+                    "error": "Đã chọn nguồn email mailnest, hãy điền mã dự án MailNest (Cấu hình → Email / OTP).",
                 }), 400
         if "cloudmail" in sources:
             api_base = str(getattr(_email_cfg, "CLOUDMAIL_API_BASE", "") or "").strip()
@@ -2605,12 +2605,12 @@ def create_app(auth_code: str | None = None) -> Flask:
             if not api_base:
                 return jsonify({
                     "ok": False,
-                    "error": "已选择 cloudmail 邮箱来源，请填写 CloudMail API 地址（配置 → 邮箱 / OTP）。",
+                    "error": "Đã chọn nguồn email cloudmail, vui lòng điền địa chỉ CloudMail API (Cấu hình → Email / OTP).",
                 }), 400
             if not token:
                 return jsonify({
                     "ok": False,
-                    "error": "已选择 cloudmail 邮箱来源，请填写 CloudMail Token（配置 → 邮箱 / OTP）。",
+                    "error": "Đã chọn nguồn email cloudmail, vui lòng điền CloudMail Token (Cấu hình → Email / OTP).",
                 }), 400
         if "remail" in sources:
             api_base = str(getattr(_email_cfg, "REMAIL_API_BASE", "") or "").strip()
@@ -2624,27 +2624,27 @@ def create_app(auth_code: str | None = None) -> Flask:
             if not api_base:
                 return jsonify({
                     "ok": False,
-                    "error": "已选择 remail 邮箱来源，请填写 Remail API 地址（配置 → 邮箱 / OTP）。",
+                    "error": "Đã chọn nguồn email remail, vui lòng điền địa chỉ Remail API (Cấu hình → Email / OTP).",
                 }), 400
             if not api_key:
                 return jsonify({
                     "ok": False,
-                    "error": "已选择 remail 邮箱来源，请填写 Remail API Key（配置 → 邮箱 / OTP）。",
+                    "error": "Đã chọn nguồn email remail, hãy điền Remail API Key (Cấu hình → Email / OTP).",
                 }), 400
             if project_id <= 0:
                 return jsonify({
                     "ok": False,
-                    "error": "已选择 remail 邮箱来源，请填写 Remail 项目 ID（配置 → 邮箱 / OTP）。",
+                    "error": "Đã chọn nguồn email remail, vui lòng điền ID dự án Remail (Cấu hình → Email / OTP).",
                 }), 400
             if not suffix:
                 return jsonify({
                     "ok": False,
-                    "error": "已选择 remail 邮箱来源，请填写 Remail 邮箱后缀（例如 outlook.com）。",
+                    "error": "Đã chọn nguồn email remail, vui lòng điền hậu tố email Remail (ví dụ outlook.com).",
                 }), 400
             if service_mode not in ("code", "purchase"):
                 return jsonify({
                     "ok": False,
-                    "error": "Remail 服务模式只能填写 code 或 purchase（配置 → 邮箱 / OTP）。",
+                    "error": "Chế độ dịch vụ Remail chỉ được điền code hoặc purchase (Cấu hình → Email / OTP).",
                 }), 400
         if "gptmail" in sources or "mailnest" in sources or "cloudmail" in sources or "remail" in sources or "cloudflare" in sources:
             # 临时邮箱在任务开始时动态生成，不需要本地邮箱池容量提示。
@@ -2653,17 +2653,17 @@ def create_app(auth_code: str | None = None) -> Flask:
             pool = db.domain_email_pool_summary()
             warning = ""
             if sources == ["cloudflare_domain"] and pool.get("available", 0) < count:
-                warning = f"域名邮箱池仅 {pool.get('available', 0)} 个可用，少于任务数 {count}，不足的会自动生成"
+                warning = f"Kho email tên miền chỉ còn {pool.get('available', 0)} khả dụng, ít hơn số tác vụ {count}, phần thiếu sẽ tự tạo"
         elif sources == ["generic_api"]:
             pool = db.generic_api_email_pool_summary()
             warning = ""
             if pool.get("available", 0) < count:
-                warning = f"通用 API 邮箱池仅 {pool.get('available', 0)} 个可用，少于任务数 {count}，不足的会失败"
+                warning = f"Kho email API chung chỉ còn {pool.get('available', 0)} khả dụng, ít hơn số tác vụ {count}, phần thiếu sẽ thất bại"
         elif sources == ["imap"]:
             pool = db.imap_email_pool_summary()
             warning = ""
             if pool.get("available", 0) < count:
-                warning = f"通用 IMAP 邮箱池仅 {pool.get('available', 0)} 个可用，少于任务数 {count}，不足的会失败"
+                warning = f"Kho email IMAP chung chỉ còn {pool.get('available', 0)} khả dụng, ít hơn số tác vụ {count}, phần thiếu sẽ thất bại"
         elif len(sources) > 1:
             available = 0
             if "outlook" in sources:
@@ -2674,12 +2674,12 @@ def create_app(auth_code: str | None = None) -> Flask:
                 available += db.imap_email_pool_summary().get("available", 0)
             warning = ""
             if available < count:
-                warning = f"多个邮箱池合计仅 {available} 个可用，少于任务数 {count}，不足的会失败"
+                warning = f"Tổng các kho email chỉ còn {available} khả dụng, ít hơn số tác vụ {count}, phần thiếu sẽ thất bại"
         else:
             pool = db.outlook_pool_summary()
             warning = ""
             if pool.get("available", 0) < count:
-                warning = f"可用邮箱仅 {pool.get('available', 0)} 个，少于任务数 {count}，不足的会失败"
+                warning = f"Email khả dụng chỉ còn {pool.get('available', 0)} cái, ít hơn số tác vụ {count}, phần thiếu sẽ thất bại"
         jobs = svc.submit_registration(count=count, workers=workers)
         return jsonify({"ok": True, "submitted": len(jobs), "jobs": jobs, "warning": warning, "workers": workers})
 
@@ -2701,7 +2701,7 @@ def create_app(auth_code: str | None = None) -> Flask:
             job = db.get_job(int(job_id))
             email = (job or {}).get("email") or ""
         if not email:
-            return jsonify({"ok": False, "error": "email/job_id 缺失"}), 400
+            return jsonify({"ok": False, "error": "Thiếu email/job_id"}), 400
         try:
             result = submit_manual_otp(email, code)
             return jsonify(result)
@@ -2719,7 +2719,7 @@ def create_app(auth_code: str | None = None) -> Flask:
         """手动停止单个注册任务。pending 取消；running 发送停止信号。"""
         result = svc.request_stop_job(job_id)
         if not result.get("ok"):
-            return jsonify({"ok": False, "error": result.get("error") or "停止失败"}), int(result.get("status") or 400)
+            return jsonify({"ok": False, "error": result.get("error") or "Dừng thất bại"}), int(result.get("status") or 400)
         return jsonify(result)
 
     @app.post("/api/jobs/<int:job_id>/retry")
@@ -2729,7 +2729,7 @@ def create_app(auth_code: str | None = None) -> Flask:
         try:
             workers = max(1, min(16, int(data.get("workers", svc.get_executor_workers()))))
         except (TypeError, ValueError):
-            return jsonify({"ok": False, "error": "workers 非法"}), 400
+            return jsonify({"ok": False, "error": "workers không hợp lệ"}), 400
         result = svc.retry_job(job_id, workers=workers)
         if not result.get("ok"):
             return jsonify(result), int(result.get("status") or 400)
@@ -2741,13 +2741,13 @@ def create_app(auth_code: str | None = None) -> Flask:
         data = request.get_json(silent=True) or {}
         job_ids = data.get("job_ids") or data.get("ids") or []
         if not isinstance(job_ids, list) or not job_ids:
-            return jsonify({"ok": False, "error": "job_ids 必须是非空数组"}), 400
+            return jsonify({"ok": False, "error": "job_ids phải là mảng không rỗng"}), 400
         if len(job_ids) > 500:
-            return jsonify({"ok": False, "error": "单次最多重试 500 个任务"}), 400
+            return jsonify({"ok": False, "error": "Mỗi lần thử lại tối đa 500 tác vụ"}), 400
         try:
             workers = max(1, min(16, int(data.get("workers", svc.get_executor_workers()))))
         except (TypeError, ValueError):
-            return jsonify({"ok": False, "error": "workers 非法"}), 400
+            return jsonify({"ok": False, "error": "workers không hợp lệ"}), 400
 
         started: list[dict] = []
         reused: list[dict] = []
@@ -2757,14 +2757,14 @@ def create_app(auth_code: str | None = None) -> Flask:
             try:
                 one_id = int(raw_id)
             except (TypeError, ValueError):
-                skipped.append({"id": raw_id, "reason": "ID 非法"})
+                skipped.append({"id": raw_id, "reason": "ID không hợp lệ"})
                 continue
             if one_id in seen:
                 continue
             seen.add(one_id)
             result = svc.retry_job(one_id, workers=workers)
             if not result.get("ok"):
-                skipped.append({"id": one_id, "reason": result.get("error") or "不能重试"})
+                skipped.append({"id": one_id, "reason": result.get("error") or "Không thử lại được"})
             elif result.get("reused"):
                 reused.append(result)
             else:
@@ -2785,12 +2785,12 @@ def create_app(auth_code: str | None = None) -> Flask:
         """删除一个任务记录。运行中的任务不允许删除；排队任务删除后执行前会自动跳过。"""
         job = db.get_job(job_id)
         if not job:
-            return jsonify({"ok": False, "error": "任务不存在"}), 404
+            return jsonify({"ok": False, "error": "Tác vụ không tồn tại"}), 404
         if job.get("status") in ("running", "stopping"):
-            return jsonify({"ok": False, "error": "运行中的任务不能删除，请等待完成后再删"}), 409
+            return jsonify({"ok": False, "error": "Không xoá được tác vụ đang chạy, hãy đợi xong rồi xoá"}), 409
         deleted = db.delete_job(job_id, delete_log=True, allow_running=False)
         if not deleted:
-            return jsonify({"ok": False, "error": "任务不存在或已开始运行"}), 409
+            return jsonify({"ok": False, "error": "Tác vụ không tồn tại hoặc đã bắt đầu chạy"}), 409
         return jsonify({"ok": True, "deleted": deleted})
 
     @app.post("/api/jobs/delete-bulk")
@@ -2799,9 +2799,9 @@ def create_app(auth_code: str | None = None) -> Flask:
         data = request.get_json(silent=True) or {}
         job_ids = data.get("job_ids") or data.get("ids") or []
         if not isinstance(job_ids, list) or not job_ids:
-            return jsonify({"ok": False, "error": "job_ids 必须是非空数组"}), 400
+            return jsonify({"ok": False, "error": "job_ids phải là mảng không rỗng"}), 400
         if len(job_ids) > 1000:
-            return jsonify({"ok": False, "error": "单次最多删除 1000 个任务"}), 400
+            return jsonify({"ok": False, "error": "Mỗi lần xoá tối đa 1000 tác vụ"}), 400
 
         deleted: list[int] = []
         skipped: list[dict] = []
@@ -2810,7 +2810,7 @@ def create_app(auth_code: str | None = None) -> Flask:
             try:
                 job_id = int(raw_id)
             except (TypeError, ValueError):
-                skipped.append({"id": raw_id, "reason": "ID 非法"})
+                skipped.append({"id": raw_id, "reason": "ID không hợp lệ"})
                 continue
             if job_id in seen:
                 continue
@@ -2818,15 +2818,15 @@ def create_app(auth_code: str | None = None) -> Flask:
 
             job = db.get_job(job_id)
             if not job:
-                skipped.append({"id": job_id, "reason": "任务不存在"})
+                skipped.append({"id": job_id, "reason": "Tác vụ không tồn tại"})
                 continue
             if job.get("status") in ("running", "stopping"):
-                skipped.append({"id": job_id, "reason": "运行中，不能删除"})
+                skipped.append({"id": job_id, "reason": "Đang chạy, không xoá được"})
                 continue
             if db.delete_job(job_id, delete_log=True, allow_running=False):
                 deleted.append(job_id)
             else:
-                skipped.append({"id": job_id, "reason": "任务不存在或已开始运行"})
+                skipped.append({"id": job_id, "reason": "Tác vụ không tồn tại hoặc đã bắt đầu chạy"})
 
         return jsonify({"ok": True, "deleted": deleted, "deleted_count": len(deleted), "skipped": skipped})
 
@@ -2834,7 +2834,7 @@ def create_app(auth_code: str | None = None) -> Flask:
     def api_job_log(job_id: int):
         job = db.get_job(job_id)
         if not job:
-            return jsonify({"ok": False, "error": "任务不存在"}), 404
+            return jsonify({"ok": False, "error": "Tác vụ không tồn tại"}), 404
         return jsonify({
             "ok": True,
             "job": job,
@@ -2851,7 +2851,7 @@ def create_app(auth_code: str | None = None) -> Flask:
             result = RoxyBrowserClient().list_workspaces()
             return jsonify(result)
         except Exception as exc:
-            logger.exception("获取 Roxy 团队/工作区失败")
+            logger.exception("Lấy team/workspace Roxy thất bại")
             return jsonify({"ok": False, "error": f"{type(exc).__name__}: {exc}"}), 500
 
     # ----------------------------------------------------------
@@ -2895,15 +2895,15 @@ def create_app(auth_code: str | None = None) -> Flask:
                 import config as _config_pkg
                 _config_pkg.reload_all()
             except Exception:
-                logger.exception("CloudMail Token 写入后热加载失败")
+                logger.exception("Tải nóng thất bại sau khi ghi CloudMail Token")
             return jsonify({
                 "ok": True,
                 "token": token,
                 "written": written,
-                "message": "CloudMail Token 已生成，且当前 CloudMail 配置已保存",
+                "message": "Đã tạo CloudMail Token, và cấu hình CloudMail hiện tại đã được lưu",
             })
         except Exception as exc:
-            logger.exception("生成 CloudMail Token 失败")
+            logger.exception("Tạo CloudMail Token thất bại")
             return jsonify({"ok": False, "error": f"{type(exc).__name__}: {exc}"}), 400
 
     @app.post("/api/cloudmail/domains")
@@ -2938,16 +2938,16 @@ def create_app(auth_code: str | None = None) -> Flask:
                 import config as _config_pkg
                 _config_pkg.reload_all()
             except Exception:
-                logger.exception("CloudMail 域名写入后热加载失败")
+                logger.exception("Tải nóng thất bại sau khi ghi tên miền CloudMail")
             return jsonify({
                 "ok": True,
                 "domains": domains,
                 "count": len(domains),
                 "written": written,
-                "message": f"已获取 {len(domains)} 个 CloudMail 可用域名并保存",
+                "message": f"Đã lấy {len(domains)} tên miền CloudMail khả dụng và đã lưu",
             })
         except Exception as exc:
-            logger.exception("获取 CloudMail 域名失败")
+            logger.exception("Lấy tên miền CloudMail thất bại")
             return jsonify({"ok": False, "error": f"{type(exc).__name__}: {exc}"}), 400
 
     @app.post("/api/config")
@@ -2955,11 +2955,11 @@ def create_app(auth_code: str | None = None) -> Flask:
         data = request.get_json(silent=True) or {}
         updates = data.get("updates") if isinstance(data.get("updates"), dict) else data
         if not isinstance(updates, dict) or not updates:
-            return jsonify({"ok": False, "error": "无更新内容"}), 400
+            return jsonify({"ok": False, "error": "Không có nội dung cập nhật"}), 400
         try:
             result = config_editor.update_config(updates)
         except Exception as exc:
-            logger.exception("配置写入失败")
+            logger.exception("Ghi cấu hình thất bại")
             return jsonify({"ok": False, "error": f"{type(exc).__name__}: {exc}"}), 500
 
         # 写盘成功后立即热加载所有 config 子模块，让运行时代码看到新值。
@@ -2971,7 +2971,7 @@ def create_app(auth_code: str | None = None) -> Flask:
         except Exception as exc:
             reload_ok = False
             reload_err = f"{type(exc).__name__}: {exc}"
-            logger.exception("配置热加载失败")
+            logger.exception("Tải nóng cấu hình thất bại")
 
         return jsonify({
             "ok": True,
@@ -2979,9 +2979,9 @@ def create_app(auth_code: str | None = None) -> Flask:
             "ignored": result["ignored"],
             "reloaded": reload_ok,
             "note": (
-                "✅ 已保存并热加载，新值立即生效"
+                "✅ Đã lưu và tải nóng, giá trị mới có hiệu lực ngay"
                 if reload_ok
-                else f"⚠️ 已写入文件但热加载失败（{reload_err}），需重启 Web 服务才能生效"
+                else f"⚠️ Đã ghi file nhưng tải nóng thất bại ({reload_err}), cần khởi động lại dịch vụ Web để có hiệu lực"
             ),
         })
 
