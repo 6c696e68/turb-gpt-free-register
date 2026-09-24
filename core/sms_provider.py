@@ -1,21 +1,21 @@
 # -*- coding: utf-8 -*-
 """
-接码平台客户端。
+Client nền tảng nhận SMS.
 
-用于 Codex OAuth "全新 session" 流程过 OpenAI 的 /phone-verification 手机号验证：
-    1. acquire_number()       getNumber 取一个手机号（返回 激活ID + 号码）
-    2. wait_for_sms_code()    轮询 getStatus 直到拿到短信验证码
-    3. complete() / cancel()  setStatus 标记完成(6) / 取消(8)
+Dùng cho luồng Codex OAuth "session mới" để qua xác minh số điện thoại /phone-verification của OpenAI:
+    1. acquire_number()       getNumber lấy một số (trả activation ID + số)
+    2. wait_for_sms_code()    poll getStatus đến khi có mã OTP SMS
+    3. complete() / cancel()  setStatus đánh dấu hoàn tất (6) / huỷ (8)
 
-当前支持：
-    - GrizzlySMS：GET 文本接口，文档 https://api.grizzlysms.com
-    - SMSBower：GET handler_api 兼容接口，文档 https://smsbower.app/cn/api?page=client
-    - L：本地 JSON 管理接口，文档 L_API.md
-    - H：本地 JSON 管理接口，文档 H_API.md
+Hiện hỗ trợ:
+    - GrizzlySMS: API GET văn bản, tài liệu https://api.grizzlysms.com
+    - SMSBower: API GET handler_api tương thích, tài liệu https://smsbower.app/cn/api?page=client
+    - L: API quản trị JSON cục bộ, tài liệu L_API.md
+    - H: API quản trị JSON cục bộ, tài liệu H_API.md
 
-价格相关：每取一个号、收到短信都会计费，所以：
-    - 取号后若收不到短信，必须 cancel(8) 释放，避免白扣钱；
-    - 成功拿到码后 complete(6) 正式完成激活。
+Giá: mỗi lần lấy số và nhận SMS đều tính phí, nên:
+    - Sau khi lấy số nếu không nhận SMS, phải cancel(8) để nhả, tránh trừ tiền oan;
+    - Có mã rồi thì complete(6) để hoàn tất kích hoạt.
 """
 import json
 import logging
@@ -25,36 +25,36 @@ from urllib.parse import urljoin
 
 from curl_cffi.requests import Session as CurlSession
 
-# 注意：用 `from config import codex` 而不是 `from config.codex import X`，
-# 这样 WebUI 调 config.reload_all() 后，本模块通过 codex.X 读到的是最新值。
+# Lưu ý: dùng `from config import codex` chứ không `from config.codex import X`,
+# để sau khi WebUI gọi config.reload_all(), module này đọc giá trị mới qua codex.X.
 from config import codex as _cfg
 from config import IMPERSONATE
 
 logger = logging.getLogger(__name__)
 
-# GrizzlySMS 规则：号码取出后 2 分钟内不允许取消（防薅号）。
-# 这里留 5 秒缓冲，时间到了再发 setStatus=8。
+# Quy tắc GrizzlySMS: 2 phút sau khi lấy số không được huỷ (chống vét số).
+# Chừa 5 giây đệm, đủ giờ mới gửi setStatus=8.
 _MIN_CANCEL_DELAY = 125
 
-# 记录每个 activation_id 的取号时间，供 cancel() 判断是否要等。
-# 用模块级 dict 而不是改 acquire_number 返回值，保持向后兼容。
+# Ghi thời điểm lấy số của mỗi activation_id, để cancel() biết có phải chờ không.
+# Dùng dict cấp module thay vì đổi giá trị trả của acquire_number, giữ tương thích ngược.
 _ACQUIRED_AT: dict[str, float] = {}
 
 
 class SmsProviderError(RuntimeError):
-    """接码平台通用错误。"""
+    """Lỗi chung của nền tảng nhận SMS."""
 
 
 class SmsNoNumbersError(SmsProviderError):
-    """暂无可用号码（NO_NUMBERS），可换国家或稍后重试。"""
+    """Tạm không có số (NO_NUMBERS), có thể đổi quốc gia hoặc thử lại sau."""
 
 
 class SmsNoBalanceError(SmsProviderError):
-    """余额不足（NO_BALANCE），必须充值，重试无意义——上层应立即停止。"""
+    """Không đủ số dư (NO_BALANCE), phải nạp tiền, thử lại vô ích — tầng trên phải dừng ngay."""
 
 
 class SmsCodeTimeout(SmsProviderError):
-    """单个号等短信超时（OpenAI 没发或没到达）。"""
+    """Một số chờ SMS quá hạn (OpenAI không gửi hoặc chưa tới)."""
 
 
 def _http() -> CurlSession:
@@ -69,8 +69,8 @@ def _provider() -> str:
 
 def _request_grizzly(http: CurlSession, params: dict) -> str:
     """
-    发一个 GrizzlySMS API 请求，返回去空白的响应文本。
-    统一识别公共错误码并抛对应异常。
+    Gửi một yêu cầu GrizzlySMS API, trả text phản hồi đã cắt trắng.
+    Nhận diện mã lỗi chung và ném exception tương ứng.
     """
     base_params = {"api_key": _cfg.SMS_API_KEY}
     base_params.update(params)
@@ -81,51 +81,51 @@ def _request_grizzly(http: CurlSession, params: dict) -> str:
         )
     text = (resp.text or "").strip()
 
-    # 公共错误码（任何 action 都可能返回）
+    # Mã lỗi chung (action nào cũng có thể trả)
     if text == "BAD_KEY":
-        raise SmsProviderError("接码平台 API key 无效（BAD_KEY）")
+        raise SmsProviderError("API key nền tảng nhận SMS không hợp lệ (BAD_KEY)")
     if text == "NO_BALANCE":
-        raise SmsNoBalanceError("接码平台余额不足（NO_BALANCE），请充值")
+        raise SmsNoBalanceError("Nền tảng nhận SMS không đủ số dư (NO_BALANCE), hãy nạp tiền")
     if text == "NO_NUMBERS":
-        raise SmsNoNumbersError("接码平台暂无可用号码（NO_NUMBERS）")
+        raise SmsNoNumbersError("Nền tảng nhận SMS tạm không có số (NO_NUMBERS)")
     if text == "SERVICE_UNAVAILABLE_REGION":
-        raise SmsProviderError("接码平台地区受限（SERVICE_UNAVAILABLE_REGION），请换 IP")
+        raise SmsProviderError("Nền tảng nhận SMS bị hạn chế vùng (SERVICE_UNAVAILABLE_REGION), hãy đổi IP")
     if text in ("BAD_ACTION", "BAD_SERVICE", "BAD_STATUS"):
-        raise SmsProviderError(f"接码平台请求参数错误：{text}")
+        raise SmsProviderError(f"Tham số yêu cầu nền tảng nhận SMS sai: {text}")
     if text == "NO_ACTIVATION":
-        raise SmsProviderError("激活 ID 不存在（NO_ACTIVATION）")
+        raise SmsProviderError("Activation ID không tồn tại (NO_ACTIVATION)")
     if text.startswith("The service is prohibited"):
-        raise SmsProviderError(f"该服务被平台禁售：{text}")
+        raise SmsProviderError(f"Dịch vụ này bị nền tảng cấm bán: {text}")
 
     return text
 
 
 def _request_smsbower(http: CurlSession, params: dict) -> str:
-    """发 SMSBower handler_api 请求，返回去空白的响应文本。"""
+    """Gửi yêu cầu SMSBower handler_api, trả text phản hồi đã cắt trắng."""
     api_key = str(getattr(_cfg, "SMSBOWER_API_KEY", "") or "").strip()
     if not api_key:
-        raise SmsProviderError("SMSBower API Key 不能为空")
+        raise SmsProviderError("SMSBower API Key không được để trống")
     base = str(getattr(_cfg, "SMSBOWER_API_BASE", "") or "").strip()
     if not base:
-        raise SmsProviderError("SMSBOWER_API_BASE 不能为空")
+        raise SmsProviderError("SMSBOWER_API_BASE không được để trống")
     resp = http.get(base, params={"api_key": api_key, **params})
     text = (resp.text or "").strip()
     if resp.status_code != 200:
         raise SmsProviderError(f"SMSBower HTTP {resp.status_code}: {text[:200]}")
     if text in ("BAD_KEY", "BAD_ACTION", "BAD_SERVICE", "WRONG_SERVICE", "BAD_STATUS", "NO_ACTIVATION"):
         if text == "BAD_KEY":
-            raise SmsProviderError("SMSBower API key 无效（BAD_KEY）")
+            raise SmsProviderError("SMSBower API key không hợp lệ (BAD_KEY)")
         if text in ("BAD_SERVICE", "WRONG_SERVICE"):
-            raise SmsProviderError(f"SMSBower 服务代码无效（{text}），OpenAI/ChatGPT 请填写 dr")
+            raise SmsProviderError(f"Mã dịch vụ SMSBower không hợp lệ ({text}), OpenAI/ChatGPT hãy điền dr")
         if text == "NO_ACTIVATION":
-            raise SmsProviderError("SMSBower 激活 ID 不存在（NO_ACTIVATION）")
-        raise SmsProviderError(f"SMSBower 请求参数错误：{text}")
+            raise SmsProviderError("SMSBower activation ID không tồn tại (NO_ACTIVATION)")
+        raise SmsProviderError(f"Tham số yêu cầu SMSBower sai: {text}")
     if text in ("NO_NUMBERS", "NO_BALANCE", "NO_MONEY"):
         if text in ("NO_BALANCE", "NO_MONEY"):
-            raise SmsNoBalanceError(f"SMSBower 余额不足（{text}），请充值")
-        raise SmsNoNumbersError("SMSBower 暂无可用号码（NO_NUMBERS）")
+            raise SmsNoBalanceError(f"SMSBower không đủ số dư ({text}), hãy nạp tiền")
+        raise SmsNoNumbersError("SMSBower tạm không có số (NO_NUMBERS)")
     if text.startswith("The service is prohibited"):
-        raise SmsProviderError(f"SMSBower 该服务被禁售：{text}")
+        raise SmsProviderError(f"SMSBower dịch vụ này bị cấm bán: {text}")
     return text
 
 
@@ -152,7 +152,7 @@ def _smsbower_number_params(service: str | None, country: str | None) -> dict:
 
 
 def _request_smsbower_number(http: CurlSession, params: dict) -> tuple[dict, str]:
-    """按兼容性顺序取号，筛选无库存时放宽供应商条件。"""
+    """Lấy số theo thứ tự tương thích, hết tồn kho khi lọc thì nới điều kiện nhà cung cấp."""
     candidates: list[dict] = [dict(params)]
     if params.get("action") == "getNumberV2":
         candidates.append({**params, "action": "getNumber"})
@@ -170,28 +170,28 @@ def _request_smsbower_number(http: CurlSession, params: dict) -> tuple[dict, str
             return candidate, _request_smsbower(http, candidate)
         except SmsNoNumbersError:
             if index + 1 < len(unique):
-                logger.warning("[SMSBower] 取号筛选无库存，放宽条件重试：action=%s providerIds=%s", candidate.get("action"), candidate.get("providerIds", "-"))
+                logger.warning("[SMSBower] Lọc lấy số hết tồn kho, nới điều kiện rồi thử lại: action=%s providerIds=%s", candidate.get("action"), candidate.get("providerIds", "-"))
                 continue
             raise
         except SmsProviderError as exc:
             if candidate.get("action") == "getNumberV2" and "BAD_ACTION" in str(exc) and index + 1 < len(unique):
-                logger.warning("[SMSBower] getNumberV2 不被当前接口支持，回退兼容接口")
+                logger.warning("[SMSBower] API hiện tại không hỗ trợ getNumberV2, lùi về API tương thích")
                 continue
             raise
-    raise SmsProviderError("SMSBower 没有可用的取号请求方案")
+    raise SmsProviderError("SMSBower không có phương án lấy số dùng được")
 
 
 def _l_url(path: str) -> str:
     base = str(getattr(_cfg, "L_API_BASE", "") or "").strip()
     if not base:
-        raise SmsProviderError("L_API_BASE 不能为空")
+        raise SmsProviderError("L_API_BASE không được để trống")
     return urljoin(base.rstrip("/") + "/", path.lstrip("/"))
 
 
 def _l_headers() -> dict:
     token = str(getattr(_cfg, "L_ADMIN_AUTH_CODE", "") or "").strip()
     if not token:
-        raise SmsProviderError("L_ADMIN_AUTH_CODE 不能为空")
+        raise SmsProviderError("L_ADMIN_AUTH_CODE không được để trống")
     return {
         "Authorization": f"Bearer {token}",
         "Content-Type": "application/json",
@@ -214,26 +214,26 @@ def _post_l_json(http: CurlSession, path: str, payload: dict) -> dict:
         raw = str(data.get("raw") or "")
         combined = f"{error} {raw}".strip()
         if "NO_BALANCE" in combined or "余额不足" in combined:
-            raise SmsNoBalanceError(f"L 余额不足：{combined}")
+            raise SmsNoBalanceError(f"L không đủ số dư: {combined}")
         if "NO_NUMBERS" in combined or "暂无号码" in combined:
-            raise SmsNoNumbersError(f"L 暂无可用号码：{combined}")
-        raise SmsProviderError(f"L 请求失败：{combined}")
+            raise SmsNoNumbersError(f"L tạm không có số: {combined}")
+        raise SmsProviderError(f"Yêu cầu L thất bại: {combined}")
     if not isinstance(data, dict):
-        raise SmsProviderError(f"L 响应不是 JSON 对象：{text[:200]}")
+        raise SmsProviderError(f"Phản hồi L không phải object JSON: {text[:200]}")
     return data
 
 
 def _h_url(path: str) -> str:
     base = str(getattr(_cfg, "H_API_BASE", "") or "").strip()
     if not base:
-        raise SmsProviderError("H_API_BASE 不能为空")
+        raise SmsProviderError("H_API_BASE không được để trống")
     return urljoin(base.rstrip("/") + "/", path.lstrip("/"))
 
 
 def _h_headers() -> dict:
     token = str(getattr(_cfg, "H_ADMIN_AUTH_CODE", "") or "").strip()
     if not token:
-        raise SmsProviderError("H_ADMIN_AUTH_CODE 不能为空")
+        raise SmsProviderError("H_ADMIN_AUTH_CODE không được để trống")
     return {
         "Authorization": f"Bearer {token}",
         "Content-Type": "application/json",
@@ -256,20 +256,20 @@ def _post_h_json(http: CurlSession, path: str, payload: dict) -> dict:
         raw = str(data.get("raw") or "")
         combined = f"{error} {raw}".strip()
         if "NO_BALANCE" in combined or "余额不足" in combined:
-            raise SmsNoBalanceError(f"H 余额不足：{combined}")
+            raise SmsNoBalanceError(f"H không đủ số dư: {combined}")
         if "NO_NUMBERS" in combined or "暂无号码" in combined:
-            raise SmsNoNumbersError(f"H 暂无可用号码：{combined}")
-        raise SmsProviderError(f"H 请求失败：{combined}")
+            raise SmsNoNumbersError(f"H tạm không có số: {combined}")
+        raise SmsProviderError(f"Yêu cầu H thất bại: {combined}")
     if not isinstance(data, dict):
-        raise SmsProviderError(f"H 响应不是 JSON 对象：{text[:200]}")
+        raise SmsProviderError(f"Phản hồi H không phải object JSON: {text[:200]}")
     return data
 
 
 def _release_h_number(activation_id: str, http: CurlSession | None = None) -> dict:
-    """调用 H_API /api/admin/h/release 释放单个号码。"""
+    """Gọi H_API /api/admin/h/release để nhả một số."""
     activation_id = str(activation_id or "").strip()
     if not activation_id:
-        raise SmsProviderError("H release 缺少 id")
+        raise SmsProviderError("H release thiếu id")
     own_http = http is None
     http = http or _http()
     try:
@@ -277,9 +277,9 @@ def _release_h_number(activation_id: str, http: CurlSession | None = None) -> di
         failed = data.get("failed") if isinstance(data, dict) else None
         if isinstance(failed, list) and failed:
             detail = json.dumps(failed, ensure_ascii=False)[:300]
-            raise SmsProviderError(f"H release 失败 id={activation_id}: {detail}")
+            raise SmsProviderError(f"H release thất bại id={activation_id}: {detail}")
         released = data.get("released", data.get("updated", 0)) if isinstance(data, dict) else 0
-        logger.info(f"[SMS:H] 已释放号码 id={activation_id}, released={released}")
+        logger.info(f"[SMS:H] Đã nhả số id={activation_id}, released={released}")
         _ACQUIRED_AT.pop(activation_id, None)
         return data
     finally:
@@ -288,17 +288,17 @@ def _release_h_number(activation_id: str, http: CurlSession | None = None) -> di
 
 
 def release_h_numbers(ids: list[str], http: CurlSession | None = None) -> dict:
-    """批量释放 H 号码。"""
+    """Nhả số H hàng loạt."""
     ids = [str(x or "").strip() for x in (ids or []) if str(x or "").strip()]
     if not ids:
-        raise SmsProviderError("H release 缺少 ids")
+        raise SmsProviderError("H release thiếu ids")
     own_http = http is None
     http = http or _http()
     try:
         data = _post_h_json(http, "/api/admin/h/release", {"ids": ids})
         released = data.get("released", data.get("updated", 0)) if isinstance(data, dict) else 0
         failed = data.get("failed") if isinstance(data, dict) else []
-        logger.info(f"[SMS:H] 批量释放号码完成 released={released}, failed={len(failed) if isinstance(failed, list) else 0}")
+        logger.info(f"[SMS:H] Nhả số hàng loạt xong released={released}, failed={len(failed) if isinstance(failed, list) else 0}")
         for activation_id in ids:
             _ACQUIRED_AT.pop(activation_id, None)
         return data
@@ -308,21 +308,21 @@ def release_h_numbers(ids: list[str], http: CurlSession | None = None) -> dict:
 
 
 def _release_l_number(activation_id: str, http: CurlSession | None = None) -> dict:
-    """调用 L_API /api/admin/l/release 释放单个号码。"""
+    """Gọi L_API /api/admin/l/release để nhả một số."""
     activation_id = str(activation_id or "").strip()
     if not activation_id:
-        raise SmsProviderError("L release 缺少 id")
+        raise SmsProviderError("L release thiếu id")
     own_http = http is None
     http = http or _http()
     try:
         data = _post_l_json(http, "/api/admin/l/release", {"id": activation_id})
         failed = data.get("failed") if isinstance(data, dict) else None
         if isinstance(failed, list) and failed:
-            # 接口允许部分失败。单个释放时 failed 非空基本代表这个 id 释放失败。
+            # API cho phép thất bại một phần. Khi nhả một số, failed không rỗng gần như là id này nhả thất bại.
             detail = json.dumps(failed, ensure_ascii=False)[:300]
-            raise SmsProviderError(f"L release 失败 id={activation_id}: {detail}")
+            raise SmsProviderError(f"L release thất bại id={activation_id}: {detail}")
         released = data.get("released", data.get("updated", 0)) if isinstance(data, dict) else 0
-        logger.info(f"[SMS:L] 已释放号码 id={activation_id}, released={released}")
+        logger.info(f"[SMS:L] Đã nhả số id={activation_id}, released={released}")
         _ACQUIRED_AT.pop(activation_id, None)
         return data
     finally:
@@ -331,17 +331,17 @@ def _release_l_number(activation_id: str, http: CurlSession | None = None) -> di
 
 
 def release_l_numbers(ids: list[str], http: CurlSession | None = None) -> dict:
-    """批量释放 L 号码，供工具/后续批处理复用。"""
+    """Nhả số L hàng loạt, để tool/batch sau tái sử dụng."""
     ids = [str(x or "").strip() for x in (ids or []) if str(x or "").strip()]
     if not ids:
-        raise SmsProviderError("L release 缺少 ids")
+        raise SmsProviderError("L release thiếu ids")
     own_http = http is None
     http = http or _http()
     try:
         data = _post_l_json(http, "/api/admin/l/release", {"ids": ids})
         released = data.get("released", data.get("updated", 0)) if isinstance(data, dict) else 0
         failed = data.get("failed") if isinstance(data, dict) else []
-        logger.info(f"[SMS:L] 批量释放号码完成 released={released}, failed={len(failed) if isinstance(failed, list) else 0}")
+        logger.info(f"[SMS:L] Nhả số hàng loạt xong released={released}, failed={len(failed) if isinstance(failed, list) else 0}")
         for activation_id in ids:
             _ACQUIRED_AT.pop(activation_id, None)
         return data
@@ -351,7 +351,7 @@ def release_l_numbers(ids: list[str], http: CurlSession | None = None) -> dict:
 
 
 def _normalize_phone_digits(value: str) -> str:
-    """把平台返回/配置的号码片段规范化为纯数字，避免 +-849... 这类非法 E.164。"""
+    """Chuẩn hoá mảnh số do nền tảng trả/cấu hình thành chữ số thuần, tránh E.164 sai kiểu +-849..."""
     return "".join(ch for ch in str(value or "").strip() if ch.isdigit())
 
 
@@ -373,9 +373,9 @@ def _normalize_h_phone(phone: str) -> str:
 
 def _h_phone_acquire_mode() -> str:
     """
-    H 取号模式：
-      - reusable/reuse/prefer_reuse：优先复用，调用 /api/admin/h/take-reusable-phone
-      - new/fresh/always_new：每次取新号，调用 /api/admin/h/take-phone
+    Chế độ lấy số H:
+      - reusable/reuse/prefer_reuse: ưu tiên tái sử dụng, gọi /api/admin/h/take-reusable-phone
+      - new/fresh/always_new: mỗi lần lấy số mới, gọi /api/admin/h/take-phone
     """
     raw = str(getattr(_cfg, "H_PHONE_ACQUIRE_MODE", "reusable") or "reusable").strip().lower()
     if raw in ("new", "fresh", "always_new", "take_phone", "take-phone", "每次取新号", "新号"):
@@ -384,7 +384,7 @@ def _h_phone_acquire_mode() -> str:
 
 
 # ============================================================
-# 取号
+# Lấy số
 # ============================================================
 
 def acquire_number(
@@ -393,10 +393,10 @@ def acquire_number(
     country: str | None = None,
 ) -> tuple[str, str]:
     """
-    取一个手机号（getNumber）。
+    Lấy một số điện thoại (getNumber).
 
     Returns:
-        (activation_id, phone_number) —— phone_number 不带 + 前缀（如 16195366483）
+        (activation_id, phone_number) — phone_number không có tiền tố + (ví dụ 16195366483)
 
     Raises:
         SmsNoNumbersError / SmsNoBalanceError / SmsProviderError
@@ -417,12 +417,12 @@ def acquire_number(
                     if activation_id and phone:
                         _ACQUIRED_AT[activation_id] = time.time()
                         return activation_id, phone
-                raise SmsProviderError(f"SMSBower getNumberV2 响应格式异常：{text[:200]}")
+                raise SmsProviderError(f"SMSBower getNumberV2 phản hồi sai định dạng: {text[:200]}")
             if not text.startswith("ACCESS_NUMBER:"):
-                raise SmsProviderError(f"SMSBower getNumber 非预期响应：{text[:200]}")
+                raise SmsProviderError(f"SMSBower getNumber phản hồi không mong đợi: {text[:200]}")
             parts = text.split(":", 2)
             if len(parts) < 3:
-                raise SmsProviderError(f"SMSBower getNumber 响应格式异常：{text[:200]}")
+                raise SmsProviderError(f"SMSBower getNumber phản hồi sai định dạng: {text[:200]}")
             activation_id, phone = parts[1].strip(), parts[2].strip()
             _ACQUIRED_AT[activation_id] = time.time()
             return activation_id, phone
@@ -443,24 +443,24 @@ def acquire_number(
             phone = _normalize_l_phone(raw_phone)
             if raw_phone.strip() != phone or raw_prefix.strip():
                 logger.info(
-                    f"[SMS:L] 号码规范化：raw_phone={raw_phone!r}, "
+                    f"[SMS:L] Chuẩn hoá số: raw_phone={raw_phone!r}, "
                     f"prefix={raw_prefix!r}, normalized=+{phone}"
                 )
             if not activation_id or not phone:
-                raise SmsProviderError(f"L take-phone 响应缺少 item.id/item.phone：{str(data)[:200]}")
+                raise SmsProviderError(f"L take-phone phản hồi thiếu item.id/item.phone: {str(data)[:200]}")
             _ACQUIRED_AT[activation_id] = time.time()
-            logger.info(f"[SMS:L] 取号成功：id={activation_id}, phone=+{phone}")
+            logger.info(f"[SMS:L] Lấy số thành công: id={activation_id}, phone=+{phone}")
             return activation_id, phone
 
         if _provider() == "h":
-            # H_API 使用 projectId + country；统一复用 SMS_SERVICE / SMS_COUNTRY，
-            # 避免接码平台之间出现重复的“服务/国家”配置。
+            # H_API dùng projectId + country; tái sử dụng SMS_SERVICE / SMS_COUNTRY,
+            # tránh cấu hình "dịch vụ/quốc gia" trùng giữa các nền tảng nhận SMS.
             project_id = str(service or _cfg.SMS_SERVICE).strip()
             h_country = str(country or _cfg.SMS_COUNTRY).strip()
             if not project_id:
-                raise SmsProviderError("H projectId 不能为空：请填写 SMS_SERVICE")
+                raise SmsProviderError("H projectId không được để trống: hãy điền SMS_SERVICE")
             if not h_country:
-                raise SmsProviderError("H country 不能为空：请填写 SMS_COUNTRY")
+                raise SmsProviderError("H country không được để trống: hãy điền SMS_COUNTRY")
             payload = {
                 "projectId": project_id,
                 "country": h_country,
@@ -475,14 +475,14 @@ def acquire_number(
             phone = _normalize_h_phone(raw_phone)
             if raw_phone.strip() != phone or raw_prefix.strip():
                 logger.info(
-                    f"[SMS:H] 号码规范化：raw_phone={raw_phone!r}, "
+                    f"[SMS:H] Chuẩn hoá số: raw_phone={raw_phone!r}, "
                     f"prefix={raw_prefix!r}, normalized=+{phone}"
                 )
             if not activation_id or not phone:
-                raise SmsProviderError(f"H {api_path.rsplit('/', 1)[-1]} 响应缺少 item.id/item.phone：{str(data)[:200]}")
+                raise SmsProviderError(f"H {api_path.rsplit('/', 1)[-1]} phản hồi thiếu item.id/item.phone: {str(data)[:200]}")
             _ACQUIRED_AT[activation_id] = time.time()
             logger.info(
-                f"[SMS:H] 取号成功：mode={mode}, api={api_path}, id={activation_id}, phone=+{phone}, "
+                f"[SMS:H] Lấy số thành công: mode={mode}, api={api_path}, id={activation_id}, phone=+{phone}, "
                 f"reused={bool(data.get('reused'))}, duplicate={bool(data.get('duplicate'))}"
             )
             return activation_id, phone
@@ -496,16 +496,16 @@ def acquire_number(
             params["maxPrice"] = _cfg.SMS_MAX_PRICE
 
         text = _request_grizzly(http, params)
-        # 成功格式：ACCESS_NUMBER:激活ID:号码
+        # Định dạng thành công: ACCESS_NUMBER:activationID:số
         if not text.startswith("ACCESS_NUMBER:"):
-            raise SmsProviderError(f"getNumber 非预期响应：{text[:200]}")
+            raise SmsProviderError(f"getNumber phản hồi không mong đợi: {text[:200]}")
         parts = text.split(":")
         if len(parts) < 3:
-            raise SmsProviderError(f"getNumber 响应格式异常：{text[:200]}")
+            raise SmsProviderError(f"getNumber phản hồi sai định dạng: {text[:200]}")
         activation_id = parts[1].strip()
         phone = parts[2].strip()
         _ACQUIRED_AT[activation_id] = time.time()
-        logger.info(f"[SMS] 取号成功：activation_id={activation_id}, phone=+{phone}")
+        logger.info(f"[SMS] Lấy số thành công: activation_id={activation_id}, phone=+{phone}")
         return activation_id, phone
     finally:
         if own_http:
@@ -513,7 +513,7 @@ def acquire_number(
 
 
 # ============================================================
-# 取短信验证码
+# Lấy mã OTP SMS
 # ============================================================
 
 def wait_for_sms_code(
@@ -523,14 +523,14 @@ def wait_for_sms_code(
     poll_interval: int | None = None,
 ) -> str:
     """
-    轮询 getStatus 直到拿到短信验证码。
+    Poll getStatus đến khi có mã OTP SMS.
 
     Returns:
-        验证码字符串
+        chuỗi mã OTP
 
     Raises:
-        SmsCodeTimeout —— 超时没收到（上层可换号重试）
-        SmsProviderError —— 激活被取消等
+        SmsCodeTimeout — quá hạn chưa nhận (tầng trên có thể đổi số thử lại)
+        SmsProviderError — kích hoạt bị huỷ, v.v.
     """
     own_http = http is None
     http = http or _http()
@@ -539,7 +539,7 @@ def wait_for_sms_code(
     try:
         provider = _provider()
         total_wait = max_wait or _cfg.SMS_CODE_WAIT
-        logger.info(f"[SMS] 等待短信验证码 activation_id={activation_id}，最长 {total_wait}s...")
+        logger.info(f"[SMS] Chờ mã OTP SMS activation_id={activation_id}, tối đa {total_wait}s...")
         round_no = 0
         while time.time() < deadline:
             try:
@@ -551,8 +551,8 @@ def wait_for_sms_code(
             elapsed = max(0, int(total_wait - max(0, deadline - time.time())))
             remaining_before = max(0, int(deadline - time.time()))
             logger.info(
-                f"[SMS] 第 {round_no} 轮获取验证码 activation_id={activation_id}，"
-                f"已等 {elapsed}s，剩余约 {remaining_before}s"
+                f"[SMS] Vòng {round_no} vòng lấy mã OTP activation_id={activation_id}，"
+                f"đã chờ {elapsed}s, còn khoảng {remaining_before}s"
             )
             if provider == "l":
                 data = _post_l_json(http, "/api/admin/l/fetch-code", {"id": activation_id})
@@ -560,12 +560,12 @@ def wait_for_sms_code(
                 raw = str(data.get("raw") or "").strip()
                 status = str((data.get("item") or {}).get("status") or "").strip()
                 if code:
-                    logger.info(f"[SMS:L] 第 {round_no} 轮收到验证码：{code}")
+                    logger.info(f"[SMS:L] Vòng {round_no} vòng nhận mã OTP: {code}")
                     return code
                 remaining = max(0, int(deadline - time.time()))
                 logger.info(
-                    f"[SMS:L] 第 {round_no} 轮未收到验证码，状态={status or raw or 'WAIT'}，"
-                    f"{interval}s 后重试（剩余 {remaining}s）"
+                    f"[SMS:L] Vòng {round_no} vòng chưa nhận mã OTP, trạng thái={status or raw or 'WAIT'}，"
+                    f"{interval}s nữa thử lại (còn {remaining}s）"
                 )
                 time.sleep(interval)
                 continue
@@ -576,12 +576,12 @@ def wait_for_sms_code(
                 raw = str(data.get("raw") or "").strip()
                 status = str((data.get("item") or {}).get("status") or "").strip()
                 if code:
-                    logger.info(f"[SMS:H] 第 {round_no} 轮收到验证码：{code}")
+                    logger.info(f"[SMS:H] Vòng {round_no} vòng nhận mã OTP: {code}")
                     return code
                 remaining = max(0, int(deadline - time.time()))
                 logger.info(
-                    f"[SMS:H] 第 {round_no} 轮未收到验证码，状态={status or raw or 'WAIT'}，"
-                    f"{interval}s 后重试（剩余 {remaining}s）"
+                    f"[SMS:H] Vòng {round_no} vòng chưa nhận mã OTP, trạng thái={status or raw or 'WAIT'}，"
+                    f"{interval}s nữa thử lại (còn {remaining}s）"
                 )
                 time.sleep(interval)
                 continue
@@ -591,7 +591,7 @@ def wait_for_sms_code(
                 if text.startswith("STATUS_OK:"):
                     return text.split(":", 1)[1].strip().strip("'")
                 if text == "STATUS_CANCEL":
-                    raise SmsProviderError("SMSBower 激活已被取消（STATUS_CANCEL）")
+                    raise SmsProviderError("SMSBower kích hoạt đã bị huỷ (STATUS_CANCEL)")
                 time.sleep(interval)
                 continue
 
@@ -599,38 +599,38 @@ def wait_for_sms_code(
 
             if text.startswith("STATUS_OK:"):
                 code = text.split(":", 1)[1].strip()
-                logger.info(f"[SMS] 第 {round_no} 轮收到验证码：{code}")
+                logger.info(f"[SMS] Vòng {round_no} vòng nhận mã OTP: {code}")
                 return code
             if text == "STATUS_CANCEL":
-                raise SmsProviderError("激活已被取消（STATUS_CANCEL）")
-            # STATUS_WAIT_CODE / STATUS_WAIT_RETRY:* / STATUS_WAIT_RESEND → 继续等
+                raise SmsProviderError("Kích hoạt đã bị huỷ (STATUS_CANCEL)")
+            # STATUS_WAIT_CODE / STATUS_WAIT_RETRY:* / STATUS_WAIT_RESEND → tiếp tục chờ
             remaining = max(0, int(deadline - time.time()))
-            logger.info(f"[SMS] 第 {round_no} 轮未收到验证码，状态={text}，{interval}s 后重试（剩余 {remaining}s）")
+            logger.info(f"[SMS] Vòng {round_no} vòng chưa nhận mã OTP, trạng thái={text}，{interval}s nữa thử lại (còn {remaining}s）")
             time.sleep(interval)
 
-        raise SmsCodeTimeout(f"等待短信超时（>{total_wait}s），activation_id={activation_id}")
+        raise SmsCodeTimeout(f"Chờ SMS quá hạn (>{total_wait}s），activation_id={activation_id}")
     finally:
         if own_http:
             http.close()
 
 
 # ============================================================
-# 改状态
+# Đổi trạng thái
 # ============================================================
 
 def set_status(activation_id: str, status: int, http: CurlSession | None = None) -> str:
     """
-    设置激活状态（setStatus）。
-        1 = 号码已就绪（短信已发出）
-        3 = 等下一条短信（重发）
-        6 = 完成激活
-        8 = 取消激活
+    Đặt trạng thái kích hoạt (setStatus).
+        1 = số đã sẵn sàng (SMS đã gửi)
+        3 = chờ SMS tiếp theo (gửi lại)
+        6 = hoàn tất kích hoạt
+        8 = huỷ kích hoạt
     """
     own_http = http is None
     http = http or _http()
     try:
         if _provider() == "l":
-            logger.debug(f"[SMS:L] 忽略状态设置 id={activation_id}, status={status}")
+            logger.debug(f"[SMS:L] Bỏ qua đặt trạng thái id={activation_id}, status={status}")
             return "OK"
         if _provider() == "smsbower":
             if int(status) == 1:
@@ -643,61 +643,61 @@ def set_status(activation_id: str, status: int, http: CurlSession | None = None)
 
 
 def complete(activation_id: str, http: CurlSession | None = None) -> None:
-    """标记激活完成（status=6）。失败只告警不抛，避免影响主流程。"""
+    """Đánh dấu kích hoạt hoàn tất (status=6). Thất bại chỉ cảnh báo, không ném, để khỏi ảnh hưởng luồng chính."""
     if _provider() == "l":
-        logger.info(f"[SMS:L] 已完成 id={activation_id}")
+        logger.info(f"[SMS:L] Đã hoàn tất id={activation_id}")
         _ACQUIRED_AT.pop(activation_id, None)
         return
     if _provider() == "h":
-        # H 成功 fetch-code 后后台会自动按多次收码策略重取；这里不 release。
-        logger.info(f"[SMS:H] 已完成 id={activation_id}")
+        # Sau khi H fetch-code thành công, nền tự lấy lại theo chiến lược nhận mã nhiều lần; ở đây không release.
+        logger.info(f"[SMS:H] Đã hoàn tất id={activation_id}")
         _ACQUIRED_AT.pop(activation_id, None)
         return
     if _provider() == "smsbower":
         try:
             set_status(activation_id, 6, http=http)
         except Exception as exc:
-            logger.warning(f"[SMSBower] 标记完成失败（不影响结果）：{exc}")
+            logger.warning(f"[SMSBower] Đánh dấu hoàn tất thất bại (không ảnh hưởng kết quả): {exc}")
         finally:
             _ACQUIRED_AT.pop(activation_id, None)
         return
     try:
         set_status(activation_id, 6, http=http)
-        logger.info(f"[SMS] 已标记完成 activation_id={activation_id}")
+        logger.info(f"[SMS] Đã đánh dấu hoàn tất activation_id={activation_id}")
         _ACQUIRED_AT.pop(activation_id, None)
     except Exception as exc:
-        logger.warning(f"[SMS] 标记完成失败（不影响结果）：{exc}")
+        logger.warning(f"[SMS] Đánh dấu hoàn tất thất bại (không ảnh hưởng kết quả): {exc}")
 
 
 def _do_cancel_sync(activation_id: str, http_factory) -> None:
-    """实际的同步取消逻辑：等够 2 分钟限制 → 发请求 → 失败重试一次。"""
+    """Logic huỷ đồng bộ thật: chờ đủ hạn 2 phút → gửi yêu cầu → thất bại thì thử lại một lần."""
     acquired_at = _ACQUIRED_AT.get(activation_id)
     if acquired_at is not None:
         elapsed = time.time() - acquired_at
         if elapsed < _MIN_CANCEL_DELAY:
             wait = _MIN_CANCEL_DELAY - elapsed
             logger.info(
-                f"[SMS] 取消等待 GrizzlySMS 2 分钟限制：activation_id={activation_id}，"
-                f"还需等 {wait:.0f}s..."
+                f"[SMS] Huỷ đang chờ hạn 2 phút GrizzlySMS: activation_id={activation_id}，"
+                f"còn phải chờ {wait:.0f}s..."
             )
             time.sleep(wait)
 
-    # 后台线程不能复用外部 http session（curl_cffi 非线程安全），自己建一个
+    # Thread nền không được tái sử dụng http session ngoài (curl_cffi không an toàn luồng), tự tạo một cái
     http = http_factory()
     try:
         for attempt in range(1, 3):
             try:
                 set_status(activation_id, 8, http=http)
-                logger.info(f"[SMS] 已取消 activation_id={activation_id}")
+                logger.info(f"[SMS] Đã huỷ activation_id={activation_id}")
                 _ACQUIRED_AT.pop(activation_id, None)
                 return
             except Exception as exc:
                 if attempt == 1:
-                    logger.warning(f"[SMS] 取消失败（{exc}），5s 后重试...")
+                    logger.warning(f"[SMS] Huỷ thất bại ({exc}), thử lại sau 5s...")
                     time.sleep(5)
                 else:
                     logger.warning(
-                        f"[SMS] 取消最终失败（不影响结果，需到平台手动取消）：activation_id={activation_id}, {exc}"
+                        f"[SMS] Huỷ cuối cùng thất bại (không ảnh hưởng kết quả, cần huỷ tay trên nền tảng): activation_id={activation_id}, {exc}"
                     )
     finally:
         try:
@@ -708,35 +708,35 @@ def _do_cancel_sync(activation_id: str, http_factory) -> None:
 
 def cancel(activation_id: str, http: CurlSession | None = None, background: bool = True) -> None:
     """
-    取消激活（status=8），释放号码避免白扣费。
+    Huỷ kích hoạt (status=8), nhả số để tránh trừ phí oan.
 
-    GrizzlySMS 规则：号码取出后约 2 分钟内不允许取消。本函数默认 background=True，
-    把"等 2 分钟+取消"放到后台守护线程里执行，主流程立刻返回继续走（如换下一个号），
-    避免被这 2 分钟阻塞。
+    Quy tắc GrizzlySMS: khoảng 2 phút sau khi lấy số không được huỷ. Hàm này mặc định background=True,
+    đưa "chờ 2 phút + huỷ" vào thread nền, luồng chính trả ngay để đi tiếp (ví dụ đổi số khác),
+    tránh bị chặn 2 phút này.
 
-    background=False 时同步等够时间再返回（少数场景需要确认取消完成时用）。
+    background=False thì chờ đủ thời gian rồi mới trả (dùng khi cần xác nhận huỷ xong).
 
-    失败只告警不抛，不影响主流程。
+    Thất bại chỉ cảnh báo, không ném, không ảnh hưởng luồng chính.
     """
     if _provider() == "l":
         try:
             _release_l_number(activation_id, http=http)
         except Exception as exc:
-            logger.warning(f"[SMS:L] 释放号码失败（不影响主流程）：id={activation_id}, {type(exc).__name__}: {exc}")
+            logger.warning(f"[SMS:L] Nhả số thất bại (không ảnh hưởng luồng chính): id={activation_id}, {type(exc).__name__}: {exc}")
             _ACQUIRED_AT.pop(activation_id, None)
         return
     if _provider() == "h":
         try:
             _release_h_number(activation_id, http=http)
         except Exception as exc:
-            logger.warning(f"[SMS:H] 释放号码失败（不影响主流程）：id={activation_id}, {type(exc).__name__}: {exc}")
+            logger.warning(f"[SMS:H] Nhả số thất bại (không ảnh hưởng luồng chính): id={activation_id}, {type(exc).__name__}: {exc}")
             _ACQUIRED_AT.pop(activation_id, None)
         return
     if _provider() == "smsbower":
         try:
             set_status(activation_id, 8, http=http)
         except Exception as exc:
-            logger.warning(f"[SMSBower] 释放号码失败（不影响主流程）：{exc}")
+            logger.warning(f"[SMSBower] Nhả số thất bại (không ảnh hưởng luồng chính): {exc}")
         finally:
             _ACQUIRED_AT.pop(activation_id, None)
         return
@@ -752,4 +752,4 @@ def cancel(activation_id: str, http: CurlSession | None = None, background: bool
         daemon=True,
     )
     t.start()
-    logger.debug(f"[SMS] 取消任务已派后台：activation_id={activation_id}")
+    logger.debug(f"[SMS] Đã đẩy task huỷ ra nền: activation_id={activation_id}")

@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-"""通用 IMAP 邮箱池客户端。"""
+"""Client kho email IMAP chung."""
 from __future__ import annotations
 
 import email as email_lib
@@ -50,7 +50,7 @@ def pick_account() -> ImapEmailAccount:
     from core import db
     account = _account_from_row(db.claim_next_imap_email())
     if account is None:
-        raise ImapMailError("通用 IMAP 邮箱池没有可用邮箱，请先在邮箱池导入")
+        raise ImapMailError("Kho email IMAP chung không còn email, hãy nhập vào kho email trước")
     _CONTEXT_CACHE[account.email.lower()] = account
     return account
 
@@ -72,28 +72,28 @@ def get_account_context(email: str) -> ImapEmailAccount | None:
 def release_account(email: str, status: str = "available", note: str | None = None) -> None:
     from core import db
     db.release_imap_email(email, status=status, note=note)
-    # 已注册账号后续查活仍需取码，因此只在真正回收为可用时清掉缓存。
+    # Tài khoản đã đăng ký vẫn cần lấy mã khi kiểm tra sống, nên chỉ xoá cache khi thực sự thu hồi về trạng thái dùng được.
     if status == "available":
         _CONTEXT_CACHE.pop(str(email or "").lower(), None)
 
 
 def _connect(account: ImapEmailAccount):
     if not account.server or not account.password:
-        raise ImapMailError(f"{account.email} 的 IMAP 服务器或密码为空")
+        raise ImapMailError(f"{account.email} thiếu server IMAP hoặc mật khẩu")
     try:
         cls = imaplib.IMAP4_SSL if account.use_ssl else imaplib.IMAP4
         mail = cls(account.server, account.port)
         mail.login(account.username or account.email, account.password)
         status, _ = mail.select(account.mailbox or "INBOX")
         if status != "OK":
-            raise ImapMailError(f"无法打开邮箱目录 {account.mailbox!r}")
+            raise ImapMailError(f"Không mở được thư mục hộp thư {account.mailbox!r}")
         return mail
     except ImapMailError:
         raise
     except imaplib.IMAP4.error as exc:
-        raise ImapMailError(f"IMAP 登录失败: {exc}") from exc
+        raise ImapMailError(f"Đăng nhập IMAP thất bại: {exc}") from exc
     except Exception as exc:
-        raise ImapMailError(f"IMAP 连接失败: {exc}") from exc
+        raise ImapMailError(f"Kết nối IMAP thất bại: {exc}") from exc
 
 
 def _search_messages(mail, after_dt: datetime) -> list[dict]:
@@ -112,7 +112,7 @@ def _search_messages(mail, after_dt: datetime) -> list[dict]:
         try:
             messages.append(_msg_to_dict(email_lib.message_from_bytes(raw)))
         except Exception as exc:
-            logger.debug("[IMAP] 邮件解析失败 id=%r: %s", message_id, exc)
+            logger.debug("[IMAP] Parse thư thất bại id=%r: %s", message_id, exc)
     return messages
 
 
@@ -125,7 +125,7 @@ def fetch_latest_otp(
 ) -> str:
     account = get_account_context(email)
     if account is None:
-        raise ImapMailError(f"邮箱池中找不到 IMAP 账号: {email}")
+        raise ImapMailError(f"Không tìm thấy tài khoản IMAP trong kho email: {email}")
     after_ts = float(after_ts or time.time())
     max_wait = int(max_wait if max_wait is not None else _email_cfg.OTP_MAX_WAIT)
     interval = int(poll_interval if poll_interval is not None else _email_cfg.OTP_POLL_INTERVAL)
@@ -134,7 +134,7 @@ def fetch_latest_otp(
     after_dt = datetime.fromtimestamp(after_ts - 30, tz=timezone.utc)
     best_otp, best_ts, settle_until = None, 0.0, None
 
-    logger.info("[IMAP] 开始轮询 %s (%s:%s, SSL=%s)", email, account.server, account.port, account.use_ssl)
+    logger.info("[IMAP] Bắt đầu poll %s (%s:%s, SSL=%s)", email, account.server, account.port, account.use_ssl)
     while time.time() < deadline:
         mail = None
         try:
@@ -168,7 +168,7 @@ def fetch_latest_otp(
             if ts >= best_ts:
                 if otp != best_otp:
                     best_otp, best_ts, settle_until = otp, ts, time.time() + settle
-                    logger.info("[IMAP] 锁定候选 OTP=%s，等待 %ss settle", otp, settle)
+                    logger.info("[IMAP] Khoá OTP ứng viên=%s, chờ %ss settle", otp, settle)
             break
         if best_otp and settle_until is not None and time.time() >= settle_until:
             return best_otp
@@ -176,4 +176,4 @@ def fetch_latest_otp(
 
     if best_otp:
         return best_otp
-    raise ImapMailError(f"等待 {email} 的 OTP 超时（>{max_wait}s）")
+    raise ImapMailError(f"Chờ {email} OTP quá hạn (>{max_wait}s）")

@@ -11,7 +11,7 @@ class GPTMailClientTests(unittest.TestCase):
 
     def test_pick_account_requires_configured_api_key(self):
         with patch.object(gptmail_client._email_cfg, "GPTMAIL_API_KEY", "", create=True):
-            with self.assertRaisesRegex(gptmail_client.GPTMailError, "请填写 GPTMail API Key"):
+            with self.assertRaisesRegex(gptmail_client.GPTMailError, "hãy điền GPTMail API Key"):
                 gptmail_client.pick_account()
 
     @patch("core.gptmail_client.requests.get")
