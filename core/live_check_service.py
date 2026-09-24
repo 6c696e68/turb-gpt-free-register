@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-"""账号查活后台队列：协议 BrowserSession 指纹环境 + 独立日志。"""
+"""tài khoảnkiểm tra sốngnềnhàng đợi：giao thức BrowserSession chỉ vân vòng môi trường + độc lậpnhật ký。"""
 from __future__ import annotations
 
 import logging
@@ -44,8 +44,8 @@ def _run_live_check(*, account_id: int, email: str, proxy: str | None, trigger: 
         with _LOCK:
             _RUNNING.add(int(account_id))
         if not db.mark_account_live_check_running(account_id):
-            _append_log(email, "[查活] 账号已删除或查活状态已被重置，取消执行")
-            return {"ok": False, "status": "failed", "error": "账号已删除或查活状态已被重置"}
+            _append_log(email, "[Kiểm tra sống] Tài khoản đã xoá hoặc trạng thái kiểm tra sống đã bị reset, huỷ chạy")
+            return {"ok": False, "status": "failed", "error": "Tài khoản đã xoá hoặc trạng thái kiểm tra sống đã bị reset"}
         route = resolve_plan_check_route(explicit_proxy=proxy)
         selected_proxy = route.get("proxy")
         from config import proxy as proxy_cfg
@@ -62,10 +62,10 @@ def _run_live_check(*, account_id: int, email: str, proxy: str | None, trigger: 
             account = {}
         email_source = str(account.get("email_source") or "").strip() or None
         if email_source:
-            _append_log(email, f"[查活] 使用注册时保存的邮箱来源：{email_source}")
+            _append_log(email, f"[Kiểm tra sống] Dùng nguồn email lưu lúc đăng ký: {email_source}")
         _append_log(
             email,
-            "[查活] 开始后台执行 "
+            "[Kiểm tra sống] bắt đầunềnthực thi "
             f"trigger={trigger} network_route={route.get('network_route')} "
             f"proxy_mode={route.get('proxy_mode')} proxy_used={route.get('proxy_used') or '-'} "
             f"fallback_reason={route.get('proxy_fallback_reason') or '-'}"
@@ -92,7 +92,7 @@ def _run_live_check(*, account_id: int, email: str, proxy: str | None, trigger: 
         ):
             _append_log(
                 email,
-                "[查活] 代理路线完整会话收到 403，启动独立直连会话兜底一次（不复用代理画像/Cookie/会话ID）",
+                "[Kiểm tra sống] Phiên đầy đủ tuyến proxy nhận 403, mở một lần phiên kết nối trực tiếp độc lập (không tái sử dụng profile proxy/Cookie/session ID)",
             )
             # BrowserSession 约定：None=从代理池抽取，""=明确直连。
             # 出口发生变化时必须重新按真实出口探测画像，不能把代理的 JP/VN
@@ -106,11 +106,11 @@ def _run_live_check(*, account_id: int, email: str, proxy: str | None, trigger: 
             )
         db.update_account_liveness(account_id, result)
         if result.get("ok"):
-            _append_log(email, "[查活] 完成：账号正常，已刷新最新 AT/accessToken")
+            _append_log(email, "[Kiểm tra sống] Xong: tài khoản bình thường, đã làm mới AT/accessToken mới nhất")
         elif result.get("status") == "deactivated":
-            _append_log(email, f"[查活] 完成：账号已废 {result.get('error') or ''}")
+            _append_log(email, f"[Kiểm tra sống] Xong: tài khoản đã hỏng {result.get('error') or ''}")
         else:
-            _append_log(email, f"[查活] 完成：失败 {result.get('error') or ''}")
+            _append_log(email, f"[Kiểm tra sống] Xong: thất bại {result.get('error') or ''}")
         result.update({
             "network_route": route.get("network_route"),
             "proxy_used": _mask_proxy(selected_proxy) or None,
@@ -129,10 +129,10 @@ def _run_live_check(*, account_id: int, email: str, proxy: str | None, trigger: 
         try:
             db.update_account_liveness(account_id, result)
         except Exception:
-            logger.exception("[查活] 写入异常状态失败: account_id=%s", account_id)
-        logger.exception("[查活] 后台异常: %s", email)
+            logger.exception("[Kiểm tra sống] ghi trạng thái lỗi thất bại: account_id=%s", account_id)
+        logger.exception("[Kiểm tra sống] lỗi nền: %s", email)
         try:
-            _append_log(email, f"[查活] 后台异常：{result['error']}")
+            _append_log(email, f"[Kiểm tra sống] Lỗi nền: {result['error']}")
         except Exception:
             pass
         return result
@@ -148,14 +148,14 @@ def enqueue_account_live_check(*, account_id: int, email: str, trigger: str = "m
     account_id = int(account_id)
     email = str(email or "").strip()
     if not email:
-        return {"accepted": False, "busy": False, "error": "email 为空"}
+        return {"accepted": False, "busy": False, "error": "email trống"}
     if not _QUEUE_SLOTS.acquire(blocking=False):
-        return {"accepted": False, "busy": False, "queue_full": True, "error": "查活队列已满，请稍后重试"}
+        return {"accepted": False, "busy": False, "queue_full": True, "error": "Hàng đợi kiểm tra sống đã đầy, thử lại sau"}
     if not db.claim_account_live_check(acc_id=account_id, trigger=trigger):
         _QUEUE_SLOTS.release()
-        return {"accepted": False, "busy": True, "error": "该账号正在查活"}
+        return {"accepted": False, "busy": True, "error": "Tài khoản này đang kiểm tra sống"}
 
-    _append_log(email, f"[查活] 已入队 account_id={account_id} trigger={trigger}", clear=True)
+    _append_log(email, f"[Kiểm tra sống] Đã vào hàng đợi account_id={account_id} trigger={trigger}", clear=True)
     try:
         _EXECUTOR.submit(
             _run_live_check,
@@ -170,7 +170,7 @@ def enqueue_account_live_check(*, account_id: int, email: str, trigger: str = "m
             "ok": False,
             "status": "failed",
             "checked_at": datetime.now().isoformat(timespec="seconds"),
-            "error": f"查活入队失败: {type(exc).__name__}: {str(exc)[:160]}",
+            "error": f"Vào hàng đợi kiểm tra sống thất bại: {type(exc).__name__}: {str(exc)[:160]}",
         }
         db.update_account_liveness(account_id, result)
         _append_log(email, result["error"])

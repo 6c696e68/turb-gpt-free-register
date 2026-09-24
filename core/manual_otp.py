@@ -1,10 +1,10 @@
 # -*- coding: utf-8 -*-
-"""非交互环境下的手动 OTP 通道（WebUI / 后台任务用）。
+"""không giao tương tác vòng môi trường dưới thủ công OTP thông đường （WebUI / nềntác vụdùng ）。
 
-用法：
-  1. 注册任务调用 wait_for_manual_otp(email)
-  2. 用户在 WebUI 对任务提交 6 位验证码，或调用 submit_manual_otp(email, code)
-  3. 等待侧拿到验证码后继续
+dùng cách ：
+1. đăng kýtác vụđiều chỉnh dùng wait_for_manual_otp(email)
+2. người dùngtại WebUI với tác vụgửi 6 sốmã OTP， hoặc điều chỉnh dùng submit_manual_otp(email, code)
+3. chờphía lấy đến mã OTP sautiếp tục
 """
 from __future__ import annotations
 
@@ -63,16 +63,16 @@ def submit_manual_otp(email: str, code: str) -> dict:
     key = _norm(email)
     code = str(code or "").strip().replace(" ", "")
     if not key:
-        raise ValueError("email 为空")
+        raise ValueError("email trống")
     if not code:
-        raise ValueError("验证码为空")
+        raise ValueError("Mã OTP trống")
     if not code.isdigit() or len(code) not in (4, 5, 6, 7, 8):
         # OpenAI 通常 6 位；放宽一点兼容
-        raise ValueError(f"验证码格式看起来不对: {code!r}")
+        raise ValueError(f"Định dạng mã OTP có vẻ sai: {code!r}")
     with _lock:
         _codes[key].append(code)
         _event_for(key).set()
-    logger.info("[ManualOTP] 已提交验证码：email=%s code=%s", email, code)
+    logger.info("[ManualOTP] đã gửi mã OTP：email=%s code=%s", email, code)
     return {"ok": True, "email": email, "code": code}
 
 
@@ -89,10 +89,10 @@ def pop_manual_otp(email: str) -> str | None:
 
 
 def wait_for_manual_otp(email: str, *, timeout: int = 180, job_id: int | None = None) -> str:
-    """阻塞等待手动验证码。优先吃已提交的 code，否则轮询/事件等待。"""
+    """chặn nhét chờthủ côngmã OTP。ưu trước ăn đã gửi code，không thì vòng hỏi /việc mục chờ。"""
     key = _norm(email)
     if not key:
-        raise RuntimeError("手动 OTP：email 为空")
+        raise RuntimeError("OTP thủ công: email trống")
 
     # 若已有预提交验证码，直接用
     existing = pop_manual_otp(email)
@@ -102,12 +102,12 @@ def wait_for_manual_otp(email: str, *, timeout: int = 180, job_id: int | None = 
 
     mark_waiting(email, job_id=job_id)
     logger.info(
-        "[ManualOTP] 等待手动输入验证码：email=%s timeout=%ss job=%s",
+        "[ManualOTP] chờ nhập mã OTP thủ công：email=%s timeout=%ss job=%s",
         email,
         timeout,
         job_id or "-",
     )
-    logger.info("[ManualOTP] 请打开邮箱 %s，在 WebUI 任务旁提交 6 位验证码", email)
+    logger.info("[ManualOTP] hãy mở email %s，gửi mã OTP 6 số cạnh tác vụ trên WebUI", email)
 
     # CLI 交互兜底：如果有 TTY，也允许终端输入
     try:
@@ -132,7 +132,7 @@ def wait_for_manual_otp(email: str, *, timeout: int = 180, job_id: int | None = 
                         return code
                 # 给 CLI 一次机会
                 try:
-                    typed = input(f">>> 手动输入 {email} 的邮箱验证码: ").strip()
+                    typed = input(f">>> Nhập thủ công {email} mã OTP email: ").strip()
                 except EOFError:
                     typed = ""
                 if typed:
@@ -149,6 +149,6 @@ def wait_for_manual_otp(email: str, *, timeout: int = 180, job_id: int | None = 
                 check_stop_requested()
             except Exception:
                 pass
-        raise TimeoutError(f"等待手动验证码超时（{timeout}s）：{email}")
+        raise TimeoutError(f"Chờ mã OTP thủ công quá hạn ({timeout}s）：{email}")
     finally:
         clear_waiting(email)

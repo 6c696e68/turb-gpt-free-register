@@ -1,13 +1,13 @@
 # -*- coding: utf-8 -*-
 """
-注册任务服务层：
-    - 线程池并发执行 run_registration
-    - 每个任务在 data/registration_jobs.json 里有一条记录
-    - 每个任务的日志写到 data/logs/<job_uuid>.log，便于 Web UI 实时尾巴
+đăng kýtác vụphục vụ việc lớp ：
+- thread pool và gửi thực thi run_registration
+- mỗi tác vụtại data/registration_jobs.json trong có một mụcbản ghi
+- mỗi tác vụ nhật kýghi đến data/logs/<job_uuid>.log，tiện tại Web UI thật khiđuôi đuôi
 
-使用：
-    submit_registration(email_source="outlook", count=5)
-    → 创建 5 个任务，丢入线程池，立即返回 [job_dict, ...]
+dùng：
+submit_registration(email_source=\"outlook\", count=5)
+→ tạo 5 tác vụ，mất vào thread pool，ngaytrả về [job_dict, ...]
 """
 import logging
 import threading
@@ -37,7 +37,7 @@ _THREAD_CTX = threading.local()
 
 
 class StopRequested(RuntimeError):
-    """用户手动停止注册任务。"""
+    """Người dùng dừng thủ công tác vụ đăng ký. (手动停止)"""
 
 
 def _activate_job(job_id: int) -> None:
@@ -73,7 +73,7 @@ def is_stop_requested(job_id: int | None = None) -> bool:
 def check_stop_requested() -> None:
     job_id = getattr(_THREAD_CTX, "job_id", None)
     if is_stop_requested(job_id):
-        raise StopRequested(f"任务 #{job_id} 已被用户手动停止")
+        raise StopRequested(f"Tác vụ #{job_id} đã bị người dùng dừng thủ công (手动停止)")
 
 
 def _append_job_log(job_id: int, message: str) -> None:
@@ -91,14 +91,14 @@ def _append_job_log(job_id: int, message: str) -> None:
 
 
 def _random_display_name() -> str:
-    """生成符合 OpenAI 限制的英文字母显示名。"""
+    """tạokhớp OpenAI giới hạn chữ cái tiếng Anhtên hiển thị。"""
     from core.name_samples import random_display_name
 
     return random_display_name()
 
 
 def _prepare_registration_args() -> tuple[str | None, str, str]:
-    """复用 CLI 的默认规则，为旧 Web 任务入口补齐注册参数。"""
+    """tái sử dụng CLI rule mặc định，là Web cũ tác vụcửa vàobổ sungđăng kýtham số。"""
     # 用模块属性读，支持 WebUI 热加载
     from config import register as _r, email as _e
     from core.profile_utils import generate_random_birthday
@@ -120,30 +120,30 @@ def _prepare_registration_args() -> tuple[str | None, str, str]:
     # 输入框时不会提前消耗邮箱订单或池中素材。
     if not email and not _e.USE_EMAIL_SERVICE:
         raise RuntimeError(
-            "手动模式未配置邮箱。请在 WebUI 配置页设置 REGISTER_EMAIL，"
-            "或开启 USE_EMAIL_SERVICE 并从邮箱池领取。"
+            "thủ côngmô-đun kiểu chưa cấu hìnhemail。hãy tại WebUI cấu hìnhtrang đặt đặt REGISTER_EMAIL，"
+            " hoặc bật USE_EMAIL_SERVICE và từemailpool lấy。"
         )
 
     return email, name, birthday
 
 
 def _release_unconsumed_job_email(email: str | None, reason: str) -> None:
-    """任务失败兜底：只回收尚未生成账号、仍处于 used 的邮箱领取。"""
+    """Khi tác vụ thất bại, chỉ thu hồi email đã lấy nhưng chưa tạo tài khoản và vẫn used."""
     if not email:
         return
     try:
         from core.email_provider import release_email_if_unconsumed
 
-        release_email_if_unconsumed(email, note=f"任务未消耗，已自动回收: {reason[:180]}")
+        release_email_if_unconsumed(email, note=f"Tác vụ chưa tiêu thụ, đã tự thu hồi: {reason[:180]}")
     except Exception:
-        logger.exception("[Service] 回收未消耗邮箱失败: %s", email)
+        logger.exception("[Service] thu hồi email chưa tiêu thụ thất bại: %s", email)
 
 
 def _is_final_session_access_token_timeout(error: object) -> bool:
     """
-    识别注册最后一步已经返回 /api/auth/session 200 但没有 accessToken 的失败。
-    这种邮箱后续继续注册通常会卡在同一状态，按要求直接停用邮箱池条目。
-    """
+nhận diệnđăng kýbước cuốiđãtrả về /api/auth/session 200 nhưng không có accessToken thất bại。
+loại nàyemailsau đótiếp tụcđăng kýthườngsẽ kẹt ởcùngtrạng thái，theo yêu cầutrực tiếpvô hiệuemailpool mục。
+"""
     text = str(error or "")
     if not text:
         return False
@@ -155,7 +155,7 @@ def _is_final_session_access_token_timeout(error: object) -> bool:
 
 
 def _should_disable_failed_registration_email(error: object) -> bool:
-    """需要直接停用邮箱的注册失败类型。"""
+    """cầntrực tiếpvô hiệuemail đăng kýthất bạiloại。"""
     text = str(error or "")
     if not text:
         return False
@@ -168,17 +168,17 @@ def _should_disable_failed_registration_email(error: object) -> bool:
 
 
 def _disable_job_email(email: str | None, reason: str) -> bool:
-    """把本次任务邮箱停用，避免后续再次领取。"""
+    """lần nàytác vụemailvô hiệu，tránhsau đólần nữalấy。"""
     if not email:
         return False
     try:
         from core.email_provider import release_email
 
-        source = release_email(email, status="disabled", note=f"自动停用: {reason[:180]}")
-        logger.warning("[Service] 已自动停用邮箱: source=%s email=%s reason=%s", source, email, reason[:220])
+        source = release_email(email, status="disabled", note=f"Tự vô hiệu: {reason[:180]}")
+        logger.warning("[Service] đã tự vô hiệu email: source=%s email=%s reason=%s", source, email, reason[:220])
         return True
     except Exception:
-        logger.exception("[Service] 自动停用邮箱失败: %s", email)
+        logger.exception("[Service] tự vô hiệu email thất bại: %s", email)
         return False
 
 
@@ -193,12 +193,12 @@ def _normalize_workers(max_workers: int | None) -> int:
 
 
 def get_executor(max_workers: int | None = None) -> ThreadPoolExecutor:
-    """返回注册线程池。
+    """trả vềthread pool đăng ký。
 
-    旧逻辑只在首次创建线程池时使用 max_workers，后续 WebUI 改线程数再提交仍会复用
-    上一次的池。这里改成：每次传入的 max_workers 和当前池不一致时，立即创建新池供
-    新提交任务使用；旧池不接收新任务，但会继续把已经排队/运行的任务跑完。
-    """
+logic cũchỉ khilần đầutạothread pool khidùng max_workers，sau đó WebUI đổi số luồngrồi gửivẫntái sử dụng
+lần trước pool 。đổi thành：mỗi lầntruyền vào max_workers và hiện tạipool không khớp khi，ngaytạopool mớicho
+gửi mớitác vụdùng；cũpool không nhậnmới tác vụ，nhưng sẽtiếp tụcđãxếp hàng/chạy dòng tác vụchạy xong。
+"""
     global _executor, _executor_workers, _executor_generation
     requested_workers = _normalize_workers(max_workers) if max_workers is not None else _executor_workers
     with _executor_lock:
@@ -209,7 +209,7 @@ def get_executor(max_workers: int | None = None) -> ThreadPoolExecutor:
                 old_executor.shutdown(wait=False, cancel_futures=False)
                 _retired_executors.append(old_executor)
                 logger.info(
-                    "[Service] 注册线程池 workers 从 %s 切换为 %s；旧池继续处理已排队任务",
+                    "[Service] thread pool đăng ký workers từ %s chuyển thành %s；pool cũ tiếp tục xử lý tác vụ đã xếp hàng",
                     _executor_workers,
                     requested_workers,
                 )
@@ -223,7 +223,7 @@ def get_executor(max_workers: int | None = None) -> ThreadPoolExecutor:
 
 
 def get_executor_workers() -> int:
-    """当前新提交注册任务会使用的线程数。"""
+    """hiện tạigửi mớiđăng kýtác vụsẽ dùngsố luồng。"""
     with _executor_lock:
         return _executor_workers
 
@@ -246,7 +246,7 @@ def shutdown_executor(wait: bool = True) -> None:
 # ============================================================
 
 class _JobLogContext:
-    """让本线程的根 logger 多一个 FileHandler，结束后移除。"""
+    """choluồng gốc logger thêm một FileHandler，sau khi xonggỡ。"""
 
     def __init__(self, log_path: str):
         self.log_path = log_path
@@ -273,7 +273,7 @@ class _JobLogContext:
 
 
 def _run_one_job(job_id: int, log_file: str) -> None:
-    """单任务入口（线程池里跑这个）。"""
+    """một tác vụcửa vào（thread poolchạy cái này）。"""
     log_logger = logging.getLogger(__name__)
     _activate_job(job_id)
 
@@ -281,11 +281,11 @@ def _run_one_job(job_id: int, log_file: str) -> None:
     # 因为 Future 已经 submit 进线程池无法撤回，只能在真正执行前自检一下，跳过 cancelled 的。
     current = db.get_job(job_id)
     if not current:
-        log_logger.info(f"[Job {job_id}] 任务记录已删除，跳过执行")
+        log_logger.info(f"[Job {job_id}] bản ghi tác vụ đã xoá，bỏ qua chạy")
         _deactivate_job(job_id)
         return
     if current.get("status") == "cancelled":
-        log_logger.info(f"[Job {job_id}] 已被用户取消，跳过执行")
+        log_logger.info(f"[Job {job_id}] đã bị người dùng huỷ，bỏ qua chạy")
         _deactivate_job(job_id)
         return
 
@@ -295,7 +295,7 @@ def _run_one_job(job_id: int, log_file: str) -> None:
     try:
         with _JobLogContext(log_file):
             from main import run_registration
-            log_logger.info(f"[Job {job_id}] 开始注册任务")
+            log_logger.info(f"[Job {job_id}] bắt đầu tác vụ đăng ký")
             email, name, birthday = _prepare_registration_args()
             db.update_job(job_id, email=email)
             check_stop_requested()
@@ -304,7 +304,7 @@ def _run_one_job(job_id: int, log_file: str) -> None:
                 email = str(acquired_email or "").strip() or None
                 if email:
                     db.update_job(job_id, email=email)
-                    log_logger.info(f"[Job {job_id}] 页面已找到邮箱输入框，已分配邮箱: {email}")
+                    log_logger.info(f"[Job {job_id}] trang đã thấy ô nhập email, đã cấp email: {email}")
 
             result = run_registration(
                 email=email,
@@ -313,15 +313,15 @@ def _run_one_job(job_id: int, log_file: str) -> None:
                 on_email_acquired=_on_email_acquired,
             )
             if is_stop_requested(job_id):
-                _release_unconsumed_job_email(email, "用户手动停止")
+                _release_unconsumed_job_email(email, "Người dùng dừng thủ công (手动停止)")
                 db.update_job(
                     job_id,
                     status="stopped",
                     network_traffic=(result or {}).get("network_traffic") if isinstance(result, dict) else None,
-                    error="用户手动停止",
+                    error="Người dùng dừng thủ công (手动停止)",
                     completed_at=datetime.now().isoformat(timespec="seconds"),
                 )
-                log_logger.warning(f"[Job {job_id}] 已按用户请求停止")
+                log_logger.warning(f"[Job {job_id}] đã dừng theo yêu cầu người dùng")
                 return
             if isinstance(result, dict) and result.get("success"):
                 db.update_job(
@@ -332,7 +332,7 @@ def _run_one_job(job_id: int, log_file: str) -> None:
                     network_traffic=result.get("network_traffic"),
                     completed_at=datetime.now().isoformat(timespec="seconds"),
                 )
-                log_logger.info(f"[Job {job_id}] 成功: {result.get('email')}")
+                log_logger.info(f"[Job {job_id}] thành công: {result.get('email')}")
             else:
                 # 注意：失败也可能伴随 account_id（如 Codex 失败但账号已注册成功）
                 err = (result or {}).get("error") if isinstance(result, dict) else "unknown"
@@ -351,14 +351,14 @@ def _run_one_job(job_id: int, log_file: str) -> None:
                     _disable_job_email(email_to_handle, str(err))
                 else:
                     _release_unconsumed_job_email(email_to_handle, str(err))
-                log_logger.error(f"[Job {job_id}] 失败: {err}")
+                log_logger.error(f"[Job {job_id}] thất bại: {err}")
     except StopRequested as exc:
         _release_unconsumed_job_email(email, str(exc))
-        log_logger.warning(f"[Job {job_id}] 已停止: {exc}")
+        log_logger.warning(f"[Job {job_id}] đã dừng: {exc}")
         db.update_job(
             job_id,
             status="stopped",
-            error="用户手动停止",
+            error="Người dùng dừng thủ công (手动停止)",
             completed_at=datetime.now().isoformat(timespec="seconds"),
         )
     except Exception as exc:
@@ -368,15 +368,15 @@ def _run_one_job(job_id: int, log_file: str) -> None:
         else:
             _release_unconsumed_job_email(email, err_text)
         if is_stop_requested(job_id):
-            log_logger.warning(f"[Job {job_id}] 停止中捕获异常，按停止处理: {type(exc).__name__}: {exc}")
+            log_logger.warning(f"[Job {job_id}] bắt exception lúc đang dừng, xử lý như đã dừng: {type(exc).__name__}: {exc}")
             db.update_job(
                 job_id,
                 status="stopped",
-                error="用户手动停止",
+                error="Người dùng dừng thủ công (手动停止)",
                 completed_at=datetime.now().isoformat(timespec="seconds"),
             )
             return
-        log_logger.exception(f"[Job {job_id}] 异常")
+        log_logger.exception(f"[Job {job_id}] lỗi")
         db.update_job(
             job_id,
             status="failed",
@@ -388,7 +388,7 @@ def _run_one_job(job_id: int, log_file: str) -> None:
 
 
 def _run_codex_retry_job(job_id: int, log_file: str, email: str, account_id: int) -> None:
-    """把 Codex 补跑作为标准任务执行，并复用任务状态、日志和停止入口。"""
+    """ Chạy bù Codexlàmchuẩntác vụthực thi，và tái sử dụngtrạng thái tác vụ、nhật kývà cửa dừng。"""
     _activate_job(job_id)
     current = db.get_job(job_id)
     if not current or current.get("status") == "cancelled":
@@ -405,7 +405,7 @@ def _run_codex_retry_job(job_id: int, log_file: str, email: str, account_id: int
         )
         now_iso = datetime.now().isoformat(timespec="seconds")
         if is_stop_requested(job_id) or result.get("status") == "stopped":
-            db.update_job(job_id, status="stopped", email=email, account_id=account_id, error=str(result.get("message") or "用户手动停止")[:500], completed_at=now_iso)
+            db.update_job(job_id, status="stopped", email=email, account_id=account_id, error=str(result.get("message") or "Người dùng dừng thủ công (手动停止)")[:500], completed_at=now_iso)
         elif result.get("ok"):
             db.update_job(
                 job_id,
@@ -420,7 +420,7 @@ def _run_codex_retry_job(job_id: int, log_file: str, email: str, account_id: int
                 status="failed",
                 email=email,
                 account_id=account_id,
-                error=str(result.get("message") or "Codex 补跑失败")[:500],
+                error=str(result.get("message") or "Chạy bù Codex thất bại")[:500],
                 completed_at=now_iso,
             )
     except Exception as exc:
@@ -431,7 +431,7 @@ def _run_codex_retry_job(job_id: int, log_file: str, email: str, account_id: int
             completed_at=datetime.now().isoformat(timespec="seconds"),
         )
         codex_retry_service.release(email)
-        logger.exception("[Job %s] Codex 补跑异常", job_id)
+        logger.exception("[Job %s] Chạy bù Codexlỗi", job_id)
     finally:
         _deactivate_job(job_id)
 
@@ -442,12 +442,12 @@ def _run_codex_retry_job(job_id: int, log_file: str, email: str, account_id: int
 
 def submit_registration(count: int = 1, email_source: str | None = None, workers: int | None = None) -> list[dict]:
     """
-    创建 N 个注册任务并提交到线程池。
-    email_source 仅记录到 DB；实际邮箱来源固定为 Outlook 账号池。
+tạo Nđăng kýtác vụvà gửi vàothread pool。
+email_source chỉ ghi vào DB；thực tếemailnguồncố định là Outlook tài khoảnpool 。
 
-    Returns:
-        N 个新创建的 job dict
-    """
+Returns:
+N mới tạo job dict
+"""
     if email_source is None:
         from config import email as _email_cfg
         email_source = _email_cfg.EMAIL_SOURCE
@@ -466,12 +466,12 @@ def submit_registration(count: int = 1, email_source: str | None = None, workers
                 db.update_job(
                     int(job["id"]),
                     status="failed",
-                    error=f"队列提交失败：{type(exc).__name__}: {exc}"[:500],
+                    error=f"Gửi hàng đợi thất bại: {type(exc).__name__}: {exc}"[:500],
                     completed_at=datetime.now().isoformat(timespec="seconds"),
                 )
-                logger.exception("[Service] 注册任务 #%s 提交线程池失败", job["id"])
+                logger.exception("[Service] đăng kýTác vụ #%s gửi thread pool thất bại", job["id"])
             jobs.append(db.get_job(int(job["id"])) or job)
-    logger.info(f"[Service] 已提交 {count} 个注册任务，源={email_source}，workers={effective_workers}")
+    logger.info(f"[Service] Đã gửi {count} tác vụ đăng ký, nguồn={email_source}，workers={effective_workers}")
     return jobs
 
 
@@ -489,7 +489,7 @@ def _account_for_job(job: dict) -> dict | None:
 
 
 def get_retry_info(job: dict) -> dict:
-    """返回给 API/UI 的重试能力描述，不依赖前端猜测错误阶段。"""
+    """trả cho API/UI thử lạimô tả khả năng，không phụ thuộcfrontendđoángiai đoạn lỗi。"""
     status = str(job.get("status") or "")
     info = {
         "retryable": False,
@@ -503,7 +503,7 @@ def get_retry_info(job: dict) -> dict:
 
     successful_retry = db.get_successful_retry_for_job(int(job.get("id") or 0))
     if successful_retry is not None:
-        info["retry_reason"] = f"后续重试任务 #{successful_retry.get('id')} 已成功"
+        info["retry_reason"] = f"Tác vụ thử lại tiếp theo #{successful_retry.get('id')} đã thành công"
         info["successful_retry_job_id"] = successful_retry.get("id")
         return info
 
@@ -514,35 +514,35 @@ def get_retry_info(job: dict) -> dict:
     if account:
         codex_status = str(account.get("codex_status") or "")
         if codex_status == "deactivated":
-            info["retry_reason"] = "账号已废号，不能补跑 Codex"
+            info["retry_reason"] = "Tài khoản đã hỏng, không chạy bù Codex được"
             return info
         if codex_status == "success":
-            info["retry_reason"] = "账号和 Codex 授权均已完成"
+            info["retry_reason"] = "Tài khoản và uỷ quyền Codex đều đã xong"
             return info
         info.update({
             "retryable": True,
             "retry_action": "codex",
-            "retry_label": "补跑 Codex",
+            "retry_label": "Chạy bù Codex",
         })
         return info
 
     info.update({
         "retryable": True,
         "retry_action": "registration",
-        "retry_label": "重试",
+        "retry_label": "thử lại",
     })
     return info
 
 
 def retry_job(job_id: int, workers: int | None = None) -> dict:
-    """智能重试终态任务：未生成账号则重新注册，已有账号则仅补跑 Codex。"""
+    """thông minhthử lạitrạng thái cuốitác vụ：chưa tạotài khoảnthì lạiđăng ký，đã cótài khoảnthì chỉChạy bù Codex。"""
     source = db.get_job(job_id)
     if source is None:
-        return {"ok": False, "error": "任务不存在", "status": 404}
+        return {"ok": False, "error": "Tác vụ không tồn tại", "status": 404}
 
     retry_info = get_retry_info(source)
     if not retry_info["retryable"]:
-        reason = retry_info.get("retry_reason") or f"当前状态不支持重试：{source.get('status')}"
+        reason = retry_info.get("retry_reason") or f"Trạng thái hiện tại không hỗ trợ thử lại: {source.get('status')}"
         return {"ok": False, "error": reason, "status": 409}
 
     action = str(retry_info["retry_action"])
@@ -552,9 +552,9 @@ def retry_job(job_id: int, workers: int | None = None) -> dict:
     reserved_codex = False
     if action == "codex":
         if not email or account_id is None:
-            return {"ok": False, "error": "已注册账号信息不完整，无法补跑 Codex", "status": 409}
+            return {"ok": False, "error": "Thông tin tài khoản đã đăng ký không đủ, không chạy bù Codex được", "status": 409}
         if not codex_retry_service.reserve(email):
-            return {"ok": False, "error": "该账号正在补跑 Codex，请稍候", "status": 409}
+            return {"ok": False, "error": "Tài khoản này đang chạy bù Codex, vui lòng đợi", "status": 409}
         reserved_codex = True
 
     try:
@@ -581,7 +581,7 @@ def retry_job(job_id: int, workers: int | None = None) -> dict:
             "ok": True,
             "created": False,
             "reused": True,
-            "message": f"已有重试任务 #{job['id']} 在排队或运行中",
+            "message": f"Đã có tác vụ thử lại #{job['id']} đang xếp hàng hoặc đang chạy",
             "source_job_id": int(job_id),
             "retry_action": action,
             "job": job,
@@ -599,21 +599,21 @@ def retry_job(job_id: int, workers: int | None = None) -> dict:
     except Exception as exc:
         if reserved_codex:
             codex_retry_service.release(email)
-            db.update_account_codex_status(email, "failed", f"队列提交失败：{type(exc).__name__}: {exc}"[:500])
+            db.update_account_codex_status(email, "failed", f"Gửi hàng đợi thất bại: {type(exc).__name__}: {exc}"[:500])
         db.update_job(
             int(job["id"]),
             status="failed",
-            error=f"队列提交失败：{type(exc).__name__}: {exc}"[:500],
+            error=f"Gửi hàng đợi thất bại: {type(exc).__name__}: {exc}"[:500],
             completed_at=datetime.now().isoformat(timespec="seconds"),
         )
-        logger.exception("[Service] 重试任务 #%s 提交线程池失败", job["id"])
-        return {"ok": False, "error": "重试任务创建成功，但提交执行失败", "status": 500, "job": db.get_job(int(job["id"]))}
+        logger.exception("[Service] thử lạiTác vụ #%s gửi thread pool thất bại", job["id"])
+        return {"ok": False, "error": "Tạo tác vụ thử lại thành công nhưng gửi chạy thất bại", "status": 500, "job": db.get_job(int(job["id"]))}
 
     return {
         "ok": True,
         "created": True,
         "reused": False,
-        "message": f"已创建重试任务 #{job['id']}（{'Codex 补跑' if action == 'codex' else '完整注册'}）",
+        "message": f"Đã tạo tác vụ thử lại #{job['id']}（{'Chạy bù Codex' if action == 'codex' else 'Đăng ký đầy đủ'}）",
         "source_job_id": int(job_id),
         "retry_action": action,
         "job": job,
@@ -622,12 +622,12 @@ def retry_job(job_id: int, workers: int | None = None) -> dict:
 
 def cancel_pending_jobs() -> int:
     """
-    把所有 status=pending 的任务批量改成 cancelled，避免它们被执行。
-    已经在 running 的任务不动（线程池中无法中途打断）。
-    返回成功取消的数量。
+mọi status=pending tác vụđổi hàng loạt thành cancelled，tránh chúng bịthực thi。
+đã đang running tác vụkhông đụng（thread pool không ngắt giữa chừng được）。
+trả số lượng huỷ thành công。
 
-    实际"不执行"的保证在 _run_one_job 开头——它真要跑起来时会先看 status 决定是否跳过。
-    """
+thực tế\"không thực thi\" đảm bảotại _run_one_job đầu——nó khi thật sự chạysẽ xem trước status quyết định cóbỏ qua。
+"""
     jobs = db.list_jobs(limit=1000)
     cancelled = 0
     now_iso = datetime.now().isoformat(timespec="seconds")
@@ -637,26 +637,26 @@ def cancel_pending_jobs() -> int:
                 int(job["id"]),
                 status="cancelled",
                 completed_at=now_iso,
-                error="用户手动取消",
+                error="Người dùng huỷ thủ công",
             )
             cancelled += 1
-    logger.info(f"[Service] 已取消 {cancelled} 个排队任务")
+    logger.info(f"[Service] Đã huỷ {cancelled} tác vụ xếp hàng")
     return cancelled
 
 
 def request_stop_job(job_id: int) -> dict:
-    """手动停止单个注册任务。pending 直接取消；running 设置停止标记，运行线程会在检查点退出。"""
+    """thủ côngdừngtừngđăng kýtác vụ。pending huỷ ngay；running đặt cờ dừng，luồng chạysẽ ởcheckpointthoát。 (手动停止)"""
     job = db.get_job(job_id)
     if not job:
-        return {"ok": False, "error": "任务不存在", "status": 404}
+        return {"ok": False, "error": "Tác vụ không tồn tại", "status": 404}
     status = job.get("status")
     now_iso = datetime.now().isoformat(timespec="seconds")
     if status == "pending":
-        db.update_job(job_id, status="cancelled", completed_at=now_iso, error="用户手动停止/取消排队")
-        _append_job_log(job_id, "用户手动停止：任务尚未运行，已取消排队。")
-        return {"ok": True, "message": "排队任务已取消", "job_id": job_id, "state": "cancelled"}
+        db.update_job(job_id, status="cancelled", completed_at=now_iso, error="Người dùng dừng thủ công/huỷ xếp hàng (手动停止)")
+        _append_job_log(job_id, "Người dùng dừng thủ công: tác vụ chưa chạy, đã huỷ xếp hàng. (手动停止)")
+        return {"ok": True, "message": "Tác vụ xếp hàng đã huỷ", "job_id": job_id, "state": "cancelled"}
     if status in ("success", "failed", "cancelled", "stopped"):
-        return {"ok": True, "message": f"任务已结束：{status}", "job_id": job_id, "state": status}
+        return {"ok": True, "message": f"Tác vụ đã kết thúc: {status}", "job_id": job_id, "state": status}
     if status in ("running", "stopping"):
         with _STOP_LOCK:
             active = int(job_id) in _ACTIVE_JOBS
@@ -673,24 +673,24 @@ def request_stop_job(job_id: int) -> dict:
                 job_id,
                 status="stopped",
                 completed_at=now_iso,
-                error="用户手动停止（任务实例不存在）",
+                error="Người dùng dừng thủ công (không có instance tác vụ) (手动停止)",
             )
             _release_unconsumed_job_email(
                 str(job.get("email") or "").strip() or None,
-                "任务实例不存在，确认未继续执行",
+                "Không có instance tác vụ, xác nhận không chạy tiếp",
             )
-            _append_job_log(job_id, "用户手动停止：未找到运行中的任务实例，已直接标记为已停止。")
-            logger.warning("[Service] 用户停止任务 #%s：任务实例不存在，已直接标记 stopped", job_id)
-            return {"ok": True, "message": "任务实例不存在，已直接标记为已停止", "job_id": job_id, "state": "stopped"}
-        db.update_job(job_id, status="stopping", error="用户手动停止中")
-        _append_job_log(job_id, "用户手动停止：已发送停止信号，任务会在当前步骤检查点退出。")
-        logger.warning("[Service] 用户请求停止任务 #%s", job_id)
-        return {"ok": True, "message": "已发送停止信号", "job_id": job_id, "state": "stopping"}
-    return {"ok": False, "error": f"当前状态不支持停止：{status}", "status": 409}
+            _append_job_log(job_id, "Người dùng dừng thủ công: không thấy instance đang chạy, đã đánh dấu stopped. (手动停止)")
+            logger.warning("[Service] người dùngdừngTác vụ #%s：tác vụinstancekhông tồn tại，đã trực tiếpđánh dấu stopped", job_id)
+            return {"ok": True, "message": "Không có instance tác vụ, đã đánh dấu stopped", "job_id": job_id, "state": "stopped"}
+        db.update_job(job_id, status="stopping", error="Người dùng đang dừng thủ công (手动停止)")
+        _append_job_log(job_id, "Người dùng dừng thủ công: đã gửi tín hiệu dừng, tác vụ sẽ thoát ở checkpoint bước hiện tại. (手动停止)")
+        logger.warning("[Service] người dùngrequestdừngTác vụ #%s", job_id)
+        return {"ok": True, "message": "Đã gửi tín hiệu dừng", "job_id": job_id, "state": "stopping"}
+    return {"ok": False, "error": f"Trạng thái hiện tại không hỗ trợ dừng: {status}", "status": 409}
 
 
 def read_job_log(job_id: int, max_bytes: int = 50_000) -> str:
-    """读取任务日志文件最后 max_bytes 字节，给 Web UI 显示。"""
+    """đọctác vụfile nhật kýcuối max_bytes byte，cho Web UI hiện。"""
     job = db.get_job(job_id)
     if not job or not job.get("log_file"):
         return ""

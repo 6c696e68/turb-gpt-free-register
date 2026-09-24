@@ -1,11 +1,11 @@
 # -*- coding: utf-8 -*-
-"""浏览器注册流程的省流量资源拦截。
+"""trình duyệtđăng kýluồng tiết lưu lượngtài nguyênchặn。
 
-省流量模式只拦截 Roxy/Cloak 本地指纹浏览器中的可选页面资源和配置中明确指定的
-URL，默认不拦截 document/核心 script/stylesheet/xhr/fetch/websocket，避免影响登录、
-验证码和 session 写入。Playwright 可以按资源类型和 URL glob 精确拦截；Selenium/Roxy
-通过 Chrome CDP 的 URL glob 拦截常见扩展名资源及配置的 URL。Browser Use/Skyvern
-云端浏览器不安装本模块的拦截器。
+tiết lưu lượngmô-đun kiểu chỉ chặn Roxy/Cloak localchỉ vân trình duyệt tuỳ chọntrangtài nguyênvà cấu hình rõ xác nhận chỉ định
+URL，mặc địnhkhông chặn document/lõi tâm script/stylesheet/xhr/fetch/websocket，tránhảnh hưởng đăng nhập、
+mã OTPvà session ghi。Playwright có thể để theo tài nguyênloạivà URL glob chính xácchặn；Selenium/Roxy
+thông qua Chrome CDP URL glob chặnthường thấy mở rộng mở rộng tên tài nguyên và cấu hình URL。Browser Use/Skyvern
+cloud đầu trình duyệtkhông càinày mô-đun khối chặnbộ 。
 """
 from __future__ import annotations
 
@@ -91,7 +91,7 @@ def _as_items(value: Any, *, lower: bool = True) -> list[str]:
 
 
 def configured_resource_types() -> list[str]:
-    """读取并规范化省流量拦截类型；无效类型被忽略。"""
+    """đọc và quy phạm hoá tiết lưu lượngchặnloại；không hợp lệloại bị bỏ qua。"""
     raw = getattr(_cfg, "BROWSER_DATA_SAVER_BLOCKED_RESOURCE_TYPES", ("image", "media"))
     result: list[str] = []
     for item in _as_items(raw, lower=True):
@@ -102,7 +102,7 @@ def configured_resource_types() -> list[str]:
 
 
 def configured_url_patterns() -> list[str]:
-    """读取并规范化额外 URL glob 规则；空项去重，保留配置顺序。"""
+    """đọc và quy phạm hoá mức ngoài URL glob rule；trống mục đi lại ，giữ giữ cấu hìnhthuận thứ tự 。"""
     raw = getattr(_cfg, "BROWSER_DATA_SAVER_BLOCKED_URL_PATTERNS", ())
     result: list[str] = []
     # URL path 可能区分大小写，不能像 resource_type 一样统一转小写。
@@ -118,7 +118,7 @@ def _is_challenge_url(url: str) -> bool:
 
 
 def _infer_resource_type(url: str) -> str:
-    """Selenium 的 CDP 事件缺少 type 时，按 URL 后缀做保守推断。"""
+    """Selenium CDP việc mục thiếu type khi，theo URL sauhậu tố làm giữ giữ đẩy ngắt 。"""
     try:
         path = urlsplit(str(url or "")).path.lower()
     except Exception:
@@ -130,7 +130,7 @@ def _infer_resource_type(url: str) -> str:
 
 
 class BrowserDataSaver:
-    """给一个浏览器会话安装可选资源拦截器。"""
+    """chomột trình duyệtphiêncàituỳ chọntài nguyênchặnbộ 。"""
 
     def __init__(self, *, label: str = "Browser"):
         self.label = str(label or "Browser")
@@ -151,7 +151,7 @@ class BrowserDataSaver:
         self.method = "disabled"
 
     def _matching_url_pattern(self, url: str) -> str | None:
-        """返回第一个命中的 URL glob；规则匹配大小写按 URL 原文执行。"""
+        """trả vềlần một khớp URL glob；rulekhớp cặp lớn nhỏ ghi theo URL gốc văn thực thi。"""
         text = str(url or "")
         if not text:
             return None
@@ -192,7 +192,7 @@ class BrowserDataSaver:
                 self._blocked_playwright_requests.add(id(request))
 
     def was_playwright_blocked(self, request: Any) -> bool:
-        """供 Playwright 流量统计器排除 route.abort() 产生的伪上传字节。"""
+        """cho Playwright lưu lượngthống nhất tính bộ xếp trừ route.abort() sản sinh giả uploadbyte。"""
         with self._lock:
             key = id(request)
             if key not in self._blocked_playwright_requests:
@@ -201,11 +201,11 @@ class BrowserDataSaver:
             return True
 
     def install_playwright(self, context: Any) -> "BrowserDataSaver":
-        """在 BrowserContext 上按 resource_type 拦截请求。"""
+        """tại BrowserContext trên theo resource_type chặnrequest。"""
         if not self.enabled:
             return self
         if not self.resource_types and not self.url_patterns:
-            logger.info("[%s] 省流量模式已开启，但未配置可拦截资源类型或 URL 规则", self.label)
+            logger.info("[%s] chế độ tiết lưu lượng đã bật nhưng chưa cấu hình loại tài nguyên chặn được hoặc rule URL", self.label)
             return self
         try:
             def _handle_route(route: Any) -> None:
@@ -228,7 +228,7 @@ class BrowserDataSaver:
                     route.continue_()
                 except Exception as exc:
                     # 拦截器不能阻断注册主流程；处理异常时尽量放行请求。
-                    logger.debug("[%s] 省流量路由处理失败，尝试放行：%s", self.label, exc)
+                    logger.debug("[%s] xử lý route tiết lưu lượng thất bại, thử cho qua：%s", self.label, exc)
                     try:
                         route.continue_()
                     except Exception:
@@ -240,17 +240,17 @@ class BrowserDataSaver:
             self._installed = True
             self.method = "playwright.context.route"
             logger.info(
-                "[%s] 省流量模式已启用：拦截资源类型=%s，URL规则=%s（验证码/challenge 相关 URL 放行）",
+                "[%s] chế độ tiết lưu lượng đã bật：loại tài nguyên chặn=%s，rule URL=%s（URL liên quan mã OTP/challenge được cho qua）",
                 self.label,
                 ",".join(self.resource_types) or "-",
                 len(self.url_patterns),
             )
         except Exception as exc:
-            logger.warning("[%s] 安装 Playwright 省流量拦截失败，继续不拦截：%s: %s", self.label, type(exc).__name__, exc)
+            logger.warning("[%s] cài chặn tiết lưu lượng Playwright thất bại, tiếp tục không chặn：%s: %s", self.label, type(exc).__name__, exc)
         return self
 
     def install_selenium(self, driver: Any) -> "BrowserDataSaver":
-        """通过 Chrome CDP Network.setBlockedURLs 安装 URL 后缀和 URL glob 拦截。"""
+        """thông qua Chrome CDP Network.setBlockedURLs cài URL sauhậu tố và URL glob chặn。"""
         if not self.enabled:
             return self
         patterns: list[str] = []
@@ -264,7 +264,7 @@ class BrowserDataSaver:
         # 去重并保持配置/扩展名顺序，便于日志和测试稳定。
         patterns = list(dict.fromkeys(patterns))
         if not patterns:
-            logger.info("[%s] 省流量模式已开启，但 Selenium 没有可用 URL 规则", self.label)
+            logger.info("[%s] chế độ tiết lưu lượng đã bật nhưng Selenium không có rule URL dùng được", self.label)
             return self
         try:
             # 某些情况下流量统计器没有成功初始化，仍需单独开启 Network 域。
@@ -278,18 +278,18 @@ class BrowserDataSaver:
             self._installed = True
             self.method = "selenium.cdp.Network.setBlockedURLs"
             logger.info(
-                "[%s] 省流量模式已启用：按 URL 拦截资源类型=%s，类型规则=%s 条，URL规则=%s 条（Selenium URL 规则不支持 challenge 例外）",
+                "[%s] chế độ tiết lưu lượng đã bật：chặn loại tài nguyên theo URL=%s，rule loại=%s mục，rule URL=%s mục（rule URL Selenium không hỗ trợ ngoại lệ challenge）",
                 self.label,
                 ",".join(self.resource_types) or "-",
                 sum(len(_URL_EXTENSIONS_BY_TYPE.get(resource_type, ())) for resource_type in self.resource_types),
                 len(self.url_patterns),
             )
         except Exception as exc:
-            logger.warning("[%s] 安装 Selenium 省流量拦截失败，继续不拦截：%s: %s", self.label, type(exc).__name__, exc)
+            logger.warning("[%s] cài chặn tiết lưu lượng Selenium thất bại, tiếp tục không chặn：%s: %s", self.label, type(exc).__name__, exc)
         return self
 
     def enable_post_auth_deep_mode(self, driver: Any) -> bool:
-        """注册完成后收紧规则，阻断不再需要的应用壳和遥测请求。"""
+        """đăng kýxong saunhận chặt rule，chặn ngắt không lại cần nên dùng vỏ và xa đo request。"""
         if not self.enabled or not bool(getattr(_cfg, "BROWSER_DATA_SAVER_DEEP_MODE", True)):
             return False
         patterns = [
@@ -304,18 +304,18 @@ class BrowserDataSaver:
         try:
             driver.execute_cdp_cmd("Network.setBlockedURLs", {"urls": patterns})
             self._selenium_patterns = patterns
-            logger.info("[%s] 已启用注册后深度省流量：应用壳/遥测规则=%s 条", self.label, len(patterns))
+            logger.info("[%s] đã bật tiết lưu lượng sâu sau đăng ký：rule shell app/telemetry=%s mục", self.label, len(patterns))
             return True
         except Exception as exc:
-            logger.warning("[%s] 注册后深度省流量安装失败，继续联网：%s", self.label, str(exc)[:180])
+            logger.warning("[%s] cài tiết lưu lượng sâu sau đăng ký thất bại, tiếp tục online：%s", self.label, str(exc)[:180])
             return False
 
     def observe_cdp_event(self, method: str, params: dict[str, Any], request: dict[str, Any] | None = None) -> bool:
-        """让 Selenium 流量统计器识别 CDP inspector 拦截事件。
+        """để Selenium lưu lượngthống nhất tính bộ nhận diện CDP inspector chặnviệc mục 。
 
-        返回 True 表示这是本省流量规则拦截的请求，统计器应跳过它的请求头估算，
-        因为该请求实际上没有发到网络。
-        """
+trả về True bảng hiện này là này tiết lưu lượngrulechặn request，thống nhất tính bộ nên bỏ quanó requestđầu ước tính ，
+vì là này requestthực tếtrên không cógửi đến mạng。
+"""
         if not self.enabled or method != "Network.loadingFailed":
             return False
         if str(params.get("blockedReason") or "").lower() != "inspector":
@@ -347,7 +347,7 @@ class BrowserDataSaver:
             }
 
     def stop(self) -> None:
-        """移除 Playwright 路由；CDP URL 规则随浏览器会话结束。"""
+        """gỡ Playwright đường do ；CDP URL ruletheo trình duyệtphiênkết thúc。"""
         if self._stopped:
             return
         self._stopped = True

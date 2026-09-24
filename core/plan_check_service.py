@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-"""套餐/Plus 资格查询后台队列。"""
+"""gói/Plus điều kiệntruy vấnnềnhàng đợi。"""
 from __future__ import annotations
 
 import logging
@@ -41,7 +41,7 @@ _NEXT_REQUEST_AT = 0.0
 
 
 def _wait_for_rate_slot() -> None:
-    """为所有查询线程分配错开的请求启动时间。"""
+    """là nơi có truy vấnluồngcấpsai mở requestkhởi động khikhoảng 。"""
     global _NEXT_REQUEST_AT
     min_interval = _float_setting("PLAN_CHECK_MIN_INTERVAL", 0.4, 0.0, 30.0)
     jitter = _float_setting("PLAN_CHECK_JITTER", 0.3, 0.0, 30.0)
@@ -69,7 +69,7 @@ def _run_plan_check(
 ) -> dict:
     try:
         if not db.mark_account_plan_check_running(account_id):
-            return {"ok": False, "error": "账号已删除或套餐查询状态已被重置"}
+            return {"ok": False, "error": "Tài khoản đã xoá hoặc trạng thái truy vấn gói đã bị reset"}
 
         _wait_for_rate_slot()
         result = check_account_plan(
@@ -87,7 +87,7 @@ def _run_plan_check(
             and not bool(result.get("plus_trial_eligible"))
         )
         if should_recheck:
-            logger.info("[Plan] 新账号暂未发现 Plus 试用资格，%.1fs 后复查一次: %s", recheck_delay, email)
+            logger.info("[Plan] tài khoản mới chưa thấy quyền thử Plus, %.1fs rồi kiểm tra lại một lần: %s", recheck_delay, email)
             time.sleep(recheck_delay)
             _wait_for_rate_slot()
             recheck_result = check_account_plan(
@@ -100,15 +100,15 @@ def _run_plan_check(
                 result = recheck_result
             else:
                 logger.warning(
-                    "[Plan] 新账号资格复查失败，保留首次成功结果: %s, %s",
+                    "[Plan] kiểm tra lại điều kiện tài khoản mới thất bại, giữ kết quả thành công lần đầu: %s, %s",
                     email,
-                    recheck_result.get("error") or "未知错误",
+                    recheck_result.get("error") or "Lỗi không rõ",
                 )
 
         db.update_account_plan_check(acc_id=account_id, result=result)
         if result.get("ok"):
             logger.info(
-                "[Plan] 后台查询成功: %s, plan=%s, plus_trial=%s, trigger=%s",
+                "[Plan] truy vấn nền thành công: %s, plan=%s, plus_trial=%s, trigger=%s",
                 email,
                 result.get("current_plan_type") or "unknown",
                 bool(result.get("plus_trial_eligible")),
@@ -116,10 +116,10 @@ def _run_plan_check(
             )
         else:
             logger.warning(
-                "[Plan] 后台查询失败: %s, trigger=%s, error=%s",
+                "[Plan] truy vấn nền thất bại: %s, trigger=%s, error=%s",
                 email,
                 trigger,
-                result.get("error") or "未知错误",
+                result.get("error") or "Lỗi không rõ",
             )
         return result
     except Exception as exc:
@@ -131,8 +131,8 @@ def _run_plan_check(
         try:
             db.update_account_plan_check(acc_id=account_id, result=result)
         except Exception:
-            logger.exception("[Plan] 写入后台查询异常状态失败: account_id=%s", account_id)
-        logger.exception("[Plan] 后台查询异常: %s", email)
+            logger.exception("[Plan] ghi trạng thái lỗi truy vấn nền thất bại: account_id=%s", account_id)
+        logger.exception("[Plan] truy vấn nền lỗi: %s", email)
         return result
     finally:
         _QUEUE_SLOTS.release()
@@ -147,18 +147,18 @@ def enqueue_account_plan_check(
     proxy: str | None = None,
     timezone_offset_min: str = "-",
 ) -> dict:
-    """把查询放入统一线程池；重复查询或队列满时不提交。"""
+    """truy vấnđặt vào thống nhấtthread pool；lại lặp truy vấn hoặc hàng đợiđầy khikhông gửi。"""
     account_id = int(account_id)
     email = str(email or "").strip()
     access_token = str(access_token or "").strip()
     if not access_token:
-        return {"accepted": False, "busy": False, "error": "账号缺少 access_token"}
+        return {"accepted": False, "busy": False, "error": "Tài khoản thiếu access_token"}
     if not _QUEUE_SLOTS.acquire(blocking=False):
-        return {"accepted": False, "busy": False, "queue_full": True, "error": "套餐查询队列已满，请稍后重试"}
+        return {"accepted": False, "busy": False, "queue_full": True, "error": "Hàng đợi truy vấn gói đã đầy, thử lại sau"}
 
     if not db.claim_account_plan_check(acc_id=account_id, trigger=trigger):
         _QUEUE_SLOTS.release()
-        return {"accepted": False, "busy": True, "error": "该账号正在查询套餐"}
+        return {"accepted": False, "busy": True, "error": "Tài khoản này đang truy vấn gói"}
 
     try:
         _EXECUTOR.submit(
@@ -175,7 +175,7 @@ def enqueue_account_plan_check(
         result = {
             "ok": False,
             "checked_at": datetime.now().isoformat(timespec="seconds"),
-            "error": f"套餐查询入队失败: {type(exc).__name__}: {str(exc)[:160]}",
+            "error": f"Vào hàng đợi truy vấn gói thất bại: {type(exc).__name__}: {str(exc)[:160]}",
         }
         db.update_account_plan_check(acc_id=account_id, result=result)
         return {"accepted": False, "busy": False, "error": result["error"]}

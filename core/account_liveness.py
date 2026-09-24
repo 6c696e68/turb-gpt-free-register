@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-"""已注册账号查活：优先复用已有 AT 预热后走 reauth OTP，成功刷新 AT 即视为正常。"""
+"""đã đăng kýtài khoảnkiểm tra sống：ưu trước tái sử dụngđã có AT khởi động trước sauđi reauth OTP，thành cônglàm mới mới AT tức coi là bình thường。"""
 import logging
 import json
 import threading
@@ -68,7 +68,7 @@ def _new_fingerprint_pinned_session(
     proxy: str | None,
     fingerprint_state: dict | None = None,
 ) -> BrowserSession:
-    """创建任务独占账号会话；同一路由尝试内固定完整身份与浏览器画像。"""
+    """tạotác vụđộc chiếm tài khoảnphiên；cùngđường do thử thử trong cố định định đầy đủthân phần và trình duyệtprofile。"""
     state = fingerprint_state if fingerprint_state is not None else {}
     saved_profile = state.get("browser_profile")
     identity = str(email).strip().lower()
@@ -101,11 +101,11 @@ def _new_fingerprint_pinned_session(
 
 
 def _warm_login_fingerprint_context(session: BrowserSession) -> None:
-    """复现 plus 纯协议注册成功样本的登录页初始化顺序。"""
+    """lặp hiện plus thuần giao thứcđăng kýthành côngmẫu này trang đăng nhậpKhởi tạothuận thứ tự 。"""
     from core.chatgpt_bootstrap import anonymous_bootstrap
 
     logger.info(
-        "[查活] 登录链预热：/auth/login 顶层导航 → anonymous bootstrap → "
+        "[Kiểm tra sống] khởi động trước chuỗi đăng nhập：/auth/login điều hướng top-level → anonymous bootstrap → "
         "providers → session → CSRF → session"
     )
     nav = session.get(
@@ -135,16 +135,16 @@ def _network_preflight_with_retry(
     max_attempts: int = 4,
     fingerprint_state: dict | None = None,
 ) -> tuple[BrowserSession, str]:
-    """CSRF → Signin 备用预检；失败时保留同一会话重试。
+    """CSRF → Signin dự phòngpreflight；thất bại khigiữ giữ cùngphiênthử lại。
 
-    `/api/auth/providers` 只是 NextAuth 的发现接口，signin 端点并不依赖它返回的
-    内容。实际运行中该接口很容易先被 Cloudflare 拦截，如果把它作为硬门槛，后续
-    本来可用的 CSRF/授权链永远不会执行。因此查活备用链不再把 providers 当作
-    必经步骤。
+`/api/auth/providers` chỉ là NextAuth gửi hiện nhận cổng ，signin đầu điểm và không phụ thuộcnó trả về
+trong dung 。thực tếchạy dòng này nhận cổng rất dung dễ trước bị Cloudflare chặn， nếu kết quả nó làmcứng cửa ngưỡng ，sau đó
+này đến có thể dùng CSRF/uỷ quyềnchuỗi mãi xa không sẽ thực thi。vì này kiểm tra sốngdự phòngchuỗi không lại providers khi làm
+bắt buộc qua bước。
 
-    这里必须原样传递 ``proxy``：``None`` 表示按配置选代理，空字符串表示明确
-    直连。之前用 ``proxy if proxy else None`` 把直连兜底误变成了再次抽取代理。
-    """
+này trong bắt buộc phải gốc mẫu truyền chuyển ``proxy``：``None`` bảng hiện theo cấu hìnhchọn proxy，trống ký tự ký hiệu chuỗi bảng hiện rõ xác nhận
+kết nối trực tiếp。của trướcdùng ``proxy if proxy else None`` Fallback kết nối trực tiếpnhầm đổi thành lần nữarút lấy proxy。
+"""
     session: BrowserSession | None = None
     last_exc: BaseException | None = None
     state = fingerprint_state if fingerprint_state is not None else {}
@@ -153,12 +153,12 @@ def _network_preflight_with_retry(
     session = _new_fingerprint_pinned_session(email, proxy, state)
     for attempt in range(1, max_attempts + 1):
         logger.info(
-            "[查活] 复用统一会话：proxy=%s device_id=%s oai_session_id=%s（网络预检第 %s/%s 次）",
-            session.proxy or "配置随机/直连", session.device_id,
+            "[Kiểm tra sống] tái sử dụng phiên thống nhất：proxy=%s device_id=%s oai_session_id=%s（preflight mạng lần %s/%s ）",
+            session.proxy or "Ngẫu nhiên theo cấu hình / kết nối trực tiếp", session.device_id,
             str(getattr(session, "oai_session_id", "") or "")[:12] + "...",
             attempt, max_attempts,
         )
-        logger.info("[查活] 指纹摘要：%s", session.fingerprint_summary_text())
+        logger.info("[Kiểm tra sống] Tóm tắt vân tay: %s", session.fingerprint_summary_text())
         try:
             _warm_login_fingerprint_context(session)
             csrf = get_csrf_token(session)
@@ -176,11 +176,11 @@ def _network_preflight_with_retry(
                 raise
             _clear_optional_bootstrap_circuit(session)
             logger.warning(
-                "[查活] 网络预检失败（%s/%s），保留当前 session/deviceId/CF Cookie 重试：%s",
+                "[Kiểm tra sống] preflight mạng thất bại（%s/%s），giữ session/deviceId/CF Cookie hiện tại rồi thử lại：%s",
                 attempt, max_attempts, str(exc)[:200],
             )
             time.sleep(2)
-    raise RuntimeError(f"网络预检多次失败：{last_exc}")
+    raise RuntimeError(f"Preflight mạng thất bại nhiều lần: {last_exc}")
 
 
 def _now() -> str:
@@ -188,7 +188,7 @@ def _now() -> str:
 
 
 def _safe_fingerprint_for_account(session: BrowserSession) -> dict:
-    """账号里只记录运行环境画像，不保存会话/设备标识。"""
+    """tài khoảntrong chỉ bản ghichạy dòng vòng môi trường profile，không lưuphiên/đặt dự nhãn biết 。"""
     fp = session.fingerprint_summary()
     return {k: v for k, v in fp.items() if k not in _SESSION_FINGERPRINT_KEYS}
 
@@ -290,12 +290,12 @@ def _mfa_verify(session: BrowserSession, factor_id: str, code: str) -> dict:
 
 
 def _follow_continue_and_fetch(session: BrowserSession, continue_url: str, *, referer: str) -> dict:
-    """完成 callback/session，并对 403 保留同会话 Cookie 做阶段内重试。
+    """xong callback/session， và với 403 giữ giữ cùng phiên Cookie làm giai đoạntrong thử lại。
 
-    callback 与 session 分开重试：callback 一旦成功就不重复消费 OAuth code；
-    只有 callback 本身失败时才重放 continue_url。重试耗尽后抛给上层，由
-    live_check_service 按既有策略换成独立直连会话完整兜底。
-    """
+callback và session phần mở thử lại：callback một sáng thành côngkhông lại lặp xoá phí OAuth code；
+chỉ có callback này thân thất bại khi mới lại đặt continue_url。thử lạihao hết sauném chotrên lớp ，do
+live_check_service theo đã có sách lược đổi thành độc lậpkết nối trực tiếpphiênđầy đủfallback。
+"""
     max_attempts = 3
     for attempt in range(1, max_attempts + 1):
         try:
@@ -307,8 +307,8 @@ def _follow_continue_and_fetch(session: BrowserSession, continue_url: str, *, re
             _clear_optional_bootstrap_circuit(session)
             delay = float(2 ** (attempt - 1))
             logger.warning(
-                "[查活] OAuth callback 临时失败（%s/%s），保留当前 "
-                "session/deviceId/CF Cookie，%.1fs 后重试：%s",
+                "[Kiểm tra sống] callback OAuth tạm thất bại（%s/%s），giữ giữ hiện tại "
+                "session/deviceId/CF Cookie，%.1fs sauthử lại：%s",
                 attempt, max_attempts, delay, str(exc)[:200],
             )
             time.sleep(delay)
@@ -322,31 +322,31 @@ def _follow_continue_and_fetch(session: BrowserSession, continue_url: str, *, re
             _clear_optional_bootstrap_circuit(session)
             delay = float(2 ** (attempt - 1))
             logger.warning(
-                "[查活] Session/AT 拉取临时失败（%s/%s），保留当前 "
-                "session/deviceId/CF Cookie，%.1fs 后重试：%s",
+                "[Kiểm tra sống] kéo Session/AT tạm thất bại（%s/%s），giữ giữ hiện tại "
+                "session/deviceId/CF Cookie，%.1fs sauthử lại：%s",
                 attempt, max_attempts, delay, str(exc)[:200],
             )
             time.sleep(delay)
-    raise RuntimeError("查活 Session/AT 拉取重试耗尽")
+    raise RuntimeError("Hết lần thử lại kéo Session/AT khi kiểm tra sống")
 
 
 def _stored_access_token(email: str) -> str:
-    """读取本地账号已有 AT，用于先预热登录态再走稳定的 reauth 链。"""
+    """đọclocaltài khoảnđã có AT，dùng chotrước khởi động trướcphiên đăng nhậplại đi ổn định reauth chuỗi 。"""
     try:
         account = db.get_account_by_email(email)
         return str((account or {}).get("access_token") or "").strip()
     except Exception as exc:
-        logger.debug("[查活] 读取已有 accessToken 失败，改走备用登录链：%s: %s", type(exc).__name__, exc)
+        logger.debug("[Kiểm tra sống] đọc accessToken sẵn có thất bại, chuyển chuỗi đăng nhập dự phòng：%s: %s", type(exc).__name__, exc)
         return ""
 
 
 def _clear_optional_bootstrap_circuit(session: BrowserSession) -> None:
-    """清理可选登录态预热造成的本地熔断，不影响后续正式认证请求。
+    """dọntuỳ chọnphiên đăng nhậpkhởi động trướctạo thành localngắt mạch，không ảnh hưởng sau đóchínhxác thựcrequest。
 
-    authenticated_bootstrap 是 best-effort 预热，其中个别旧接口返回 403 不等于
-    reauth 链不可用；BrowserSession 的通用熔断器若保留该状态，会直接拦截后续
-    `/api/auth/csrf`，导致稳定的 2FA 链也无法开始。
-    """
+authenticated_bootstrap là best-effort khởi động trước，nó khác cũnhận cổng trả về 403 không v.v.tại
+reauth chuỗi không có thể dùng ；BrowserSession thông dùng ngắt mạchbộ nếu giữ giữ này trạng thái，sẽ trực tiếpchặnsau đó
+`/api/auth/csrf`，dẫn khiến ổn định 2FA chuỗi cũng không thểbắt đầu。
+"""
     reset = getattr(session, "reset_circuit_breaker", None)
     if callable(reset):
         reset()
@@ -357,18 +357,18 @@ def _clear_optional_bootstrap_circuit(session: BrowserSession) -> None:
 
 
 def _warm_authenticated_session(session: BrowserSession, access_token: str) -> None:
-    """复用 2FA 已验证的登录态预热流程。预热失败不直接判定账号死亡。"""
+    """tái sử dụng 2FA đã xác thực phiên đăng nhậpkhởi động trướcluồng。khởi động trướcthất bạikhông trực tiếpphán định tài khoảnchết mất 。"""
     if not access_token:
         return
     from core.chatgpt_bootstrap import authenticated_bootstrap
 
     try:
-        logger.info("[查活] 使用已有 accessToken 预热登录态...")
+        logger.info("[Kiểm tra sống] dùng accessToken sẵn có để khởi động trước phiên đăng nhập...")
         authenticated_bootstrap(session, access_token, strict=False)
-        logger.info("[查活] accessToken 预热完成，继续走 reauth OTP")
+        logger.info("[Kiểm tra sống] khởi động trước accessToken xong, tiếp tục reauth OTP")
     except Exception as exc:
         # strict=False 已经会吞掉大部分单接口错误；这里仅兜住初始化异常。
-        logger.warning("[查活] accessToken 预热失败，继续走 reauth OTP：%s: %s", type(exc).__name__, str(exc)[:180])
+        logger.warning("[Kiểm tra sống] khởi động trước accessToken thất bại, tiếp tục reauth OTP：%s: %s", type(exc).__name__, str(exc)[:180])
     finally:
         _clear_optional_bootstrap_circuit(session)
 
@@ -394,13 +394,13 @@ def _validate_reauth_with_retry(
     max_otp_attempts: int = 3,
     email_source: str | None = None,
 ) -> str:
-    """提交 reauth OTP；验证码错误时重新发送并重新取码。"""
+    """gửi reauth OTP；mã OTPlỗi khigửi lại và lại mới lấy mã。"""
     current_otp: str | None = None
     last_exc: Exception | None = None
     for attempt in range(1, max_otp_attempts + 1):
         try:
             if current_otp is None:
-                logger.info("[查活] 等待重认证 OTP：%s（第 %s/%s 次）", email, attempt, max_otp_attempts)
+                logger.info("[Kiểm tra sống] chờ OTP reauth：%s（lần %s/%s ）", email, attempt, max_otp_attempts)
                 current_otp = wait_for_otp(
                     email,
                     after_ts=otp_after_ts,
@@ -409,7 +409,7 @@ def _validate_reauth_with_retry(
             human_delay("otp_input")
             continue_url = _validate_reauth_otp(session, current_otp)
             if not continue_url:
-                raise RuntimeError("重认证 OTP 验证响应缺少 continue_url")
+                raise RuntimeError("reauth Phản hồi xác thực OTP thiếu continue_url")
             return str(continue_url)
         except AccountUnusableError:
             raise
@@ -419,7 +419,7 @@ def _validate_reauth_with_retry(
             dead_code = detect_account_unusable_text(body) or detect_account_unusable_text(str(exc))
             if dead_code:
                 raise AccountUnusableError(
-                    f"账号已废弃（{dead_code}），邮箱不可再用",
+                    f"Tài khoản đã bị huỷ ({dead_code}), email không dùng lại được",
                     error_code=dead_code,
                 ) from exc
 
@@ -430,7 +430,7 @@ def _validate_reauth_with_retry(
             if attempt >= max_otp_attempts or not retryable_otp:
                 raise
             logger.warning(
-                "[查活] 重认证 OTP 无效/过期，重新发送后再取（%s/%s）：%s",
+                "[Kiểm tra sống] OTP reauth không hợp lệ/hết hạn, gửi lại rồi lấy（%s/%s）：%s",
                 attempt,
                 max_otp_attempts,
                 str(exc)[:180],
@@ -439,7 +439,7 @@ def _validate_reauth_with_retry(
             otp_after_ts = time.time()
             current_otp = None
             time.sleep(1)
-    raise last_exc if last_exc else RuntimeError("重认证 OTP 验证失败")
+    raise last_exc if last_exc else RuntimeError("Xác thực OTP reauth thất bại")
 
 
 def _login_via_reauth(
@@ -448,23 +448,23 @@ def _login_via_reauth(
     otp_after_ts: float,
     email_source: str | None = None,
 ) -> dict:
-    """按 2FA 已验证链路重新认证并刷新 ChatGPT session。"""
+    """theo 2FA đã xác thựcchuỗilại mới xác thực và làm mới mới ChatGPT session。"""
     auth_url = _trigger_reauth_with_retry(session, email)
-    logger.info("[查活] reauth authorize URL 已获取")
+    logger.info("[Kiểm tra sống] đã lấy reauth authorize URL")
     human_delay("api")
     final_url = _follow_reauth_with_retry(session, auth_url)
     dead_code = detect_account_unusable_text(final_url)
     if dead_code:
-        raise AccountUnusableError(f"账号已废弃（{dead_code}）", error_code=dead_code)
+        raise AccountUnusableError(f"Tài khoản đã bị huỷ ({dead_code}）", error_code=dead_code)
     human_delay("navigate")
-    logger.info("[查活] 已跟随 reauth authorize URL，开始等待邮箱 OTP")
+    logger.info("[Kiểm tra sống] đã follow reauth authorize URL, bắt đầu chờ OTP email")
     continue_url = _validate_reauth_with_retry(
         session,
         email,
         otp_after_ts,
         email_source=email_source,
     )
-    logger.info("[查活] reauth OTP 验证通过，开始交换新 token")
+    logger.info("[Kiểm tra sống] xác thực reauth OTP thành công, bắt đầu đổi token mới")
     human_delay("api")
     return _follow_continue_and_fetch(
         session,
@@ -479,7 +479,7 @@ def _login_via_email_otp(
     otp_after_ts: float,
     email_source: str | None = None,
 ) -> dict:
-    """完成邮箱 OTP 登录，并跟随 OAuth callback 后拉取 ChatGPT session。"""
+    """xongemail OTP đăng nhập， và follow OAuth callback saukéo ChatGPT session。"""
     validate_result = _validate_with_retry(
         session,
         email,
@@ -491,10 +491,10 @@ def _login_via_email_otp(
     page_type = str(page.get("type") or "")
     continue_url = _extract_continue_url(validate_result)
     if not continue_url:
-        raise RuntimeError(f"OTP 登录成功但没有 OAuth continue_url: {validate_result}")
+        raise RuntimeError(f"Đăng nhập OTP thành công nhưng không có OAuth continue_url: {validate_result}")
     if "about-you" in str(continue_url) or page_type in {"about_you", "about-you"}:
-        raise RuntimeError(f"该邮箱登录后进入资料页，疑似不是完整已注册账号: page_type={page_type}, continue_url={continue_url}")
-    logger.info("[查活] 邮箱 OTP 验证完成，开始跟随 OAuth callback")
+        raise RuntimeError(f"Email này sau đăng nhập vào trang hồ sơ, có vẻ chưa phải tài khoản đăng ký đầy đủ: page_type={page_type}, continue_url={continue_url}")
+    logger.info("[Kiểm tra sống] xác thực OTP email xong, bắt đầu follow callback OAuth")
     return _follow_continue_and_fetch(session, continue_url, referer="https://auth.openai.com/email-verification")
 
 
@@ -504,10 +504,10 @@ def _login_via_password_or_otp(
     otp_after_ts: float,
     email_source: str | None = None,
 ) -> dict:
-    """优先密码登录；如进入 MFA challenge 则自动用 TOTP 完成。"""
+    """ưu trước mật khẩuđăng nhập； nếu vào vào MFA challenge thì tự độngdùng TOTP xong。"""
     password = _account_registration_password(email)
     if not password:
-        logger.info("[查活] 未找到注册密码，继续使用邮箱 OTP：%s", email)
+        logger.info("[Kiểm tra sống] không thấy mật khẩu đăng ký, tiếp tục dùng OTP email：%s", email)
         return _login_via_email_otp(
             session,
             email,
@@ -515,7 +515,7 @@ def _login_via_password_or_otp(
             email_source=email_source,
         )
 
-    logger.info("[查活] 账号存在密码，优先走密码登录：%s", email)
+    logger.info("[Kiểm tra sống] tài khoản có mật khẩu, ưu tiên đăng nhập mật khẩu：%s", email)
     password_result = _password_verify(session, password)
     continue_url = _extract_continue_url(password_result)
     page = password_result.get("page") if isinstance(password_result, dict) else {}
@@ -526,18 +526,18 @@ def _login_via_password_or_otp(
         factor_id = _extract_factor_id(password_result, continue_url)
         secret = _account_totp_secret(email)
         if not factor_id:
-            raise RuntimeError(f"密码登录后进入 MFA 但未拿到 factor_id: {password_result}")
+            raise RuntimeError(f"Đăng nhập mật khẩu vào MFA nhưng chưa lấy factor_id: {password_result}")
         if not secret:
-            raise RuntimeError(f"密码登录后进入 MFA，但账号没有 totp_secret：{email}")
-        logger.info("[查活] 已进入 MFA challenge，开始提交 TOTP：%s factor_id=%s", email, factor_id)
+            raise RuntimeError(f"Đăng nhập mật khẩu vào MFA nhưng tài khoản không có totp_secret: {email}")
+        logger.info("[Kiểm tra sống] đã vào MFA challenge, bắt đầu gửi TOTP：%s factor_id=%s", email, factor_id)
         _mfa_issue_challenge(session, factor_id)
         code = _account_totp_code(email)
         if not code:
-            raise RuntimeError(f"无法生成 TOTP 验证码：{email}")
+            raise RuntimeError(f"Không tạo được mã OTP TOTP: {email}")
         mfa_result = _mfa_verify(session, factor_id, code)
         mfa_continue_url = _extract_continue_url(mfa_result) or continue_url
         if not mfa_continue_url:
-            raise RuntimeError(f"MFA 验证成功但没有 continue_url: {mfa_result}")
+            raise RuntimeError(f"Xác thực MFA thành công nhưng không có continue_url: {mfa_result}")
         return _follow_continue_and_fetch(
             session,
             mfa_continue_url,
@@ -545,7 +545,7 @@ def _login_via_password_or_otp(
         )
 
     if "email-verification" in continue_url or page_type in {"email_verification", "email_otp_send"}:
-        logger.info("[查活] 密码登录后仍进入邮箱 OTP，继续完成邮箱验证：%s", email)
+        logger.info("[Kiểm tra sống] sau đăng nhập mật khẩu vẫn vào OTP email, tiếp tục xác thực email：%s", email)
         return _login_via_email_otp(
             session,
             email,
@@ -554,10 +554,10 @@ def _login_via_password_or_otp(
         )
 
     if continue_url:
-        logger.info("[查活] 密码登录直接给出回调地址，继续完成回调：%s", email)
+        logger.info("[Kiểm tra sống] đăng nhập mật khẩu trả luôn URL callback, tiếp tục hoàn thành callback：%s", email)
         return _follow_continue_and_fetch(session, continue_url, referer="https://auth.openai.com/log-in/password")
 
-    raise RuntimeError(f"密码登录成功但没有可用 continue_url: {password_result}")
+    raise RuntimeError(f"Đăng nhập mật khẩu thành công nhưng không có continue_url dùng được: {password_result}")
 
 
 def _login_via_full_web_flow(
@@ -567,7 +567,7 @@ def _login_via_full_web_flow(
     email_source: str | None,
     fingerprint_state: dict,
 ) -> tuple[BrowserSession, dict]:
-    """按 plus 纯协议注册的 Web 登录序列建立一份全新登录态。"""
+    """theo plus thuần giao thứcđăng ký Web đăng nhậpthứ tự cột dựng đứng một phần toàn mới phiên đăng nhập。"""
     session, authorize_url = _network_preflight_with_retry(
         email,
         proxy,
@@ -578,7 +578,7 @@ def _login_via_full_web_flow(
     dead_code = detect_account_unusable_text(final_url)
     if dead_code:
         raise AccountUnusableError(
-            f"账号已废弃（{dead_code}）",
+            f"Tài khoản đã bị huỷ ({dead_code}）",
             error_code=dead_code,
         )
     session_info = _login_via_password_or_otp(
@@ -613,7 +613,7 @@ def _validate_with_retry(
     for attempt in range(1, max_otp_attempts + 1):
         try:
             if current_otp is None:
-                logger.info("[查活] 等待登录 OTP：%s（第 %s/%s 次）", email, attempt, max_otp_attempts)
+                logger.info("[Kiểm tra sống] chờ OTP đăng nhập：%s（lần %s/%s ）", email, attempt, max_otp_attempts)
                 current_otp = wait_for_otp(
                     email,
                     after_ts=otp_after_ts,
@@ -625,7 +625,7 @@ def _validate_with_retry(
             last_exc = exc
             if attempt >= max_otp_attempts:
                 break
-            logger.warning("[查活] OTP 无效/过期，重新发送后再取：%s", str(exc)[:180])
+            logger.warning("[Kiểm tra sống] OTP không hợp lệ/hết hạn, gửi lại rồi lấy：%s", str(exc)[:180])
             send_email_otp(session)
             # 以“重新发送请求完成后”为新基准，避免刚刚失败的上一封旧码再次被 after 容忍窗口命中。
             otp_after_ts = time.time()
@@ -636,7 +636,7 @@ def _validate_with_retry(
             if attempt >= max_otp_attempts or not _is_retryable_network_error(exc):
                 raise
             last_exc = exc
-            logger.warning("[查活] OTP 验证网络抖动，重新发送后再取（%s/%s）：%s", attempt, max_otp_attempts, str(exc)[:180])
+            logger.warning("[Kiểm tra sống] xác thực OTP rung mạng, gửi lại rồi lấy（%s/%s）：%s", attempt, max_otp_attempts, str(exc)[:180])
             try:
                 send_email_otp(session)
             except Exception:
@@ -644,7 +644,7 @@ def _validate_with_retry(
             otp_after_ts = time.time()
             current_otp = None
             time.sleep(1)
-    raise last_exc if last_exc else RuntimeError("OTP 验证失败")
+    raise last_exc if last_exc else RuntimeError("Xác thực OTP thất bại")
 
 
 def check_account_liveness(
@@ -656,21 +656,21 @@ def check_account_liveness(
     fingerprint_state: dict | None = None,
 ) -> dict:
     """
-    重新登录账号并刷新最新 accessToken。
+lại mới đăng nhậptài khoản và làm mới mới mới nhất accessToken。
 
-    返回：
-      {
-        ok: bool,
-        status: live/deactivated/failed,
-        access_token: str?,
-        session: dict?,
-        checked_at: ISO,
-        error: str?
-      }
-    """
+trả về：
+{
+ok: bool,
+status: live/deactivated/failed,
+access_token: str?,
+session: dict?,
+checked_at: ISO,
+error: str?
+}
+"""
     email = str(email or "").strip()
     if not email:
-        raise ValueError("email 不能为空")
+        raise ValueError("email không được trống")
 
     checked_at = _now()
     key = email.lower()
@@ -696,8 +696,8 @@ def check_account_liveness(
         fh.addFilter(lambda record: record.threadName == thread_name)
         root_logger.addHandler(fh)
 
-        logger.info("[查活] 日志文件：%s", path)
-        logger.info("[查活] 开始重新登录：%s", email)
+        logger.info("[Kiểm tra sống] file nhật ký：%s", path)
+        logger.info("[Kiểm tra sống] bắt đầu đăng nhập lại：%s", email)
         existing_access_token = _stored_access_token(email)
         has_totp = bool(_account_totp_secret(email))
         if existing_access_token and not has_totp:
@@ -705,14 +705,14 @@ def check_account_liveness(
             # reauth → 邮箱 OTP → callback。该链路不依赖容易被 CF 拦截的
             # /api/auth/providers。已开启 TOTP 的账号保留密码 → MFA 路径，
             # 避免把 MFA challenge 误当成邮箱 OTP 页面。
-            logger.info("[查活] 流程：登录态预热 → CSRF → Reauth Signin → Authorize → 邮箱 OTP → OAuth callback → Session/AT")
+            logger.info("[Kiểm tra sống] luồng：phiên đăng nhậpkhởi động trước → CSRF → Reauth Signin → Authorize → email OTP → OAuth callback → Session/AT")
             session = _new_fingerprint_pinned_session(email, proxy, task_fingerprint_state)
             logger.info(
-                "[查活] 会话创建完成：proxy=%s device_id=%s（复用2FA稳定链路）",
-                session.proxy or "直连/配置随机",
+                "[Kiểm tra sống] tạo phiên xong：proxy=%s device_id=%s（tái sử dụng chuỗi 2FA ổn định）",
+                session.proxy or "Kết nối trực tiếp / ngẫu nhiên theo cấu hình",
                 session.device_id,
             )
-            logger.info("[查活] 指纹摘要：%s", session.fingerprint_summary_text())
+            logger.info("[Kiểm tra sống] Tóm tắt vân tay: %s", session.fingerprint_summary_text())
             _warm_authenticated_session(session, existing_access_token)
             human_delay("navigate")
             try:
@@ -730,7 +730,7 @@ def check_account_liveness(
                 # /auth/login → providers/session/csrf/session → signin 完整重登。
                 failed_proxy = session.proxy if proxy is None else proxy
                 logger.warning(
-                    "[查活] AT reauth 链临时失败，切换干净会话执行纯协议完整登录：%s",
+                    "[Kiểm tra sống] chuỗi AT reauth tạm thất bại, chuyển phiên sạch chạy đăng nhập đầy đủ thuần protocol：%s",
                     str(reauth_exc)[:240],
                 )
                 try:
@@ -747,8 +747,8 @@ def check_account_liveness(
             # 兼容没有本地 AT 或已开启 TOTP 的记录，按 plus 成功注册样本复现
             # 登录页 document 与完整 NextAuth 调用顺序。
             logger.info(
-                "[查活] 流程：登录页 → Providers/Session/CSRF/Session → Signin → "
-                "Authorize → 密码/邮箱 OTP → MFA(如有) → OAuth callback → Session/AT"
+                "[Kiểm tra sống] luồng：trang đăng nhập → Providers/Session/CSRF/Session → Signin → "
+                "Authorize → mật khẩu/email OTP → MFA( nếu có ) → OAuth callback → Session/AT"
             )
             session, session_info = _login_via_full_web_flow(
                 email,
@@ -758,11 +758,11 @@ def check_account_liveness(
             )
         access_token = str(session_info.get("accessToken") or "")
         if not access_token:
-            raise RuntimeError("重新登录后未拿到 accessToken")
+            raise RuntimeError("Đăng nhập lại xong vẫn chưa lấy được accessToken")
 
         user = session_info.get("user") or {}
         account = session_info.get("account") or {}
-        logger.info("[查活] 正常：%s user_id=%s plan=%s", email, user.get("id"), account.get("planType"))
+        logger.info("[Kiểm tra sống] bình thường：%s user_id=%s plan=%s", email, user.get("id"), account.get("planType"))
         fp = _safe_fingerprint_for_account(session)
         return {
             "ok": True,
@@ -776,18 +776,18 @@ def check_account_liveness(
         }
     except AccountUnusableError as exc:
         code = getattr(exc, "error_code", "") or detect_account_unusable_text(str(exc)) or "account_deactivated"
-        logger.warning("[查活] 已废号：%s %s", email, code)
+        logger.warning("[Kiểm tra sống] đã tài khoản hỏng：%s %s", email, code)
         return {"ok": False, "status": "deactivated", "checked_at": checked_at, "error": code}
     except Exception as exc:
         code = detect_account_unusable_text(_exception_response_text(exc)) or detect_account_unusable_text(str(exc))
         if code:
-            logger.warning("[查活] 已废号：%s %s", email, code)
+            logger.warning("[Kiểm tra sống] đã tài khoản hỏng：%s %s", email, code)
             return {"ok": False, "status": "deactivated", "checked_at": checked_at, "error": code}
-        logger.warning("[查活] 失败：%s %s: %s", email, type(exc).__name__, str(exc)[:260])
+        logger.warning("[Kiểm tra sống] thất bại：%s %s: %s", email, type(exc).__name__, str(exc)[:260])
         return {"ok": False, "status": "failed", "checked_at": checked_at, "error": f"{type(exc).__name__}: {str(exc)[:500]}"}
     finally:
         try:
-            logger.info("[查活] 结束：%s", email)
+            logger.info("[Kiểm tra sống] kết thúc：%s", email)
             if session is not None:
                 try:
                     close_browser_session(session)

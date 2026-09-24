@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-"""随机化操作节奏，让协议流程更接近人工浏览器操作。"""
+"""ngẫu nhiênhoá thao tác làm nhịp điệu ，để giao thứcluồnghơn nhận gần người công trình duyệtthao tác làm 。"""
 import logging
 import random
 import time
@@ -9,12 +9,12 @@ logger = logging.getLogger(__name__)
 
 def delay(kind: str = "api", *, minimum: float | None = None, maximum: float | None = None) -> float:
     """
-    按配置随机 sleep，返回实际 sleep 秒数。
+theo cấu hìnhngẫu nhiên sleep，trả vềthực tế sleep giây số 。
 
-    Args:
-        kind: HUMANIZE_DELAYS 的 key。
-        minimum/maximum: 临时覆盖区间。
-    """
+Args:
+kind: HUMANIZE_DELAYS key。
+minimum/maximum: tạm khiphủvùng khoảng 。
+"""
     try:
         from config import humanize as _cfg
         if not getattr(_cfg, "ENABLE_HUMANIZE_DELAY", True):
