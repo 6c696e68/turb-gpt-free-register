@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-"""ChatGPT tài khoảnemailđổi emailnềnhàng đợi。"""
+"""ChatGPT 账号邮箱换绑后台队列。"""
 from __future__ import annotations
 
 import json
@@ -44,7 +44,7 @@ def _proxy(value: str | None) -> str:
 
 
 def _proxy_label(value: str | None) -> str:
-    """nhật kýdùng proxytrích cần ，giữ giữ đường do tin tin nhưng ẩn giấu xác thựcmật khẩu。"""
+    """日志用代理摘要，保留路由信息但隐藏认证密码。"""
     text = str(value or "").strip()
     if not text:
         return "direct"
@@ -92,10 +92,10 @@ def _post(session: BrowserSession, path: str, token: str, payload: dict) -> dict
     })
     resp = session.post(f"https://chatgpt.com{path}", headers=headers, data=json.dumps(payload))
     if resp.status_code != 200:
-        raise RuntimeError(f"{path} trả về {resp.status_code}: {_response_error(resp)}")
+        raise RuntimeError(f"{path} 返回 {resp.status_code}: {_response_error(resp)}")
     data = resp.json()
     if not isinstance(data, dict) or not data.get("success"):
-        raise RuntimeError(f"{path} trả về thất bại: {data}")
+        raise RuntimeError(f"{path} 返回失败: {data}")
     return data
 
 
@@ -103,14 +103,14 @@ def _post_with_network_retry(
     session: BrowserSession, *, account_id: int, path: str, token: str, payload: dict,
     fingerprint_email: str = "",
 ) -> tuple[dict, BrowserSession]:
-    """TLS reset/quá hạn v.v.truyền nhập cố cản khiđổi phiênthử lại，cuốimột rõ xác nhận Fallback kết nối trực tiếp。"""
+    """TLS reset/超时等传输故障时换会话重试，最后一次明确直连兜底。"""
     last_exc: Exception | None = None
     current = session
     for attempt in range(1, 4):
         attempt_started = time.monotonic()
         _append_log(
             account_id,
-            f"Bắt đầu request HTTP: path={path} attempt={attempt}/3 "
+            f"HTTP 请求开始：path={path} attempt={attempt}/3 "
             f"route={_proxy_label(getattr(current, 'proxy', None))} "
             f"device_id={str(getattr(current, 'device_id', '') or '')[:12]}...",
         )
@@ -118,7 +118,7 @@ def _post_with_network_retry(
             result = _post(current, path, token, payload)
             _append_log(
                 account_id,
-                f"Request HTTP thành công: path={path} status=200 attempt={attempt}/3 cost={_cost(attempt_started)}",
+                f"HTTP 请求成功：path={path} status=200 attempt={attempt}/3 cost={_cost(attempt_started)}",
             )
             return result, current
         except Exception as exc:
@@ -126,26 +126,22 @@ def _post_with_network_retry(
             text = str(exc)
             _append_log(
                 account_id,
-                f"Request HTTP thất bại: path={path} attempt={attempt}/3 cost={_cost(attempt_started)} "
+                f"HTTP 请求失败：path={path} attempt={attempt}/3 cost={_cost(attempt_started)} "
                 f"error={type(exc).__name__}: {text[:300]}",
             )
             # 明确的业务 4xx 不重复提交；网络错误、429 和 5xx 才重试。
-            business_4xx = (
-                ("返回 4" in text and "返回 429" not in text)
-                or ("trả về 4" in text and "trả về 429" not in text)
-            )
-            if isinstance(exc, RuntimeError) and business_4xx:
+            if isinstance(exc, RuntimeError) and "返回 4" in text and "返回 429" not in text:
                 raise
             if attempt >= 3:
                 break
             delay = attempt * 2
-            next_route = "Phiên mới từ pool proxy" if attempt == 1 else "Fallback kết nối trực tiếp"
+            next_route = "代理池新会话" if attempt == 1 else "直连兜底"
             _append_log(
                 account_id,
-                f"Request lỗi (lần {attempt}/3): {type(exc).__name__}: {text[:300]}；"
-                f"{delay}s sau chuyển sang{next_route}thử lại",
+                f"请求异常（第 {attempt}/3 次）：{type(exc).__name__}: {text[:300]}；"
+                f"{delay}s 后切换到{next_route}重试",
             )
-            logger.warning("[Đổi email] %s attempt=%s failed: %s", path, attempt, text[:300])
+            logger.warning("[邮箱换绑] %s attempt=%s failed: %s", path, attempt, text[:300])
             time.sleep(delay)
             # 第二次从代理池重新选择出口；第三次明确直连，避免坏代理持续 reset。
             current = _new_session(
@@ -156,7 +152,7 @@ def _post_with_network_retry(
 
 
 def _enqueue_live_check_after_change(account_id: int, email: str) -> dict:
-    """đổi emailthành công saungayxếp hàngkiểm tra sống，dùng email mớilại mới đăng nhập và làm mới mới mất hiệu AT。"""
+    """换绑成功后立即排队查活，用新邮箱重新登录并刷新失效的 AT。"""
     from core import live_check_service
 
     result = live_check_service.enqueue_account_live_check(
@@ -164,14 +160,14 @@ def _enqueue_live_check_after_change(account_id: int, email: str) -> dict:
         trigger="email_change_auto", proxy=None,
     )
     if result.get("accepted"):
-        logger.info("[Đổi email] đã tự thêm vào hàng đợi kiểm tra sống account_id=%s email=%s", account_id, email)
-        _append_log(account_id, f"Tự kiểm tra sống đã vào hàng đợi: email={email}")
+        logger.info("[邮箱换绑] 已自动加入查活队列 account_id=%s email=%s", account_id, email)
+        _append_log(account_id, f"自动查活已入队：email={email}")
     else:
         logger.warning(
-            "[Đổi email] đổi email thành công nhưng vào hàng đợi tự kiểm tra sống thất bại account_id=%s email=%s error=%s",
-            account_id, email, result.get("error") or "Lỗi không rõ",
+            "[邮箱换绑] 换绑成功，但自动查活入队失败 account_id=%s email=%s error=%s",
+            account_id, email, result.get("error") or "未知错误",
         )
-        _append_log(account_id, f"Vào hàng đợi tự kiểm tra sống thất bại: {result.get('error') or 'Lỗi không rõ'}")
+        _append_log(account_id, f"自动查活入队失败：{result.get('error') or '未知错误'}")
     return result
 
 
@@ -182,12 +178,12 @@ def _refresh_recent_login(
     email: str,
     email_source: str,
 ) -> tuple[BrowserSession, str]:
-    """theo kiểm tra sống đầy đủđăng nhậpchuỗi lại mới đăng nhập，dựng đứng servernhận có thể Recent Login。
+    """按查活的完整登录链重新登录，建立服务端认可的 Recent Login。
 
-change_email reauth chuỗi sẽ không mụcmục tới email cũgửi OTP，tức khiến tài khoảnđãlưu
-đăng kýmật khẩu。này trong sửa là tái sử dụngkiểm tra sống dự phòngđăng nhậpchuỗi ：ưu trước mật khẩu（để và TOTP），chỉ tại
-trang đăng nhậpxác nhận thật cần yêu cầu emailxác thực khi mới đọcemail cũ OTP。
-"""
+    change_email 的 reauth 链会无条件向原邮箱发送 OTP，即使账号已经保存了
+    注册密码。这里改为复用查活的备用登录链：优先密码（以及 TOTP），仅在
+    登录页确实要求邮箱验证时才读取原邮箱 OTP。
+    """
     # 延迟导入，避免 account_liveness 初始化时形成模块循环。
     from core.account_liveness import (
         _login_via_password_or_otp,
@@ -201,7 +197,7 @@ trang đăng nhậpxác nhận thật cần yêu cầu emailxác thực khi mớ
 
     _append_log(
         account_id,
-        "Recent Login bắt đầu: tái sử dụng logic đăng nhập lại của kiểm tra sống (CSRF → signin → authorize → mật khẩu/OTP/MFA → OAuth callback → session/AT)",
+        "Recent Login 开始：复用查活重新登录逻辑（CSRF → signin → authorize → 密码/OTP/MFA → OAuth callback → session/AT）",
     )
 
     # 保留本次换绑已经生成的账号级设备身份和浏览器画像，同时让查活预检
@@ -225,15 +221,15 @@ trang đăng nhậpxác nhận thật cần yêu cầu emailxác thực khi mớ
     # 独立的直连会话重跑。OAuth callback 的 403 会让当前 BrowserSession
     # 进入 15 分钟熔断；仅清除熔断后继续请求既不能修复出口，也容易复用
     # 已污染的 CF Cookie，因此必须从 CSRF 开始重新登录。
-    routes = [(selected_proxy, fingerprint_state, "Tuyến proxy hiện tại")]
+    routes = [(selected_proxy, fingerprint_state, "当前代理路线")]
     if selected_proxy:
-        routes.append(("", {}, "Fallback kết nối trực tiếp độc lập"))
+        routes.append(("", {}, "独立直连兜底"))
 
     last_exc: BaseException | None = None
     for route_index, (route_proxy, route_state, route_label) in enumerate(routes):
         login_session: BrowserSession | None = None
         try:
-            _append_log(account_id, f"Recent Login bắt đầu tuyến: {route_label}")
+            _append_log(account_id, f"Recent Login 路线开始：{route_label}")
             login_session, authorize_url = _network_preflight_with_retry(
                 email,
                 route_proxy,
@@ -244,7 +240,7 @@ trang đăng nhậpxác nhận thật cần yêu cầu emailxác thực khi mớ
             dead_code = detect_account_unusable_text(final_url)
             if dead_code:
                 raise AccountUnusableError(
-                    f"Tài khoản đã bị huỷ ({dead_code}）",
+                    f"账号已废弃（{dead_code}）",
                     error_code=dead_code,
                 )
             info = _login_via_password_or_otp(
@@ -255,10 +251,10 @@ trang đăng nhậpxác nhận thật cần yêu cầu emailxác thực khi mớ
             )
             fresh_token = str((info or {}).get("accessToken") or "").strip()
             if not fresh_token:
-                raise RuntimeError("Recent Login đăng nhập lại xong nhưng chưa lấy được access_token mới")
+                raise RuntimeError("Recent Login 重新登录完成，但未获取到新 access_token")
             _append_log(
                 account_id,
-                f"Recent Login xong: route={route_label}, đã lấy AT mới, cost={_cost(login_started)}",
+                f"Recent Login 完成：route={route_label}，已获取新鲜 AT，cost={_cost(login_started)}",
             )
             return login_session, fresh_token
         except AccountUnusableError:
@@ -270,8 +266,8 @@ trang đăng nhậpxác nhận thật cần yêu cầu emailxác thực khi mớ
                 raise
             _append_log(
                 account_id,
-                "Recent Login proxyđường tuyến nhận đến 403/phiênngắt mạch，"
-                f"đóngthất bạiphiên và từ CSRF bắt đầudùngFallback kết nối trực tiếp độc lập：{type(exc).__name__}: {str(exc)[:260]}",
+                "Recent Login 代理路线收到 403/会话熔断，"
+                f"关闭失败会话并从 CSRF 开始使用独立直连兜底：{type(exc).__name__}: {str(exc)[:260]}",
             )
             if login_session is not None:
                 try:
@@ -292,7 +288,7 @@ def _begin_change_with_optional_reauth(
     new_email: str,
     access_token: str,
 ) -> tuple[BrowserSession, str, float, bool]:
-    """ưu trước trực tiếp begin；chỉ tại serverrõ xác nhận cần yêu cầu Recent Login khixác thựcemail cũ。"""
+    """优先直接 begin；仅在服务端明确要求 Recent Login 时验证原邮箱。"""
     otp_after_ts = time.time()
     try:
         _, session = _post_with_network_retry(
@@ -303,13 +299,13 @@ def _begin_change_with_optional_reauth(
             payload={"email": new_email},
             fingerprint_email=current_email,
         )
-        _append_log(account_id, "AT hiện có đủ yêu cầu Recent Login, đã bỏ qua reauth OTP email cũ")
+        _append_log(account_id, "现有 AT 满足 Recent Login 要求，已跳过原邮箱 OTP 重认证")
         return session, access_token, otp_after_ts, False
     except Exception as exc:
         if not _is_reauth_required(exc):
             raise
 
-    _append_log(account_id, "Server trả reauth_required, bắt đầu đăng nhập lại tài khoản cũ theo logic kiểm tra sống")
+    _append_log(account_id, "服务端返回 reauth_required，开始按查活逻辑重新登录原账号")
     session, fresh_token = _refresh_recent_login(
         session,
         account_id=account_id,
@@ -326,7 +322,7 @@ def _begin_change_with_optional_reauth(
         payload={"email": new_email},
         fingerprint_email=current_email,
     )
-    _append_log(account_id, "Đăng nhập lại tài khoản cũ xong, dùng AT mới thử lại begin thành công")
+    _append_log(account_id, "原账号重新登录完成，使用新鲜 AT 重试 begin 成功")
     return session, fresh_token, otp_after_ts, True
 
 
@@ -337,7 +333,7 @@ def _check_live_in_current_session(
     email: str,
     email_source: str,
 ) -> dict:
-    """đổi email sautái sử dụnghiện tạiđã thông qua CF/reauth phiênlại mới đăng nhập và làm mới mới AT。"""
+    """换绑后复用当前已通过 CF/reauth 的会话重新登录并刷新 AT。"""
     from core.account_liveness import (
         _login_via_password_or_otp,
         _safe_fingerprint_for_account,
@@ -347,17 +343,17 @@ def _check_live_in_current_session(
     from core.openai_auth import follow_authorize
 
     live_started = time.monotonic()
-    _append_log(account_id, "Bắt đầu kiểm tra sống phiên cũ: tái sử dụng Cookie, trạng thái CF, egress và vân tay hiện tại")
+    _append_log(account_id, "原会话查活开始：复用 Cookie、CF 状态、出口和当前指纹")
     step_started = time.monotonic()
     csrf = get_csrf_token(session)
-    _append_log(account_id, f"Kiểm tra sống phiên cũ: lấy CSRF thành công, cost={_cost(step_started)}")
+    _append_log(account_id, f"原会话查活：CSRF 获取成功，cost={_cost(step_started)}")
     step_started = time.monotonic()
     authorize_url = signin_openai(session, csrf, email)
-    _append_log(account_id, f"Kiểm tra sống phiên cũ: signin thành công và lấy authorize URL, cost={_cost(step_started)}")
+    _append_log(account_id, f"原会话查活：signin 成功并取得 authorize URL，cost={_cost(step_started)}")
     otp_after_ts = time.time()
     step_started = time.monotonic()
     follow_authorize(session, authorize_url)
-    _append_log(account_id, f"Kiểm tra sống phiên cũ: follow authorize xong, vào giai đoạn mật khẩu/OTP/MFA, cost={_cost(step_started)}")
+    _append_log(account_id, f"原会话查活：authorize 跟随完成，进入密码/OTP/MFA 阶段，cost={_cost(step_started)}")
     step_started = time.monotonic()
     session_info = _login_via_password_or_otp(
         session,
@@ -367,8 +363,8 @@ def _check_live_in_current_session(
     )
     access_token = str((session_info or {}).get("accessToken") or "").strip()
     if not access_token:
-        raise RuntimeError("Sau đổi email, kiểm tra sống phiên cũ không lấy được access_token")
-    _append_log(account_id, f"Kiểm tra sống phiên cũ: xác thực đăng nhập và lấy session thành công, cost={_cost(step_started)}")
+        raise RuntimeError("换绑后原会话查活未获取到 access_token")
+    _append_log(account_id, f"原会话查活：登录验证及 session 获取成功，cost={_cost(step_started)}")
     result = {
         "ok": True,
         "status": "live",
@@ -380,35 +376,35 @@ def _check_live_in_current_session(
         "fingerprint_text": _safe_fingerprint_text_for_account(session),
     }
     db.update_account_liveness(account_id, result)
-    _append_log(account_id, f"Kiểm tra sống phiên cũ thành công: AT mới đã ghi lại, total={_cost(live_started)}")
+    _append_log(account_id, f"原会话查活成功：最新 AT 已写回，total={_cost(live_started)}")
     return result
 
 
 def _run(account_id: int, source: str) -> dict:
     new_email = ""
     task_started = time.monotonic()
-    stage = "Khởi tạo"
+    stage = "初始化"
     with _LOCK:
         _RUNNING.add(account_id)
     try:
-        _append_log(account_id, f"Bắt đầu chạy tác vụ: account_id={account_id} source={source}")
-        stage = "Đọc tài khoản"
+        _append_log(account_id, f"任务执行开始：account_id={account_id} source={source}")
+        stage = "读取账号"
         account = db.get_account(account_id)
         if not account:
-            raise RuntimeError("Tài khoản không tồn tại")
+            raise RuntimeError("账号不存在")
         token = str(account.get("access_token") or "").strip()
         if not token:
-            raise RuntimeError("Tài khoản thiếu access_token, hãy kiểm tra sống để làm mới AT trước")
-        stage = "Lấy email mới"
+            raise RuntimeError("账号缺少 access_token，请先查活刷新 AT")
+        stage = "领取新邮箱"
         acquire_started = time.monotonic()
         new_email = acquire_email_from_source(source)
-        _append_log(account_id, f"Lấy email mới thành công: source={source} email={new_email} cost={_cost(acquire_started)}")
+        _append_log(account_id, f"新邮箱领取成功：source={source} email={new_email} cost={_cost(acquire_started)}")
         if new_email.lower() == str(account.get("email") or "").lower():
-            raise RuntimeError("Email vừa lấy trùng email hiện tại")
+            raise RuntimeError("领取到的邮箱与当前邮箱相同")
         if not db.mark_account_email_change_running(account_id, new_email):
-            raise RuntimeError("Trạng thái tác vụ đổi email đã hết hiệu lực")
+            raise RuntimeError("换绑任务状态已失效")
 
-        stage = "Tạo phiên mạng"
+        stage = "创建网络会话"
         saved_proxy = _proxy(account.get("proxy_used"))
         # 账号没有可复用的真实代理 URL 时，先按全局代理池选路，而不是直接裸连。
         current_email = str(account.get("email") or "").strip()
@@ -416,14 +412,14 @@ def _run(account_id: int, source: str) -> dict:
         session = _new_session(account_id, saved_proxy or None, email=current_email)
         _append_log(
             account_id,
-            f"Phiên mạng đã tạo: route={'Proxy tài khoản' if saved_proxy else 'Pool proxy toàn cục / mạng mặc định'} "
+            f"网络会话已创建：route={'账号代理' if saved_proxy else '全局代理池/默认网络'} "
             f"proxy={_proxy_label(getattr(session, 'proxy', None))}",
         )
-        _append_log(account_id, f"Tóm tắt vân tay: {session.fingerprint_summary_text()}")
+        _append_log(account_id, f"指纹摘要：{session.fingerprint_summary_text()}")
 
-        logger.info("[Đổi email] begin account_id=%s old=%s new=%s source=%s", account_id, account.get("email"), new_email, source)
-        _append_log(account_id, f"Bắt đầu đổi email: email cũ={account.get('email') or '-'}, email mới={new_email}, nguồn={source}")
-        stage = "Gửi mã OTP email mới / reauth khi cần"
+        logger.info("[邮箱换绑] begin account_id=%s old=%s new=%s source=%s", account_id, account.get("email"), new_email, source)
+        _append_log(account_id, f"开始换绑：原邮箱={account.get('email') or '-'}，新邮箱={new_email}，来源={source}")
+        stage = "发送新邮箱验证码/按需重认证"
         session, token, after_ts, reauthenticated = _begin_change_with_optional_reauth(
             session,
             account_id=account_id,
@@ -434,32 +430,32 @@ def _run(account_id: int, source: str) -> dict:
         )
         _append_log(
             account_id,
-            f"Gửi mã OTP email mới thành công, bắt đầu chờ OTP; reauth={'yes' if reauthenticated else 'no'}",
+            f"新邮箱验证码发送成功，开始等待 OTP；reauth={'yes' if reauthenticated else 'no'}",
         )
-        stage = "Chờ OTP email mới"
+        stage = "等待新邮箱 OTP"
         otp_started = time.monotonic()
         otp = wait_for_otp(new_email, after_ts=after_ts, email_source=source, force_service=True)
-        _append_log(account_id, f"Lấy OTP email mới thành công: source={source} cost={_cost(otp_started)} (không ghi mã OTP vào nhật ký)")
-        stage = "Xác thực OTP email mới"
+        _append_log(account_id, f"新邮箱 OTP 获取成功：source={source} cost={_cost(otp_started)}（验证码不写入日志）")
+        stage = "验证新邮箱 OTP"
         _, session = _post_with_network_retry(
             session, account_id=account_id,
             path="/backend-api/accounts/change_email/verify", token=token,
             payload={"email": new_email, "code": otp},
             fingerprint_email=current_email,
         )
-        _append_log(account_id, "Server xác thực OTP email mới thành công, bắt đầu cập nhật bản ghi tài khoản local")
+        _append_log(account_id, "新邮箱 OTP 服务端验证成功，开始更新本地账号记录")
 
-        stage = "Cập nhật tài khoản local"
+        stage = "更新本地账号"
         db_started = time.monotonic()
         db.finish_account_email_change(
             account_id, ok=True, new_email=new_email, source=source,
             material_line=email_material_line(new_email, source),
         )
-        _append_log(account_id, f"Cập nhật tài khoản local thành công: current_email={new_email}, AT cũ đã xoá, cost={_cost(db_started)}")
+        _append_log(account_id, f"本地账号更新成功：current_email={new_email}，旧 AT 已清空，cost={_cost(db_started)}")
         # 抓包显示 verify 后旧 AT 会立刻 401，但当前会话中的 __cf_bm、OAuth
         # Cookie 和出口连续性仍然有效。优先在该会话内重新登录，避免另建会话后
         # `/api/auth/csrf` 被 CF 403；原会话失败时再退回后台查活队列。
-        stage = "Tự kiểm tra sống sau đổi email"
+        stage = "换绑后自动查活"
         try:
             live_result = _check_live_in_current_session(
                 session,
@@ -471,13 +467,13 @@ def _run(account_id: int, source: str) -> dict:
         except Exception as live_exc:
             _append_log(
                 account_id,
-                f"Kiểm tra sống phiên cũ thất bại: {type(live_exc).__name__}: {str(live_exc)[:300]}; chuyển sang hàng đợi kiểm tra sống nền",
+                f"原会话查活失败：{type(live_exc).__name__}: {str(live_exc)[:300]}；改用后台查活队列",
             )
-            logger.warning("[Đổi email] kiểm tra sống phiên cũ thất bại account_id=%s: %s", account_id, str(live_exc)[:300])
+            logger.warning("[邮箱换绑] 原会话查活失败 account_id=%s: %s", account_id, str(live_exc)[:300])
             live_result = _enqueue_live_check_after_change(account_id, new_email)
             live_mode = "queued"
-        logger.info("[Đổi email] thành công account_id=%s new=%s；đã chạy kiểm tra sống sau đổi email", account_id, new_email)
-        _append_log(account_id, f"Tác vụ đổi email xong: live_check_mode={live_mode} total={_cost(task_started)}")
+        logger.info("[邮箱换绑] 成功 account_id=%s new=%s；已执行换绑后查活", account_id, new_email)
+        _append_log(account_id, f"换绑任务完成：live_check_mode={live_mode} total={_cost(task_started)}")
         return {
             "ok": True, "id": account_id, "email": new_email,
             "live_check_started": bool(live_result.get("ok") or live_result.get("accepted")),
@@ -487,15 +483,15 @@ def _run(account_id: int, source: str) -> dict:
     except Exception as exc:
         error = f"{type(exc).__name__}: {exc}"
         db.finish_account_email_change(account_id, ok=False, new_email=new_email or None, source=source, error=error)
-        _append_log(account_id, f"Đổi email thất bại: stage={stage} total={_cost(task_started)} error={error}")
+        _append_log(account_id, f"换绑失败：stage={stage} total={_cost(task_started)} error={error}")
         if new_email:
             try:
-                release_email_if_unconsumed(new_email, note=f"Tài khoản #{account_id} đổi email thất bại: {error[:300]}")
-                _append_log(account_id, f"Xử lý email thất bại xong: đã yêu cầu thu hồi email={new_email}")
+                release_email_if_unconsumed(new_email, note=f"账号 #{account_id} 换绑失败: {error[:300]}")
+                _append_log(account_id, f"失败邮箱处理完成：已请求回收 email={new_email}")
             except Exception:
-                _append_log(account_id, f"Thu hồi email thất bại lỗi: email={new_email}")
-                logger.exception("[Đổi email] thu hồi email mới thất bại: %s", new_email)
-        logger.exception("[Đổi email] thất bại account_id=%s", account_id)
+                _append_log(account_id, f"失败邮箱回收异常：email={new_email}")
+                logger.exception("[邮箱换绑] 回收新邮箱失败: %s", new_email)
+        logger.exception("[邮箱换绑] 失败 account_id=%s", account_id)
         return {"ok": False, "id": account_id, "error": error}
     finally:
         with _LOCK:
@@ -507,18 +503,18 @@ def enqueue(account_id: int, source: str, trigger: str = "manual") -> dict:
     account_id = int(account_id)
     source = str(source or "").strip().lower()
     if not _SLOTS.acquire(blocking=False):
-        return {"accepted": False, "error": "Hàng đợi đổi email đã đầy"}
+        return {"accepted": False, "error": "邮箱换绑队列已满"}
     if not db.claim_account_email_change(account_id, source, trigger):
         _SLOTS.release()
-        return {"accepted": False, "busy": True, "error": "Tài khoản đang đổi email hoặc không tồn tại"}
-    _append_log(account_id, f"Tác vụ đổi email đã vào hàng đợi: source={source} trigger={trigger}", clear=True)
+        return {"accepted": False, "busy": True, "error": "账号正在换绑或不存在"}
+    _append_log(account_id, f"换绑任务已入队：source={source} trigger={trigger}", clear=True)
     try:
         future = _EXECUTOR.submit(_run, account_id, source)
         return {"accepted": True, "future": future}
     except Exception as exc:
         _SLOTS.release()
         db.finish_account_email_change(account_id, ok=False, error=str(exc))
-        _append_log(account_id, f"Gửi tác vụ đổi email thất bại: {type(exc).__name__}: {exc}")
+        _append_log(account_id, f"换绑任务提交失败：{type(exc).__name__}: {exc}")
         return {"accepted": False, "error": str(exc)}
 
 

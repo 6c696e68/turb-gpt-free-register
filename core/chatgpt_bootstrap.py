@@ -1,9 +1,9 @@
 # -*- coding: utf-8 -*-
-"""ChatGPT frontend bootstrap khởi động trướcchuỗi。
+"""ChatGPT 前端 bootstrap 预热链路。
 
-gốctheo docs/protocol_fingerprint_har_analysis.md / protocol_har_summary.json
-bổ sung và thật thật Web đầu màn hơn nhận gần backend-anon / backend-api Khởi tạorequest。này mô-đun khối chỉ làm
-có thể thất bại khởi động trước：nhiệm gì từngnhận cổng lỗiđều sẽ bản ghi và tiếp tục，không gõ ngắt đăng kýchính luồng。
+根据 docs/protocol_fingerprint_har_analysis.md / protocol_har_summary.json
+补齐与真实 Web 首屏更接近的 backend-anon / backend-api 初始化请求。该模块只做
+可失败的预热：任何单个接口异常都会记录并继续，不打断注册主流程。
 """
 from __future__ import annotations
 
@@ -26,9 +26,9 @@ _DIAGNOSTIC_KEY_PARTS = (
 
 
 def _diagnostic_response_summary(resp, limit: int = 1400) -> str:
-    """nêu lấy điều kiệnliên quanphản hồitrường，không access token、Cookie hoặc đầy đủngười dùngtài liệu ghinhật ký。"""
+    """提取资格相关响应字段，不把 access token、Cookie 或完整用户资料写入日志。"""
     if resp is None:
-        return "Không có phản hồi"
+        return "无响应"
     status = int(getattr(resp, "status_code", 0) or 0)
     try:
         payload = resp.json()
@@ -84,7 +84,7 @@ def _safe_request(label: str, fn, *, strict: bool = False):
     except Exception as exc:
         if strict:
             raise
-        logger.debug("[Bootstrap] %s bỏ qua/thất bại：%s: %s", label, type(exc).__name__, str(exc)[:180])
+        logger.debug("[Bootstrap] %s 跳过/失败：%s: %s", label, type(exc).__name__, str(exc)[:180])
         return None
 
 
@@ -93,7 +93,7 @@ def _system_hint_paths(modes: Iterable[str], base: str) -> list[str]:
 
 
 def _chat_requirements_prepare(session: BrowserSession, base: str, referer: str, *, strict: bool = False):
-    """POST sentinel/chat-requirements/prepare，p trường và phiênprofilemột khiến 。"""
+    """POST sentinel/chat-requirements/prepare，p 字段与会话画像一致。"""
     sid = getattr(session, "sentinel_sid", session.device_id)
     p = generate_requirements_token(sid, profile=getattr(session, "browser_profile", None))
     return _safe_request(
@@ -110,9 +110,9 @@ def _chat_requirements_prepare(session: BrowserSession, base: str, referer: str,
 
 def _maybe_chat_requirements_finalize(session: BrowserSession, base: str, referer: str, prepare_resp, *, strict: bool = False):
     """
-HAR finalize cần prepare_token/proofofwork/turnstile。không cùng phiên bản này trả vềkết cấu trúc sẽ đổi ，
-chỉ có tại prepare phản hồirõ xác nhận chođến có thể dùng trường khi mới gửi，tránhcấu trúc tạo nửa cắt challenge。
-"""
+    HAR 中 finalize 需要 prepare_token/proofofwork/turnstile。不同版本返回结构会变，
+    只有在 prepare 响应明确给到可用字段时才提交，避免构造半截 challenge。
+    """
     if prepare_resp is None:
         return None
     try:
@@ -137,15 +137,15 @@ chỉ có tại prepare phản hồirõ xác nhận chođến có thể dùng tr
 
 
 def anonymous_bootstrap(session: BrowserSession, *, strict: bool = False) -> None:
-    """đăng ký trướcẩn danhtrang đăng nhậpKhởi tạo。
+    """注册前匿名态登录页初始化。
 
-2026-09-14 Web vết vết tại trang đăng nhậpchỉ đọc accounts/check、CES settings、me
-và địa vùng định giá cấu hình；bản cũ ẩn tên chat-requirements/models/conversation/init
-và chưa gửi sinh 。này trong tránhlà “giống trình duyệt”ngược mà gửitrình duyệtkhông cógửi mức ngoài request。
-"""
+    2026-09-14 Web 轨迹在登录页只读取 accounts/check、CES settings、me
+    和地区定价配置；旧版的匿名 chat-requirements/models/conversation/init
+    并未发生。这里避免为“像浏览器”反而发送浏览器没有发送的额外请求。
+    """
     referer = "https://chatgpt.com/auth/login"
     tz = session.js_timezone_offset_min()
-    logger.info("[Bootstrap] bắt đầu khởi động trước ChatGPT ẩn danh")
+    logger.info("[Bootstrap] 匿名态 ChatGPT 预热开始")
     _safe_request("anon accounts/check", lambda: session.get(
         f"{_ANON_BASE}/accounts/check/v4-2023-04-27?timezone_offset_min={tz}",
         headers=session.get_chatgpt_headers(referer=referer),
@@ -177,11 +177,11 @@ và chưa gửi sinh 。này trong tránhlà “giống trình duyệt”ngượ
     log_cookies = getattr(session, "log_cookie_names", None)
     if callable(log_cookies):
         log_cookies("anonymous_bootstrap_complete")
-    logger.info("[Bootstrap] khởi động trước ChatGPT ẩn danh xong")
+    logger.info("[Bootstrap] 匿名态 ChatGPT 预热完成")
 
 
 def authenticated_bootstrap(session: BrowserSession, access_token: str | None = None, *, strict: bool = False) -> None:
-    """phiên đăng nhập ChatGPT bootstrap，access_token lưu tại khibổ Authorization。"""
+    """登录态 ChatGPT bootstrap，access_token 存在时补 Authorization。"""
     referer = "https://chatgpt.com/"
     tz = session.js_timezone_offset_min()
 
@@ -191,7 +191,7 @@ def authenticated_bootstrap(session: BrowserSession, access_token: str | None = 
             h["authorization"] = access_token if access_token.lower().startswith("bearer ") else f"Bearer {access_token}"
         return h
 
-    logger.info("[Bootstrap] bắt đầu khởi động trước ChatGPT đã đăng nhập")
+    logger.info("[Bootstrap] 登录态 ChatGPT 预热开始")
     diagnostic_paths = {
         "/accounts/optimized/check",
         "/me",
@@ -211,7 +211,7 @@ def authenticated_bootstrap(session: BrowserSession, access_token: str | None = 
             strict=strict,
         )
         if path in diagnostic_paths:
-            logger.info("[Chẩn đoán] endpoint=%s %s", path, _diagnostic_response_summary(resp))
+            logger.info("[资格诊断] endpoint=%s %s", path, _diagnostic_response_summary(resp))
     prep = _chat_requirements_prepare(session, _API_BASE, referer, strict=strict)
     for url in [
         f"{_API_BASE}/system_hints?mode=basic",
@@ -233,8 +233,8 @@ def authenticated_bootstrap(session: BrowserSession, access_token: str | None = 
             strict=strict,
         )
         if path == "/aip/first-party/eligibility":
-            logger.info("[Chẩn đoán] endpoint=%s %s", path, _diagnostic_response_summary(resp))
+            logger.info("[资格诊断] endpoint=%s %s", path, _diagnostic_response_summary(resp))
     log_cookies = getattr(session, "log_cookie_names", None)
     if callable(log_cookies):
         log_cookies("authenticated_bootstrap_complete")
-    logger.info("[Bootstrap] khởi động trước ChatGPT đã đăng nhập xong")
+    logger.info("[Bootstrap] 登录态 ChatGPT 预热完成")

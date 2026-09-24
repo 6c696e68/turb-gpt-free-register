@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-"""ChatGPT tài khoảngói/dùng thửđiều kiệntruy vấn。"""
+"""ChatGPT 账号套餐/试用资格查询。"""
 from __future__ import annotations
 
 import base64
@@ -35,7 +35,7 @@ def normalize_token(token: str) -> str:
 
 
 def _mask_proxy(proxy: str) -> str:
-    """trả vềcó thể dùng chonhật ký/API kết kết quả proxytrích cần ，không lộ lộ người dùngtên và mật khẩu。"""
+    """返回可用于日志/API 结果的代理摘要，不泄露用户名和密码。"""
     value = str(proxy or "").strip()
     if not value:
         return ""
@@ -51,7 +51,7 @@ def _mask_proxy(proxy: str) -> str:
 
 
 def _proxy_lines(value: Any) -> list[str]:
-    """kiêm dung .env nhiều dòng proxyvà cũ đơn dòng proxygiá trị 。"""
+    """兼容 .env 多行代理和旧的单行代理值。"""
     if value is None:
         return []
     if isinstance(value, (list, tuple)):
@@ -60,7 +60,7 @@ def _proxy_lines(value: Any) -> list[str]:
 
 
 def _local_proxy_status(proxy: str) -> tuple[bool, bool, str | None]:
-    """kiểm travề vòng proxycổng；không proxy localkhông làm trước dò đo ，tránhmức ngoài mạngrequest。"""
+    """检查回环代理端口；非本地代理不做预探测，避免额外网络请求。"""
     value = str(proxy or "").strip()
     if not value:
         return False, False, None
@@ -76,18 +76,18 @@ def _local_proxy_status(proxy: str) -> tuple[bool, bool, str | None]:
         if not is_loopback:
             return False, True, None
         if not parsed.port:
-            return True, False, "Proxy local chưa cấu hình cổng"
+            return True, False, "本地代理未配置端口"
         try:
             with socket.create_connection((host, parsed.port), timeout=0.5):
                 return True, True, None
         except OSError as exc:
-            return True, False, f"Proxy local {host}:{parsed.port} chưa lắng nghe ({type(exc).__name__}）"
+            return True, False, f"本地代理 {host}:{parsed.port} 未监听（{type(exc).__name__}）"
     except Exception as exc:
-        return False, False, f"Parse địa chỉ proxy thất bại ({type(exc).__name__}）"
+        return False, False, f"代理地址解析失败（{type(exc).__name__}）"
 
 
 def open_plan_check_proxy(route: dict, selected_proxy: str, *, timeout: float):
-    """trả vềthực tếrequestproxy；cấu hình upstream khikhởi độnglocal HTTP CONNECT tiếp 。"""
+    """返回实际请求代理；配置了上游时启动本地 HTTP CONNECT 中继。"""
     selected_proxy = str(selected_proxy or "").strip()
     upstream = str(route.get("upstream_proxy") or "").strip()
     if selected_proxy and upstream:
@@ -99,10 +99,10 @@ def open_plan_check_proxy(route: dict, selected_proxy: str, *, timeout: float):
 
 
 def resolve_plan_check_route(explicit_proxy: Optional[str] = None) -> dict:
-    """parsegóitruy vấn thực tếmạngđường đường 。
+    """解析套餐查询的实际网络路径。
 
-explicit_proxy không là None khibảng hiện API điều chỉnh dùng phía rõ xác nhận phủcấu hình；trống ký tự ký hiệu chuỗi thay bảng kết nối trực tiếp。
-"""
+    explicit_proxy 不是 None 时表示 API 调用方明确覆盖配置；空字符串代表直连。
+    """
     if explicit_proxy is not None:
         selected = str(explicit_proxy or "").strip()
         return {
@@ -119,7 +119,7 @@ explicit_proxy không là None khibảng hiện API điều chỉnh dùng phía 
 
     mode = str(getattr(proxy_cfg, "PLAN_CHECK_PROXY_MODE", "auto") or "auto").strip().lower()
     if mode not in {"auto", "proxy", "direct"}:
-        raise ValueError(f"PLAN_CHECK_PROXY_MODE={mode!r} không hợp lệ, chọn auto / proxy / direct")
+        raise ValueError(f"PLAN_CHECK_PROXY_MODE={mode!r} 无效，可选 auto / proxy / direct")
     if mode == "direct":
         return {
             "proxy": "",
@@ -137,7 +137,7 @@ explicit_proxy không là None khibảng hiện API điều chỉnh dùng phía 
     selected = random.choice(candidates) if candidates else str(proxy_cfg.pick_proxy() or "").strip()
     if not selected:
         if mode == "proxy":
-            raise ValueError("Chế độ mạng truy vấn gói là proxy nhưng chưa cấu hình PLAN_CHECK_PROXY hoặc PROXY_POOL")
+            raise ValueError("套餐查询网络模式为 proxy，但未配置 PLAN_CHECK_PROXY 或 PROXY_POOL")
         return {
             "proxy": "",
             "proxy_mode": mode,
@@ -145,7 +145,7 @@ explicit_proxy không là None khibảng hiện API điều chỉnh dùng phía 
             "proxy_used": None,
             "upstream_proxy": "",
             "upstream_proxy_used": None,
-            "proxy_fallback_reason": "Chưa cấu hình proxy hoặc pool proxy cho truy vấn gói",
+            "proxy_fallback_reason": "未配置套餐查询代理或代理池",
         }
 
     is_local, available, reason = _local_proxy_status(selected)
@@ -172,7 +172,7 @@ explicit_proxy không là None khibảng hiện API điều chỉnh dùng phía 
 
 
 def decode_jwt_payload_unverified(token: str) -> dict:
-    """chỉ localparse JWT payload，không kiểm nghiệm ký tên 。"""
+    """仅本地解析 JWT payload，不校验签名。"""
     token = normalize_token(token)
     try:
         parts = token.split(".")
@@ -208,7 +208,7 @@ def token_claims(token: str) -> dict:
 
 
 def _common_headers(env: BrowserSession, token: str, claims: dict | None = None) -> dict[str, str]:
-    """tạo và ChatGPT phiên đăng nhậpfrontendmột khiến góitruy vấnđầu 。"""
+    """生成与 ChatGPT 登录态前端一致的套餐查询头。"""
     headers = env.get_chatgpt_headers(referer="https://chatgpt.com/")
     # GET 导航后的前端 fetch 不主动设置 content-type。
     headers.pop("content-type", None)
@@ -224,12 +224,12 @@ def _common_headers(env: BrowserSession, token: str, claims: dict | None = None)
 
 
 def parse_accounts_check(data: dict, *, token: str = "") -> dict:
-    """từ accounts/check phản hồinêu lấy góivà Plus dùng thửđiều kiện。"""
+    """从 accounts/check 响应提取套餐和 Plus 试用资格。"""
     claims = token_claims(token) if token else {}
     claim_account_id = claims.get("account_id")
     accounts = data.get("accounts") if isinstance(data, dict) else None
     if not isinstance(accounts, dict):
-        raise ValueError("Phản hồi thiếu object accounts")
+        raise ValueError("响应缺少 accounts 对象")
 
     item = None
     account_key = None
@@ -247,7 +247,7 @@ def parse_accounts_check(data: dict, *, token: str = "") -> dict:
                 account_key = k
                 break
     if not isinstance(item, dict):
-        raise ValueError("Không tìm thấy mục tài khoản parse được")
+        raise ValueError("未找到可解析的账号条目")
 
     account = item.get("account") or {}
     entitlement = item.get("entitlement") or {}
@@ -340,7 +340,7 @@ def _retryable_plan_error(http_status: int | None) -> bool:
 
 
 def _clear_plan_circuit(env: BrowserSession) -> None:
-    """xoá trừ có thể thử lạiphản hồisản sinh localngắt mạch，cùng khigiữ giữ Cookie Jar。"""
+    """清除可重试响应产生的本地熔断，同时保留 Cookie Jar。"""
     reset = getattr(env, "reset_circuit_breaker", None)
     if callable(reset):
         reset()
@@ -350,7 +350,7 @@ def _clear_plan_circuit(env: BrowserSession) -> None:
 
 
 def _warm_plan_session(env: BrowserSession) -> None:
-    """trước truy cập hỏi ChatGPT document dựng đứng cùngphiên cạnh duyên Cookie；thất bạikhông chặn ngắt chínhtruy vấn。"""
+    """先访问 ChatGPT document 建立同一会话的边缘 Cookie；失败不阻断正式查询。"""
     try:
         resp = env.get(
             "https://chatgpt.com/",
@@ -360,9 +360,9 @@ def _warm_plan_session(env: BrowserSession) -> None:
             allow_redirects=True,
         )
         if int(getattr(resp, "status_code", 0) or 0) >= 400:
-            logger.info("[Plan] khởi động trước document trả HTTP %s，giữ Cookie phản hồi rồi tiếp tục", resp.status_code)
+            logger.info("[Plan] document 预热返回 HTTP %s，保留响应 Cookie 后继续", resp.status_code)
     except Exception as exc:
-        logger.debug("[Plan] khởi động trước document thất bại, tiếp tục truy vấn chính：%s: %s", type(exc).__name__, str(exc)[:160])
+        logger.debug("[Plan] document 预热失败，继续正式查询：%s: %s", type(exc).__name__, str(exc)[:160])
     finally:
         _clear_plan_circuit(env)
 
@@ -388,14 +388,14 @@ def check_account_plan(
 ) -> dict:
     token = normalize_token(token)
     if not token:
-        return {"ok": False, "checked_at": now_iso(), "error": "token trống"}
+        return {"ok": False, "checked_at": now_iso(), "error": "token 为空"}
     claims = token_claims(token)
     if claims.get("token_expired") is True:
         return {
             "ok": False,
             "checked_at": now_iso(),
             "http_status": None,
-            "error": "AT đã hết hạn/hỏng, hãy kiểm tra sống thủ công để làm mới",
+            "error": "AT已过期/失效，请手动查活刷新",
             "needs_live_check": True,
             **{k: v for k, v in claims.items() if k != "payload"},
         }
@@ -407,7 +407,7 @@ def check_account_plan(
             "ok": False,
             "checked_at": now_iso(),
             "http_status": None,
-            "error": f"Lỗi cấu hình mạng truy vấn gói: {exc}",
+            "error": f"套餐查询网络配置错误: {exc}",
             **{k: v for k, v in claims.items() if k != "payload"},
         }
     route_meta = {k: v for k, v in route.items() if k not in {"proxy", "upstream_proxy"}}
@@ -418,7 +418,7 @@ def check_account_plan(
             "ok": False,
             "checked_at": now_iso(),
             "http_status": None,
-            "error": f"Lỗi cấu hình thử lại truy vấn gói: {exc}",
+            "error": f"套餐查询重试配置错误: {exc}",
             "retryable": False,
             **route_meta,
             **{k: v for k, v in claims.items() if k != "payload"},
@@ -449,7 +449,7 @@ def check_account_plan(
             f"?timezone_offset_min={quote(effective_tz)}"
         )
         logger.info(
-            "[Plan] đã tạo phiên thống nhất：proxy=%s device_id=%s oai_session_id=%s %s",
+            "[Plan] 统一会话已创建：proxy=%s device_id=%s oai_session_id=%s %s",
             route_meta.get("proxy_used") or route_meta.get("network_route") or "direct",
             str(env.device_id)[:12] + "...",
             str(env.oai_session_id)[:12] + "...",
@@ -474,7 +474,7 @@ def check_account_plan(
                         "ok": False,
                         "checked_at": now_iso(),
                         "http_status": http_status,
-                        "error": "AT đã hết hạn/hỏng, hãy kiểm tra sống thủ công để làm mới" if is_auth_expired else f"HTTP {http_status}",
+                        "error": "AT已过期/失效，请手动查活刷新" if is_auth_expired else f"HTTP {http_status}",
                         "response_preview": response_text[:500],
                         "retryable": _retryable_plan_error(http_status),
                         "token_expired": True if is_auth_expired else claims.get("token_expired"),
@@ -490,7 +490,7 @@ def check_account_plan(
                             "ok": False,
                             "checked_at": now_iso(),
                             "http_status": http_status,
-                            "error": "Phản hồi không phải object JSON",
+                            "error": "响应不是 JSON 对象",
                             "response_preview": response_text[:500],
                             "retryable": True,
                         }
@@ -505,7 +505,7 @@ def check_account_plan(
                         parsed.update(route_meta)
                         return parsed
             except Exception as exc:
-                logger.debug("truy vấn gói thất bại: %s: %s", type(exc).__name__, exc, exc_info=True)
+                logger.debug("套餐查询失败: %s: %s", type(exc).__name__, exc, exc_info=True)
                 last_result = {
                     "ok": False,
                     "checked_at": now_iso(),
@@ -514,7 +514,7 @@ def check_account_plan(
                     "retryable": True,
                 }
 
-            last_result = last_result or {"ok": False, "checked_at": now_iso(), "error": "Lỗi không rõ", "retryable": True}
+            last_result = last_result or {"ok": False, "checked_at": now_iso(), "error": "未知错误", "retryable": True}
             last_result.update({
                 "attempt_count": attempt,
                 "max_attempts": attempts,
@@ -531,7 +531,7 @@ def check_account_plan(
             _clear_plan_circuit(env)
             wait_seconds = _retry_wait_seconds(resp, base_delay, attempt)
             logger.warning(
-                "truy vấn gói tạm thất bại，lần %s/%s ，giữ giữ session/deviceId/CF Cookie，%.1fs sauthử lại: %s",
+                "套餐查询临时失败，第 %s/%s 次，保留 session/deviceId/CF Cookie，%.1fs 后重试: %s",
                 attempt,
                 attempts,
                 wait_seconds,
@@ -540,7 +540,7 @@ def check_account_plan(
             if wait_seconds > 0:
                 time.sleep(wait_seconds)
     except Exception as exc:
-        logger.debug("khởi tạo phiên truy vấn gói thất bại: %s: %s", type(exc).__name__, exc, exc_info=True)
+        logger.debug("套餐查询会话初始化失败: %s: %s", type(exc).__name__, exc, exc_info=True)
         return {
             "ok": False,
             "checked_at": now_iso(),
@@ -566,7 +566,7 @@ def check_account_plan(
         "ok": False,
         "checked_at": now_iso(),
         "http_status": None,
-        "error": "Truy vấn gói chưa chạy",
+        "error": "套餐查询未执行",
         "retryable": False,
         **route_meta,
         **{k: v for k, v in claims.items() if k != "payload"},

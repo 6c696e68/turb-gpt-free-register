@@ -1,10 +1,10 @@
 # -*- coding: utf-8 -*-
 """
-đăng kýthành công sau \"tự độngkích hoạt flow\"mô-đun khối 。
+注册成功后的"自动触发 flow"模块。
 
-chính luồngtại main.py / registration_service.py lấy đến access_token sauđiều chỉnh dùng ：
-trigger_flow(access_token)
-không luận kích hoạtthành côngthất bại，đăng kýchính luồngđều coi là thành công。
+主流程在 main.py / registration_service.py 拿到 access_token 后调用：
+    trigger_flow(access_token)
+不论触发成功失败，注册主流程都视为成功。
 """
 import json
 import logging
@@ -53,9 +53,9 @@ def _build_headers() -> dict:
 
 
 def _send_sync(access_token: str) -> dict:
-    """thực tếcùng bước thực thi HTTP POST， và trả vềcó thể thống nhất tính kết kết quả 。"""
+    """实际同步执行 HTTP POST，并返回可统计的结果。"""
     if not access_token:
-        return _flow_result(status="skipped", message="access_token trống")
+        return _flow_result(status="skipped", message="access_token 为空")
 
     body = dict(_cfg.FLOW_TRIGGER_PAYLOAD)
     body["access_token"] = access_token
@@ -99,15 +99,15 @@ def _send_sync(access_token: str) -> dict:
 
 def trigger_flow(access_token: str) -> dict:
     """
-kích hoạt 156.225 flow nhận cổng và trả vềkết kết quả 。
+    触发 156.225 flow 接口并返回结果。
 
-Args:
-access_token: này đăng kýlấy đến ChatGPT access_token
-"""
+    Args:
+        access_token: 本次注册拿到的 ChatGPT access_token
+    """
     if not _cfg.ENABLE_FLOW_TRIGGER:
         return _flow_result(status="skipped", message="ENABLE_FLOW_TRIGGER=False")
 
     if not access_token:
-        return _flow_result(status="skipped", message="access_token trống")
+        return _flow_result(status="skipped", message="access_token 为空")
 
     return _send_sync(access_token)

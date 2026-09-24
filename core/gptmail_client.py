@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-"""Client email tạm GPTMail."""
+"""GPTMail 临时邮箱客户端。"""
 from __future__ import annotations
 
 import logging
@@ -19,7 +19,7 @@ REQUEST_TIMEOUT = 20
 
 
 class GPTMailError(RuntimeError):
-    """Lỗi yêu cầu GPTMail hoặc lấy mã email."""
+    """GPTMail 服务请求或邮箱取码失败。"""
 
 
 @dataclass
@@ -38,13 +38,13 @@ def _headers() -> dict[str, str]:
     api_key = str(getattr(_email_cfg, "GPTMAIL_API_KEY", "") or "").strip()
     if not api_key:
         raise GPTMailError(
-            "GPTMail API Key chưa cấu hình, hãy điền GPTMail API Key (WebUI «Cấu hình → Email / OTP»)."
+            "GPTMail API Key 未配置，请填写 GPTMail API Key（WebUI「配置 → 邮箱 / OTP」）。"
         )
     return {"Accept": "application/json", "X-API-Key": api_key}
 
 
 def _get(path: str, params: dict | None = None) -> dict:
-    """Gọi API GET GPTMail, trả object data trong phản hồi thành công."""
+    """调用 GPTMail GET 接口，返回成功响应中的 data 对象。"""
     try:
         response = requests.get(
             BASE_URL + path,
@@ -53,46 +53,46 @@ def _get(path: str, params: dict | None = None) -> dict:
             timeout=REQUEST_TIMEOUT,
         )
     except requests.RequestException as exc:
-        raise GPTMailError(f"Yêu cầu GPTMail thất bại ({path}): {type(exc).__name__}: {exc}") from exc
+        raise GPTMailError(f"GPTMail 请求失败 ({path}): {type(exc).__name__}: {exc}") from exc
 
     try:
         payload = response.json()
     except ValueError as exc:
-        raise GPTMailError(f"Phản hồi GPTMail không phải JSON ({path}): HTTP {response.status_code}") from exc
+        raise GPTMailError(f"GPTMail 响应不是 JSON ({path}): HTTP {response.status_code}") from exc
 
     if response.status_code != 200 or not isinstance(payload, dict) or payload.get("success") is not True:
         message = payload.get("error") if isinstance(payload, dict) else ""
         if not message:
             message = getattr(response, "text", "")[:160]
-        raise GPTMailError(f"Yêu cầu GPTMail thất bại ({path}): HTTP {response.status_code}; {message}")
+        raise GPTMailError(f"GPTMail 请求失败 ({path}): HTTP {response.status_code}; {message}")
 
     data = payload.get("data")
     if not isinstance(data, dict):
-        raise GPTMailError(f"Phản hồi GPTMail thiếu object data ({path})")
+        raise GPTMailError(f"GPTMail 响应缺少对象 data ({path})")
     return data
 
 
 def pick_account() -> GPTMailAccount:
-    """Sinh và cache một địa chỉ email ngẫu nhiên GPTMail."""
+    """生成并缓存一个新的 GPTMail 随机邮箱地址。"""
     data = _get("/api/generate-email")
     email = str(data.get("email") or "").strip()
     if not email or "@" not in email:
-        raise GPTMailError("Phản hồi sinh email GPTMail thiếu email hợp lệ")
+        raise GPTMailError("GPTMail 生成邮箱响应缺少有效 email")
     account = GPTMailAccount(email=email)
     _CONTEXT_CACHE[_cache_key(email)] = account
-    logger.info("[GPTMail] Đã sinh email tạm: %s", email)
+    logger.info("[GPTMail] 已生成临时邮箱: %s", email)
     return account
 
 
 def get_account_context(email: str) -> GPTMailAccount | None:
-    """Trả ngữ cảnh email GPTMail đã sinh trong process hiện tại."""
+    """返回当前进程已生成的 GPTMail 邮箱上下文。"""
     return _CONTEXT_CACHE.get(_cache_key(email))
 
 
 def release_account(email: str, status: str = "available", note: str | None = None) -> None:
-    """Địa chỉ GPTMail không cần vào kho; hết task chỉ xoá ngữ cảnh process này."""
+    """GPTMail 地址无需入池，任务结束时只清理本进程上下文。"""
     _CONTEXT_CACHE.pop(_cache_key(email), None)
-    logger.info("[GPTMail] Đã giải phóng email tạm: %s (status=%s, note=%s)", email, status, note or "")
+    logger.info("[GPTMail] 已释放临时邮箱: %s（status=%s, note=%s）", email, status, note or "")
 
 
 def _timestamp(item: dict) -> float | None:
@@ -113,7 +113,7 @@ def _timestamp(item: dict) -> float | None:
 
 
 def _otp_item(item: dict) -> dict:
-    """Map trường GPTMail sang trường mà công cụ OTP chung của dự án hỗ trợ."""
+    """把 GPTMail 字段映射为项目通用 OTP 工具支持的字段。"""
     return {
         "id": item.get("id"),
         "from": item.get("from_address") or item.get("from") or "",
@@ -130,10 +130,10 @@ def fetch_latest_otp(
     poll_interval: int | None = None,
     settle_seconds: int | None = None,
 ) -> str:
-    """Poll GPTMail, trả mã OTP OpenAI 6 số mới nhất sau thời điểm nhận."""
+    """轮询 GPTMail，返回领取时间后最新的 OpenAI 六位验证码。"""
     target = str(email or "").strip()
     if not target:
-        raise GPTMailError("Lấy mã GPTMail thiếu địa chỉ email")
+        raise GPTMailError("GPTMail 取码缺少邮箱地址")
 
     wait_seconds = int(max_wait if max_wait is not None else _email_cfg.OTP_MAX_WAIT)
     interval = max(1, int(poll_interval if poll_interval is not None else _email_cfg.OTP_POLL_INTERVAL))
@@ -142,15 +142,15 @@ def fetch_latest_otp(
     best_otp: str | None = None
     best_timestamp = float("-inf")
     settle_until: float | None = None
-    last_error = "Hộp thư trống hoặc chưa có mã OTP OpenAI mới"
+    last_error = "收件箱为空或尚未出现新的 OpenAI 验证码"
 
-    logger.info("[GPTMail] Bắt đầu poll email %s, tối đa %ss", target, wait_seconds)
+    logger.info("[GPTMail] 开始轮询邮箱 %s，最长 %ss", target, wait_seconds)
     while time.monotonic() <= deadline:
         try:
             data = _get("/api/emails", params={"email": target})
             emails = data.get("emails")
             if not isinstance(emails, list):
-                raise GPTMailError("Phản hồi hộp thư GPTMail thiếu mảng emails")
+                raise GPTMailError("GPTMail 收件箱响应缺少 emails 数组")
 
             sortable = sorted(emails, key=lambda item: _timestamp(item) or float("-inf"), reverse=True)
             for summary in sortable:
@@ -184,7 +184,7 @@ def fetch_latest_otp(
                     best_otp = otp
                     best_timestamp = candidate_time
                     settle_until = time.monotonic() + settle
-                    logger.info("[GPTMail] Khoá OTP ứng viên, chờ %ss để xác nhận", settle)
+                    logger.info("[GPTMail] 锁定 OTP 候选，等待 %ss 确认", settle)
 
             now = time.monotonic()
             if best_otp and settle_until is not None and now >= settle_until:
@@ -199,4 +199,4 @@ def fetch_latest_otp(
 
     if best_otp:
         return best_otp
-    raise GPTMailError(f"Chờ mã OTP GPTMail quá hạn: {target}; {last_error}")
+    raise GPTMailError(f"等待 GPTMail 验证码超时: {target}; {last_error}")

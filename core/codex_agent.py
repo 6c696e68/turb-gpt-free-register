@@ -272,7 +272,7 @@ def register_agent(
 
     # 兼容 OpenAI 接口严格校验未知字段的情况：如果命名字段不被接受，回退到原始协议。
     if r.status_code == 400 and any(x in (r.text or "").lower() for x in ("unknown", "unrecognized", "extra", "invalid")):
-        _log("Step 3", f"OpenAI Agent API đăng ký không chấp nhận trường tên, quay về bản gốc payload: {r.text[:180]}", "WARN")
+        _log("Step 3", f"OpenAI Agent 注册接口不接受名称字段，回退原始 payload: {r.text[:180]}", "WARN")
         r = _agent_post(
             f"{AUTHAPI_BASE}/v1/agent/register",
             access_token=access_token,
@@ -410,7 +410,7 @@ def build_sub2api_account_entry(
     """把 Codex Agent Identity auth.json 转成 sub2api accounts[] 条目。"""
     identity = auth_json.get("agent_identity") if isinstance(auth_json, dict) else None
     if not isinstance(identity, dict):
-        raise ValueError("auth_json thiếu agent_identity")
+        raise ValueError("auth_json 缺少 agent_identity")
 
     agent_runtime_id = str(identity.get("agent_runtime_id") or "").strip()
     agent_private_key = str(identity.get("agent_private_key") or "").strip()
@@ -420,7 +420,7 @@ def build_sub2api_account_entry(
     display_name = email or str(identity.get("name") or identity.get("display_name") or "").strip() or f"agent-{agent_runtime_id[:8]}"
     plan_type = str(identity.get("plan_type") or "free").strip() or "free"
     if not agent_runtime_id or not agent_private_key:
-        raise ValueError("agent_identity thiếu agent_runtime_id/agent_private_key")
+        raise ValueError("agent_identity 缺少 agent_runtime_id/agent_private_key")
 
     entry = {
         "name": display_name,
@@ -485,17 +485,17 @@ def upsert_sub2api_account(
         with open(path, "r", encoding="utf-8") as f:
             loaded = json.load(f)
         if not isinstance(loaded, dict):
-            raise ValueError("sub2api Nút gốc file cấu hình phải là đối tượng")
+            raise ValueError("sub2api 配置文件根节点必须是对象")
         data = loaded
     else:
         data = {}
 
     accounts = data.setdefault("accounts", [])
     if not isinstance(accounts, list):
-        raise ValueError("sub2api trong cấu hình accounts phải là mảng")
+        raise ValueError("sub2api 配置中的 accounts 必须是数组")
     proxies = data.setdefault("proxies", [])
     if not isinstance(proxies, list):
-        raise ValueError("sub2api trong cấu hình proxies phải là mảng")
+        raise ValueError("sub2api 配置中的 proxies 必须是数组")
     if proxy_key and not proxies:
         data["proxies"] = [{"proxy_key": str(proxy_key)}]
 
@@ -558,7 +558,7 @@ def upload_sub2api_account(
     """
     url = str(api_url or "").strip()
     if not url:
-        raise ValueError("SUB2API_API_BASE Rỗng, không thể tải lên đến sub2api")
+        raise ValueError("SUB2API_API_BASE 为空，无法上传到 sub2api")
 
     mode = str(payload_mode or "accounts").strip().lower()
     incoming: dict[str, Any] | None = None
@@ -601,7 +601,7 @@ def upload_sub2api_account(
     except Exception:
         body = {"text": text[:1000]}
     if status < 200 or status >= 300:
-        raise RuntimeError(f"sub2api tải lên thất bại HTTP {status}: {text[:800]}")
+        raise RuntimeError(f"sub2api 上传失败 HTTP {status}: {text[:800]}")
 
     return {
         "ok": True,
@@ -638,10 +638,10 @@ def create_codex_agent_identity(
     :param verify_task: 是否验证 task 注册（可选）
     :return: auth.json dict
     """
-    _banner("Codex Agent Identity bắt đầu đăng ký")
+    _banner("Codex Agent Identity 注册开始")
 
     # Step 1: 解码 JWT 获取账号信息
-    _log("Step 1", "giải mã JWT lấy thông tin tài khoản...")
+    _log("Step 1", "解码 JWT 获取账号信息...")
     session = get_session_from_access_token(access_token)
     account_id = session["accountId"]
     chatgpt_user_id = session["userId"]
@@ -649,7 +649,7 @@ def create_codex_agent_identity(
     plan_type = session["planType"]
 
     if not account_id or not chatgpt_user_id:
-        raise RuntimeError(f"JWT thiếu trường bắt buộc: account_id={account_id}, user_id={chatgpt_user_id}")
+        raise RuntimeError(f"JWT 缺少必要字段: account_id={account_id}, user_id={chatgpt_user_id}")
 
     _log("Step 1", f"account_id={account_id}", "OK")
     _log("Step 1", f"user_id={chatgpt_user_id}", "OK")
@@ -657,28 +657,28 @@ def create_codex_agent_identity(
     _log("Step 1", f"plan_type={plan_type}", "OK")
 
     # Step 2: 生成 Ed25519 密钥对
-    _log("Step 2", "tạo Ed25519 cặp khóa...")
+    _log("Step 2", "生成 Ed25519 密钥对...")
     private_key_b64, public_key_ssh = generate_ed25519_keypair()
-    _log("Step 2", "Ed25519 đã tạo khóa riêng (không xuất nội dung khóa riêng)", "OK")
+    _log("Step 2", "Ed25519 私钥已生成（不输出私钥内容）", "OK")
     _log("Step 2", f"public_key_fingerprint={_fingerprint(public_key_ssh)}", "OK")
 
     # Step 3: 注册 agent
     agent_display_name = _random_agent_display_name()
-    _log("Step 3", f"tại auth.openai.com đăng ký agent, display_name={agent_display_name}...")
+    _log("Step 3", f"在 auth.openai.com 注册 agent，display_name={agent_display_name}...")
     agent_runtime_id = register_agent(access_token, public_key_ssh, env=env, timeout=timeout, display_name=agent_display_name)
     _log("Step 3", f"agent_runtime_id={agent_runtime_id}", "OK")
 
     # Step 4: 验证 task 注册（可选）
     if verify_task:
-        _log("Step 4", "Xác minh task đăng ký...")
+        _log("Step 4", "验证 task 注册...")
         try:
             task_id = register_task(access_token, agent_runtime_id, private_key_b64, env=env, timeout=timeout)
             _log("Step 4", f"task_id_fingerprint={_fingerprint(task_id)}", "OK")
         except Exception as e:
-            _log("Step 4", f"Xác minh thất bại (không ảnh hưởng auth.json): {e}", "WARN")
+            _log("Step 4", f"验证失败（不影响 auth.json）: {e}", "WARN")
 
     # Step 5: 生成 auth.json
-    _log("Step 5", "tạo auth.json...")
+    _log("Step 5", "生成 auth.json...")
     auth_json = generate_auth_json(
         agent_runtime_id=agent_runtime_id,
         private_key_pkcs8_b64=private_key_b64,
@@ -691,9 +691,9 @@ def create_codex_agent_identity(
     )
 
     if output_path:
-        _log("Step 5", "Đã bỏ qua đường dẫn xuất cục bộ, thông tin xác thực do SQLite lưu bền vững", "OK")
+        _log("Step 5", "已忽略本地输出路径，凭证由 SQLite 持久化", "OK")
     else:
-        _log("Step 5", "auth.json Đã trả về đối tượng trong bộ nhớ, do SQLite lưu bền vững", "OK")
+        _log("Step 5", "auth.json 已返回内存对象，由 SQLite 持久化", "OK")
 
     return auth_json
 
@@ -721,11 +721,11 @@ def main() -> None:
     if not logging.getLogger().handlers:
         logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s", datefmt="%H:%M:%S")
 
-    parser = argparse.ArgumentParser(description="Codex Agent Identity tự động đăng ký")
+    parser = argparse.ArgumentParser(description="Codex Agent Identity 自动注册")
     parser.add_argument("--token", type=str, help="ChatGPT session JWT (accessToken)")
-    parser.add_argument("--file", type=str, help="bao gồm accessToken của JSON đường dẫn file")
-    parser.add_argument("--output", "-o", type=str, default=None, help="đường dẫn xuất tuỳ chọn; mặc định chỉ trả về và do SQLite lưu")
-    parser.add_argument("--no-verify", action="store_true", help="Bỏ qua task xác minh đăng ký")
+    parser.add_argument("--file", type=str, help="包含 accessToken 的 JSON 文件路径")
+    parser.add_argument("--output", "-o", type=str, default=None, help="可选输出路径；默认仅返回并由 SQLite 保存")
+    parser.add_argument("--no-verify", action="store_true", help="跳过 task 注册验证")
     args = parser.parse_args()
 
     access_token = None
@@ -738,12 +738,12 @@ def main() -> None:
             access_token = data.get("accessToken") or data.get("access_token")
     else:
         # 交互式输入
-        print("Vui lòng nhập ChatGPT session JWT (accessToken): ")
-        print(" (từ chatgpt.com /api/auth/session lấy)")
+        print("请输入 ChatGPT session JWT (accessToken)：")
+        print("（从 chatgpt.com /api/auth/session 获取）")
         access_token = input("> ").strip()
 
     if not access_token:
-        print("lỗi: chưa cung cấp access_token")
+        print("错误：未提供 access_token")
         sys.exit(1)
 
     create_codex_agent_identity(

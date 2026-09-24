@@ -49,15 +49,15 @@ def run_cloak_registration(
             traffic_tracker = PlaywrightTrafficTracker(driver.context, label="Cloak")
         except Exception as exc:
             # 统计失败不应影响注册主流程。
-            logger.warning("[Cloakđăng ký] Khởi tạo thống kê lưu lượng trình duyệt thất bại, Tiếp tục đăng ký: %s: %s", type(exc).__name__, str(exc)[:180])
+            logger.warning("[Cloak注册] 初始化浏览器流量统计失败，继续注册：%s: %s", type(exc).__name__, str(exc)[:180])
         data_saver = BrowserDataSaver(label="Cloak")
         if traffic_tracker is not None:
             traffic_tracker.attach_data_saver(data_saver)
         data_saver.install_playwright(driver.context)
-        logger.info("[Cloakđăng ký] Bắt đầu: %s, profile=%s", email, opened.profile_id)
+        logger.info("[Cloak注册] 开始：%s，profile=%s", email, opened.profile_id)
 
         otp_after_ts = time.time()
-        logger.info("[Cloakđăng ký] mở trang đăng nhập: https://chatgpt.com/auth/login")
+        logger.info("[Cloak注册] 打开登录页：https://chatgpt.com/auth/login")
         driver.get("https://chatgpt.com/auth/login")
         human_delay("navigate")
         _maybe_accept(driver)
@@ -88,14 +88,14 @@ def run_cloak_registration(
         max_otp_attempts = 3
         for otp_attempt in range(1, max_otp_attempts + 1):
             if current_otp is None:
-                logger.info("[Cloakđăng ký][OTP] Chờ mã OTP: %s (thứ %s/%s lần)", email, otp_attempt, max_otp_attempts)
+                logger.info("[Cloak注册][OTP] 等待验证码：%s（第 %s/%s 次）", email, otp_attempt, max_otp_attempts)
                 try:
                     current_otp = wait_for_otp(email, after_ts=otp_after_ts)
                 except Exception as exc:
                     if otp_attempt >= max_otp_attempts:
                         raise
                     logger.warning(
-                        '[Cloakđăng ký][OTP] Vẫn chưa nhận được mã OTP, nhấp"gửi lại email"sau đó tiếp tục chờ (vòng tiếp theo %s/%s): %s: %s',
+                        "[Cloak注册][OTP] 一直未收到验证码，点击“重新发送电子邮件”后继续等待（下一轮 %s/%s）：%s: %s",
                         otp_attempt + 1,
                         max_otp_attempts,
                         type(exc).__name__,
@@ -106,20 +106,20 @@ def run_cloak_registration(
                     human_delay("api")
                     current_otp = None
                     continue
-            logger.info("[Cloakđăng ký][OTP] Đã nhận mã OTP: %s", current_otp)
+            logger.info("[Cloak注册][OTP] 收到验证码：%s", current_otp)
             _clear_otp_inputs(driver)
             _type_otp(driver, current_otp)
             human_delay("otp_input")
             try:
                 _click_continue(driver)
             except Exception as exc:
-                logger.info("[Cloakđăng ký][OTP] Không tìm thấy nút gửi rõ ràng, Tiếp tục chờ trạng thái trang: %s", str(exc)[:120])
+                logger.info("[Cloak注册][OTP] 未找到显式提交按钮，继续等待页面状态：%s", str(exc)[:120])
 
             outcome = _wait_after_email_otp_submit(driver, timeout=10)
             if outcome == "accepted":
                 break
             if otp_attempt >= max_otp_attempts:
-                raise RuntimeError("Mã OTP email sai/hết hạn liên tiếp, đã đạt số lần thử lại tối đa")
+                raise RuntimeError("邮箱验证码连续错误/过期，已达到最大重试次数")
             otp_after_ts = time.time()
             _click_resend_email_otp(driver, timeout=25)
             human_delay("api")
@@ -132,22 +132,22 @@ def run_cloak_registration(
 
         session_info = _fetch_chatgpt_session(driver, timeout=120)
         access_token = session_info["accessToken"]
-        logger.info("[Cloakđăng ký] Đã lấy được accessToken: %s", email)
+        logger.info("[Cloak注册] 已拿到 accessToken：%s", email)
 
         if _twofa_cfg.ENABLE_2FA:
-            logger.warning("[Cloakđăng ký] Hiện tại CloakBrowser Tạm không thực thi đường tự động 2FA Cài đặt, Đã bỏ qua")
+            logger.warning("[Cloak注册] 当前 CloakBrowser 自动化路径暂不执行 2FA 设置，已跳过")
         totp_secret = None
 
         codex_result = {
             "status": "skipped",
             "ok": True,
-            "message": "ENABLE_CODEX_AUTO=False, bỏ qua Codex",
+            "message": "ENABLE_CODEX_AUTO=False，跳过 Codex",
         }
         try:
             from config import codex as _codex_cfg
             if bool(getattr(_codex_cfg, "ENABLE_CODEX_AUTO", False)):
                 from core.roxy_codex_oauth import run_roxy_codex_oauth
-                logger.info("[Cloakđăng ký][Codex] ENABLE_CODEX_AUTO=True, dùng lại hiện tại CloakBrowser Thực thi cửa sổ Codex uỷ quyền")
+                logger.info("[Cloak注册][Codex] ENABLE_CODEX_AUTO=True，复用当前 CloakBrowser 窗口执行 Codex 授权")
                 _check_manual_stop()
                 codex_result = run_roxy_codex_oauth(
                     email,
@@ -158,12 +158,12 @@ def run_cloak_registration(
                     clear_existing_state=True,
                 )
             else:
-                logger.info("[Cloakđăng ký][Codex] ENABLE_CODEX_AUTO=False, Bỏ qua sau đăng ký Codex OAuth")
+                logger.info("[Cloak注册][Codex] ENABLE_CODEX_AUTO=False，注册后跳过 Codex OAuth")
         except Exception as exc:
             codex_result = {"status": "failed", "ok": False, "message": f"{type(exc).__name__}: {str(exc)[:180]}"}
 
         # 统计注册浏览器关闭前的完整会话；注册后停留期间的网络请求也计入。
-        post_register_dwell(email, label="Cloak đăng ký")
+        post_register_dwell(email, label="Cloak注册")
         if traffic_tracker is not None:
             network_traffic = traffic_tracker.stop()
         if data_saver is not None:
@@ -194,7 +194,7 @@ def run_cloak_registration(
             "totp_secret": totp_secret,
             "codex": codex_result,
             "network_traffic": network_traffic,
-            "error": None if codex_ok else f"Codex Chưa hoàn thành: {codex_result.get('message')}",
+            "error": None if codex_ok else f"Codex 未完成: {codex_result.get('message')}",
         }
     except Exception as exc:
         if traffic_tracker is not None:
@@ -204,12 +204,12 @@ def run_cloak_registration(
                 pass
         if data_saver is not None:
             data_saver.stop()
-        logger.error("[Cloakđăng ký] Thất bại: %s: %s", type(exc).__name__, exc)
-        logger.debug("[Cloakđăng ký] Chi tiết thất bại", exc_info=True)
+        logger.error("[Cloak注册] 失败：%s: %s", type(exc).__name__, exc)
+        logger.debug("[Cloak注册] 失败详情", exc_info=True)
         try:
             if email:
                 from core.email_provider import release_email
-                release_email(email, status="failed" if create_acknowledged else "available", note=f"Cloakđăng ký thất bại: {str(exc)[:180]}")
+                release_email(email, status="failed" if create_acknowledged else "available", note=f"Cloak注册失败: {str(exc)[:180]}")
         except Exception:
             pass
         return {

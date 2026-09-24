@@ -100,10 +100,10 @@ def _close_browser_use_session(browser, *, reason: str = "") -> None:
         return
     label = f"：{reason}" if reason else ""
     try:
-        logger.info("[BrowserUse] đóng trình duyệt đăng ký session%s", label)
+        logger.info("[BrowserUse] 关闭注册浏览器 session%s", label)
         browser.close()
     except Exception as exc:
-        logger.warning("[BrowserUse] đóng trình duyệt đăng ký session Thất bại%s: %s: %s", label, type(exc).__name__, str(exc)[:180])
+        logger.warning("[BrowserUse] 关闭注册浏览器 session 失败%s：%s: %s", label, type(exc).__name__, str(exc)[:180])
 
 
 def _bu_delay(kind: str, seconds: float | None = None) -> None:
@@ -136,7 +136,7 @@ def _safe_scroll_locator(loc, *, timeout: int = 1800) -> None:
         loc.scroll_into_view_if_needed(timeout=timeout)
         return
     except Exception as exc:
-        logger.debug("[BrowserUse] scroll_into_view_if_needed không ổn định, dùng cuộn nhẹ làm fallback: %s", str(exc)[:160])
+        logger.debug("[BrowserUse] scroll_into_view_if_needed 不稳定，使用轻量滚动兜底：%s", str(exc)[:160])
     try:
         loc.evaluate("el => { try { el.scrollIntoView({block:'center', inline:'center', behavior:'instant'}); } catch(e) {} }")
     except Exception:
@@ -156,7 +156,7 @@ def _human_click_locator(loc, *, timeout: int = 3000) -> None:
         loc.click(timeout=timeout, delay=random.randint(80, 260))
     except Exception as exc:
         # Skyvern 远端页面偶发一直等待 stable；这里退一步用 force click，但仍保留前置滚动/hover/停顿。
-        logger.debug("[BrowserUse] click thường thất bại, Dùng force click dự phòng: %s", str(exc)[:160])
+        logger.debug("[BrowserUse] 常规点击失败，使用 force click 兜底：%s", str(exc)[:160])
         loc.click(timeout=timeout, delay=random.randint(80, 220), force=True)
     _human_pause(0.18, 0.5)
 
@@ -167,7 +167,7 @@ def _human_focus_for_typing(loc, *, timeout: int = 2500) -> None:
         _human_click_locator(loc, timeout=timeout)
         return
     except Exception as exc:
-        logger.debug("[BrowserUse] click ô nhập để focus thất bại, đổi sang dùng focus focus và tiếp tục nhập bằng bàn phím: %s", str(exc)[:180])
+        logger.debug("[BrowserUse] 输入框点击聚焦失败，改用 focus 聚焦继续键盘输入：%s", str(exc)[:180])
     _safe_scroll_locator(loc, timeout=1200)
     _human_pause(0.15, 0.45)
     try:
@@ -175,13 +175,13 @@ def _human_focus_for_typing(loc, *, timeout: int = 2500) -> None:
         _human_pause(0.12, 0.35)
         return
     except Exception as exc:
-        logger.debug("[BrowserUse] locator.focus Thất bại, đổi sang dùng DOM focus: %s", str(exc)[:160])
+        logger.debug("[BrowserUse] locator.focus 失败，改用 DOM focus：%s", str(exc)[:160])
     try:
         loc.evaluate("el => { try { el.scrollIntoView({block:'center', inline:'center', behavior:'instant'}); } catch(e) {} try { el.focus({preventScroll:true}); } catch(e) { el.focus && el.focus(); } }")
         _human_pause(0.12, 0.35)
         return
     except Exception as exc:
-        raise RuntimeError(f"ô nhập không thể focus: {type(exc).__name__}: {exc}") from exc
+        raise RuntimeError(f"输入框无法聚焦: {type(exc).__name__}: {exc}") from exc
 
 
 def _human_fill_locator(
@@ -234,7 +234,7 @@ def _human_fill_locator(
             _type_slowly()
             return
         except Exception as exc:
-            raise RuntimeError(f"Nhập tay thất bại, Đã cấm tức thì fill dự phòng: {type(exc).__name__}: {exc}") from exc
+            raise RuntimeError(f"人工输入失败，已禁止瞬时 fill 兜底: {type(exc).__name__}: {exc}") from exc
 
 
 class _StepTimer:
@@ -242,12 +242,12 @@ class _StepTimer:
         self.label = label
         self.t0 = time.perf_counter()
         if _log_timing_enabled():
-            logger.info("[BrowserUse][tốn thời gian] %s Bắt đầu", label)
+            logger.info("[BrowserUse][耗时] %s 开始", label)
 
     def done(self, extra: str = "") -> None:
         if _log_timing_enabled():
             cost = time.perf_counter() - self.t0
-            logger.info("[BrowserUse][tốn thời gian] %s hoàn tất %.2fs%s", self.label, cost, (" " + extra) if extra else "")
+            logger.info("[BrowserUse][耗时] %s 完成 %.2fs%s", self.label, cost, (" " + extra) if extra else "")
 
 
 
@@ -306,7 +306,7 @@ def _build_playwright_stealth(provider_prefix: str, *, label: str):
     try:
         from playwright_stealth import Stealth
     except ImportError:
-        logger.warning("[%s] thiếu playwright-stealth; vui lòng thực thi: uv pip install playwright-stealth --python .venv/bin/python", label)
+        logger.warning("[%s] 缺少 playwright-stealth；请执行: uv pip install playwright-stealth --python .venv/bin/python", label)
         return None
 
     return Stealth(
@@ -345,15 +345,15 @@ def _apply_cloud_browser_automation_mask(context, page, *, label: str, provider_
     try:
         stealth.apply_stealth_sync(context)
         result["playwright_stealth"] = True
-        logger.info("[%s] đã đối với BrowserContext ứng dụng playwright-stealth", label)
+        logger.info("[%s] 已对 BrowserContext 应用 playwright-stealth", label)
     except Exception as exc:
-        logger.debug("[%s] với BrowserContext ứng dụng playwright-stealth Thất bại: %s", label, str(exc)[:180])
+        logger.debug("[%s] 对 BrowserContext 应用 playwright-stealth 失败：%s", label, str(exc)[:180])
     try:
         stealth.apply_stealth_sync(page)
         result["playwright_stealth"] = True
-        logger.info("[%s] đã đối với hiện tại Page ứng dụng playwright-stealth", label)
+        logger.info("[%s] 已对当前 Page 应用 playwright-stealth", label)
     except Exception as exc:
-        logger.debug("[%s] với Page ứng dụng playwright-stealth Thất bại: %s", label, str(exc)[:180])
+        logger.debug("[%s] 对 Page 应用 playwright-stealth 失败：%s", label, str(exc)[:180])
     return result
 
 
@@ -367,7 +367,7 @@ def _post_register_dwell(page, context, *, provider_prefix: str, email: str) -> 
     seconds = _post_register_dwell_seconds()
     if seconds <= 0:
         return
-    logger.info("[%s] sau đăng ký thành công ở lại ngẫu nhiên %.1fs sau đó đóng kết nối: %s", _log_provider_label(), seconds, email)
+    logger.info("[%s] 注册成功后随机停留 %.1fs 再关闭连接：%s", _log_provider_label(), seconds, email)
     end = time.time() + seconds
     last_touch = 0.0
     while time.time() < end:
@@ -523,7 +523,7 @@ def _assert_not_external_idp(page, stage: str) -> None:
         "facebook.com/login",
     )
     if any(h in url for h in bad_hosts):
-        raise RuntimeError(f"[BrowserUse] {stage} vào nhầm đăng nhập bên thứ ba: {url}")
+        raise RuntimeError(f"[BrowserUse] {stage} 误入第三方登录：{url}")
 
 
 def _quick_auth_state(page) -> dict:
@@ -636,7 +636,7 @@ def _is_oauth_consent_like_pw(page) -> bool:
 def _click_email_entry_option_pw(page) -> bool:
     """Roxy 同款：按 DOM 技术属性点击邮箱入口，排除第三方登录，不依赖可见文字。"""
     if _is_oauth_consent_like_pw(page):
-        logger.info("[BrowserUse] Hiện nghi OAuth Trang uỷ quyền, Bỏ qua bấm dự phòng lối vào email")
+        logger.info("[BrowserUse] 当前疑似 OAuth 授权页，跳过邮箱入口兜底点击")
         return False
     try:
         result = page.evaluate(r"""
@@ -669,14 +669,14 @@ def _click_email_entry_option_pw(page) -> bool:
         }
         """) or {}
         if not isinstance(result, dict) or not result.get("ok"):
-            logger.info("[BrowserUse] lối vào email DOM fallback không trúng: %s", result)
+            logger.info("[BrowserUse] 邮箱入口 DOM 兜底未命中：%s", result)
             return False
         loc = page.locator('button,a,[role="button"],input[type="button"],input[type="submit"]').nth(int(result.get("idx") or 0))
         _human_click_locator(loc, timeout=3000)
-        logger.info("[BrowserUse] đã nhấn DOM bấm lối vào email theo thuộc tính: %s", result)
+        logger.info("[BrowserUse] 已按 DOM 属性点击邮箱入口：%s", result)
         return True
     except Exception as exc:
-        logger.info("[BrowserUse] lối vào email DOM click fallback thất bại: %s: %s", type(exc).__name__, str(exc)[:180])
+        logger.info("[BrowserUse] 邮箱入口 DOM 兜底点击失败：%s: %s", type(exc).__name__, str(exc)[:180])
         return False
 
 
@@ -794,18 +794,18 @@ def _submit_email_step_pw(page, email: str) -> bool:
         }
         """, email) or {}
         if isinstance(result, dict) and result.get("ok"):
-            logger.info("[BrowserUse] Gửi form email an toàn: %s", result)
+            logger.info("[BrowserUse] 邮箱表单安全提交：%s", result)
             _human_pause(0.8, 1.4)
-            _assert_not_external_idp(page, "Sau khi gửi email")
+            _assert_not_external_idp(page, "提交邮箱后")
             return True
-        logger.warning("[BrowserUse] gửi email an toàn không khớp, quay lại Enter: %s", result)
+        logger.warning("[BrowserUse] 邮箱安全提交未命中，回退 Enter：%s", result)
     except Exception as exc:
-        logger.warning("[BrowserUse] submit an toàn email bất thường, quay lại Enter: %s: %s", type(exc).__name__, str(exc)[:180])
+        logger.warning("[BrowserUse] 邮箱安全提交异常，回退 Enter：%s: %s", type(exc).__name__, str(exc)[:180])
     try:
         _human_pause(0.25, 0.65)
         page.keyboard.press("Enter")
         _human_pause(0.8, 1.4)
-        _assert_not_external_idp(page, "Enter Sau khi gửi email")
+        _assert_not_external_idp(page, "Enter 提交邮箱后")
         return True
     except Exception:
         return False
@@ -851,12 +851,12 @@ def _wait_for_email_input_pw(page, timeout_ms: int | None = None):
             ) or _click_email_entry_option_pw(page)
             if clicked_email_option:
                 _human_pause(0.8, 1.6)
-                _assert_not_external_idp(page, "Sau khi bấm lối vào email")
+                _assert_not_external_idp(page, "点击邮箱入口后")
                 continue
 
         time.sleep(0.35 if _fast_mode() else 0.55)
 
-    raise RuntimeError(f"không tìm thấy ô nhập email/lối vào email, trang={_page_url(page) or '-'} state={last_state}")
+    raise RuntimeError(f"找不到邮箱输入框/邮箱入口，页面={_page_url(page) or '-'} state={last_state}")
 
 
 def _type_email(page, email: str, timeout_ms: int | None = None) -> None:
@@ -872,7 +872,7 @@ def _type_email(page, email: str, timeout_ms: int | None = None) -> None:
     )
     _human_pause(0.3, 0.8)
     if not _submit_email_step_pw(page, email):
-        raise RuntimeError(f"đã nhập email nhưng gửi thất bại, trang={_page_url(page) or '-'} state={_email_entry_state_pw(page)}")
+        raise RuntimeError(f"邮箱已输入但提交失败，页面={_page_url(page) or '-'} state={_email_entry_state_pw(page)}")
 
 
 def _wait_after_email_submit_transition(page, context=None, timeout: int = 14) -> str:
@@ -925,17 +925,17 @@ def _submit_email_until_transition(
     current_email = str(email or "").strip()
     for attempt in range(1, max(1, attempts) + 1):
         _check_manual_stop()
-        logger.info("[BrowserUse] lần thử gửi email %s/%s: %s", attempt, attempts, current_email or "sau khi trang tìm thấy ô nhập thì gán")
+        logger.info("[BrowserUse] 提交邮箱尝试 %s/%s：%s", attempt, attempts, current_email or "页面找到输入框后分配")
         if current_email:
             _type_email(page, current_email, timeout_ms=timeout_ms)
         else:
             # 先确认页面已有可用输入框，再领取邮箱；不能把领取动作放在页面导航之前。
             email_input = _wait_for_email_input_pw(page, timeout_ms=timeout_ms)
             if email_supplier is None:
-                raise RuntimeError("Đã tìm thấy ô nhập email, Nhưng chưa cung cấp bộ phân bổ email")
+                raise RuntimeError("已找到邮箱输入框，但未提供邮箱分配器")
             current_email = str(email_supplier() or "").strip()
             if not current_email:
-                raise RuntimeError("Bộ phân bổ email trả về địa chỉ email trống")
+                raise RuntimeError("邮箱分配器返回了空邮箱地址")
             _human_fill_locator(
                 page,
                 email_input,
@@ -946,17 +946,17 @@ def _submit_email_until_transition(
             )
             _human_pause(0.3, 0.8)
             if not _submit_email_step_pw(page, current_email):
-                raise RuntimeError(f"đã nhập email nhưng gửi thất bại, trang={_page_url(page) or '-'} state={_email_entry_state_pw(page)}")
+                raise RuntimeError(f"邮箱已输入但提交失败，页面={_page_url(page) or '-'} state={_email_entry_state_pw(page)}")
         _check_manual_stop()
         last_state = _wait_after_email_submit_transition(page, context=context, timeout=10 if _fast_mode() else 16)
-        logger.info("[BrowserUse] trạng thái sau gửi email: %s url=%s", last_state, _page_url(page) or "-")
+        logger.info("[BrowserUse] 邮箱提交后状态：%s url=%s", last_state, _page_url(page) or "-")
         if last_state == "login_password":
-            raise RuntimeError(f"邮箱提交后进入登录密码页, Coi như đã đăng ký/Xử lý email không dùng được và vô hiệu hoá: url={_page_url(page) or 'https://auth.openai.com/log-in/password'}")
+            raise RuntimeError(f"邮箱提交后进入登录密码页，按已注册/不可用邮箱处理并停用: url={_page_url(page) or 'https://auth.openai.com/log-in/password'}")
         if last_state != "email_page":
             return last_state
         if attempt < attempts:
-            logger.warning("[BrowserUse] sau gửi email vẫn ở trang đăng nhập, chuẩn bị thử lại submit: %s", _page_url(page) or "-")
-    raise RuntimeError(f"sau gửi email vẫn ở trang đăng nhập, chưa trigger mật khẩu/trang mã OTP: state={last_state} url={_page_url(page) or '-'}")
+            logger.warning("[BrowserUse] 邮箱提交后仍停留登录页，准备重试提交：%s", _page_url(page) or "-")
+    raise RuntimeError(f"邮箱提交后仍停留登录页，未触发密码/验证码页面：state={last_state} url={_page_url(page) or '-'}")
 
 
 def _is_password_page(page) -> bool:
@@ -1196,10 +1196,10 @@ def _fill_password_if_present(page, email: str, timeout: int = 25, context=None)
                 quick = _quick_auth_state(page)
                 if str(quick.get("state") or "") == "email_verification":
                     if _click_continue_with_password_if_present(page):
-                        logger.info('[BrowserUse] Đã nhấn ở trang mã OTP email"Tiếp tục bằng mật khẩu": url=%s', quick.get("url") or _page_url(page) or "-")
+                        logger.info("[BrowserUse] 邮箱验证码页已点击“使用密码继续”：url=%s", quick.get("url") or _page_url(page) or "-")
                         time.sleep(0.4 if _fast_mode() else 1.0)
                         continue
-                    logger.info('[BrowserUse] Đã ở trang mã OTP email, nhưng chưa tìm thấy"Tiếp tục bằng mật khẩu"Nút, Tiếp tục chờ trang mật khẩu: url=%s', quick.get("url") or _page_url(page) or "-")
+                    logger.info("[BrowserUse] 已在邮箱验证码页，但未找到“使用密码继续”按钮，继续等待密码页：url=%s", quick.get("url") or _page_url(page) or "-")
         except Exception:
             pass
         if time.time() - last_heartbeat > 3:
@@ -1209,7 +1209,7 @@ def _fill_password_if_present(page, email: str, timeout: int = 25, context=None)
                 if _is_target_closed_error(exc):
                     raise
                 if _is_transient_navigation_error(exc):
-                    logger.info("[BrowserUse] Kiểm tra trang mật khẩu gặp chuyển trang, Thử lại sau: %s", str(exc)[:140])
+                    logger.info("[BrowserUse] 密码页检测遇到页面跳转，稍后重试：%s", str(exc)[:140])
                     time.sleep(0.4 if _fast_mode() else 1.0)
                     continue
                 raise
@@ -1217,20 +1217,20 @@ def _fill_password_if_present(page, email: str, timeout: int = 25, context=None)
         state_info = _quick_auth_state(page)
         state = "password" if _is_signup_password_page(page) else str(state_info.get("state") or "other")
         if time.time() - last_log > 3:
-            logger.info("[BrowserUse] kiểm tra mật khẩu/trang mã OTP: state=%s url=%s", state, state_info.get("url") or "-")
+            logger.info("[BrowserUse] 检测密码/验证码页：state=%s url=%s", state, state_info.get("url") or "-")
             last_log = time.time()
         if state == "email_verification" and not _is_signup_password_page(page):
             if _click_continue_with_password_if_present(page):
-                logger.info('[BrowserUse] Đã nhấn ở trang mã OTP email"Tiếp tục bằng mật khẩu": email=%s', email)
+                logger.info("[BrowserUse] 邮箱验证码页已点击“使用密码继续”：email=%s", email)
                 time.sleep(0.4 if _fast_mode() else 1.0)
                 continue
             try:
-                logger.info("[BrowserUse] trang mã OTP email không trúng nút, chuyển thẳng sang trang mật khẩu làm fallback: email=%s", email)
+                logger.info("[BrowserUse] 邮箱验证码页未命中按钮，直接跳转到密码页兜底：email=%s", email)
                 page.goto("https://auth.openai.com/create-account/password", wait_until="domcontentloaded", timeout=_timeout_ms(getattr(_cfg, "BROWSER_USE_NAVIGATION_TIMEOUT", 90)))
                 time.sleep(0.6 if _fast_mode() else 1.2)
                 continue
             except Exception as exc:
-                logger.info("[BrowserUse] Chuyển dự phòng từ trang mã OTP email sang trang mật khẩu thất bại: %s", str(exc)[:180])
+                logger.info("[BrowserUse] 邮箱验证码页兜底跳转密码页失败：%s", str(exc)[:180])
                 # 不要直接退出，继续等页面自己切到密码页
                 time.sleep(0.8 if _fast_mode() else 1.5)
                 continue
@@ -1241,31 +1241,31 @@ def _fill_password_if_present(page, email: str, timeout: int = 25, context=None)
             # fast 模式也不要 3 秒就放弃：提交邮箱后常仍停在 /auth/login，
             # 需等跳到 auth.openai.com 或出现密码/OTP 控件。
             if _fast_mode() and time.time() - started >= 8:
-                logger.info("[BrowserUse] chưa phát hiện trang mật khẩu, vào trước OTP Giai đoạn: state=%s url=%s", state, state_info.get("url") or "-")
+                logger.info("[BrowserUse] 未检测到密码页，提前进入 OTP 阶段：state=%s url=%s", state, state_info.get("url") or "-")
                 return None
             time.sleep(0.15 if _fast_mode() else 0.4)
             continue
         if state == "login_password" and _click_passwordless_signup_if_present(page):
-            logger.info("[BrowserUse] phát hiện trang mật khẩu, Đã click lối vào mã OTP một lần: state=%s email=%s", state, email)
+            logger.info("[BrowserUse] 检测到密码页，已点击一次性验证码入口：state=%s email=%s", state, email)
             wait_end = time.time() + 20
             while time.time() < wait_end:
                 state_after = _quick_auth_state(page)
                 if state_after.get("state") == "email_verification":
-                    logger.info("[BrowserUse] Lối vào mã một lần đã vào trang mã OTP email")
+                    logger.info("[BrowserUse] 一次性验证码入口已进入邮箱验证码页")
                     return None
                 if state_after.get("state") == "chatgpt":
-                    logger.info("[BrowserUse] Sau lối vào mã OTP một lần đã vào ChatGPT")
+                    logger.info("[BrowserUse] 一次性验证码入口后已进入 ChatGPT")
                     return None
                 if state_after.get("state") not in ("password", "login_password"):
                     return None
                 time.sleep(0.2 if _fast_mode() else 0.5)
-            logger.info("[BrowserUse] Đã click lối vào mã OTP một lần, Chưa phát hiện ngay OTP Trang, Giao cho bước sau OTP Giai đoạn tiếp tục xử lý")
+            logger.info("[BrowserUse] 已点击一次性验证码入口，未立即检测到 OTP 页，交给后续 OTP 阶段继续处理")
             return None
         if state == "login_password":
-            logger.info("[BrowserUse] Hiện là trang mật khẩu đăng nhập nhưng không tìm thấy lối vào mã OTP một lần, Bỏ qua điền mật khẩu và giao cho OTP Giai đoạn: url=%s", state_info.get("url") or "-")
+            logger.info("[BrowserUse] 当前是登录密码页但未找到一次性验证码入口，跳过密码填写并交给 OTP 阶段：url=%s", state_info.get("url") or "-")
             return None
         password = _registration_password()
-        logger.info("[BrowserUse] phát hiện trang mật khẩu, đặt mật khẩu (%s Ký tự): %s", len(password), email)
+        logger.info("[BrowserUse] 检测到密码页，设置密码（%s 位）：%s", len(password), email)
         submit_result = page.evaluate(
             r"""(password) => {
               const visible = el => !!el && !!(el.offsetWidth || el.offsetHeight || el.getClientRects().length)
@@ -1340,8 +1340,8 @@ def _fill_password_if_present(page, email: str, timeout: int = 25, context=None)
             password,
         ) or {}
         if not submit_result.get("ok"):
-            raise RuntimeError(f"Trang mật khẩu không tìm thấy phần có thể click Continue Nút: {submit_result} state={state_info}")
-        logger.info("[BrowserUse] Đã điền và bấm trang mật khẩu Continue: detail=%s", {k: v for k, v in submit_result.items() if k != "button"})
+            raise RuntimeError(f"密码页找不到可点击的 Continue 按钮：{submit_result} state={state_info}")
+        logger.info("[BrowserUse] 已填写并点击密码页 Continue：detail=%s", {k: v for k, v in submit_result.items() if k != "button"})
         _bu_delay("form")
         wait_end = time.time() + (8 if _fast_mode() else 14)
         retried_submit = False
@@ -1349,11 +1349,11 @@ def _fill_password_if_present(page, email: str, timeout: int = 25, context=None)
             state_after = _quick_auth_state(page)
             state_name = str(state_after.get("state") or "other")
             if state_name in ("email_verification", "profile", "chatgpt"):
-                logger.info("[BrowserUse] sau submit trang mật khẩu đã vào trạng thái tiếp theo: state=%s url=%s", state_name, state_after.get("url") or "-")
+                logger.info("[BrowserUse] 密码页提交后已进入后续状态：state=%s url=%s", state_name, state_after.get("url") or "-")
                 return password
             if not retried_submit and state_name == "password" and time.time() > wait_end - (5 if _fast_mode() else 8):
                 retried_submit = True
-                logger.info("[BrowserUse] sau submit trang mật khẩu vẫn chưa chuyển trang, Chờ rồi thử lại một lần Continue/Enter: url=%s", state_after.get("url") or "-")
+                logger.info("[BrowserUse] 密码页提交后仍未跳转，等待后重试一次 Continue/Enter：url=%s", state_after.get("url") or "-")
                 _human_pause(1.2, 2.2)
                 if not _click_first(
                     page,
@@ -1379,7 +1379,7 @@ def _fill_password_if_present(page, email: str, timeout: int = 25, context=None)
 def _type_otp(page, code: str) -> None:
     code = str(code or "").strip()
     if not code:
-        raise RuntimeError("OTP Rỗng")
+        raise RuntimeError("OTP 为空")
 
     # 单框
     if _fill_first(
@@ -1416,7 +1416,7 @@ def _type_otp(page, code: str) -> None:
                 raise
             _human_pause(0.04, 0.16)
         return
-    raise RuntimeError("không tìm thấy OTP ô nhập")
+    raise RuntimeError("找不到 OTP 输入框")
 
 
 def _clear_otp_inputs(page) -> None:
@@ -1571,10 +1571,10 @@ def _click_resend_otp(page) -> bool:
             }
             """
         )
-        logger.info("[BrowserUse][OTP] kết quả dò nút gửi lại không phải văn bản: %s", result)
+        logger.info("[BrowserUse][OTP] 非文本重发按钮探测结果：%s", result)
         return bool(isinstance(result, dict) and result.get("ok"))
     except Exception as exc:
-        logger.info("[BrowserUse][OTP] dò nút gửi lại không phải text thất bại: %s: %s", type(exc).__name__, str(exc)[:160])
+        logger.info("[BrowserUse][OTP] 非文本重发按钮探测失败：%s: %s", type(exc).__name__, str(exc)[:160])
         return False
 
 
@@ -1603,7 +1603,7 @@ def _fill_birthday_fields(page, birthday: str) -> None:
     try:
         year, month, day = [int(x) for x in birthday.split("-")]
     except Exception as exc:
-        raise RuntimeError(f"định dạng ngày sinh phải là YYYY-MM-DD: {birthday}") from exc
+        raise RuntimeError(f"生日格式应为 YYYY-MM-DD: {birthday}") from exc
 
     # 年龄数字页
     age = max(18, min(60, 2026 - year))
@@ -2056,7 +2056,7 @@ def _force_exit_profile_page(page, deadline: float) -> bool:
             if time.time() >= deadline:
                 break
             try:
-                logger.info("[BrowserUse] Gửi trang profile xong vẫn chưa rời, Ép chuyển hướng dự phòng: attempt=%s target=%s current=%s", attempt, target, _page_url(page) or "-")
+                logger.info("[BrowserUse] 资料页提交后仍未离开，强制跳转兜底：attempt=%s target=%s current=%s", attempt, target, _page_url(page) or "-")
                 page.goto(target, wait_until="domcontentloaded", timeout=10000)
                 _bu_delay("navigate")
                 _maybe_dismiss_chatgpt_onboarding(page)
@@ -2066,7 +2066,7 @@ def _force_exit_profile_page(page, deadline: float) -> bool:
                 if "chatgpt.com" in url and "about-you" not in url and "signup/profile" not in url and "auth.openai.com" not in url:
                     return True
             except Exception as exc:
-                logger.warning("[BrowserUse] Ép thoát trang profile thất bại: %s: %s", type(exc).__name__, str(exc)[:180])
+                logger.warning("[BrowserUse] 强制跳出资料页失败：%s: %s", type(exc).__name__, str(exc)[:180])
         time.sleep(0.8 if _fast_mode() else 1.2)
     return False
 
@@ -2087,10 +2087,10 @@ def _complete_profile_page(page, name: str, birthday: str, timeout: int = 60) ->
         _check_manual_stop()
         url = _page_url(page).lower()
         if "chatgpt.com" in url and "auth.openai.com" not in url and "about-you" not in url and "signup/profile" not in url:
-            logger.info("[BrowserUse] đã rời trang profile và vào ChatGPT: %s", _page_url(page))
+            logger.info("[BrowserUse] 已离开资料页并进入 ChatGPT：%s", _page_url(page))
             return True
         if _has_chatgpt_access_token(page):
-            logger.info("[BrowserUse] đã phát hiện sau submit trang profile accessToken")
+            logger.info("[BrowserUse] 资料页提交后已检测到 accessToken")
             return True
 
         body = ""
@@ -2102,14 +2102,14 @@ def _complete_profile_page(page, name: str, birthday: str, timeout: int = 60) ->
 
         if looks_profile:
             if not submitted:
-                logger.info("[BrowserUse] trang profile: Điền/Gửi biệt danh và ngày sinh url=%s", _page_url(page) or "-")
+                logger.info("[BrowserUse] 资料页：填写/提交昵称生日 url=%s", _page_url(page) or "-")
                 info = _human_complete_profile(page, name, birthday)
                 last_info = info
-                logger.info("[BrowserUse] Kết quả gửi humanize trang profile: %s", str(info)[:900])
+                logger.info("[BrowserUse] 资料页人工化提交结果：%s", str(info)[:900])
                 if not info.get("submitted"):
                     js_info = _js_complete_profile(page, name, birthday)
                     last_info = {"human": info, "js": js_info}
-                    logger.info("[BrowserUse] trang profile JS Kết quả gửi dự phòng: %s", str(js_info)[:900])
+                    logger.info("[BrowserUse] 资料页 JS 兜底提交结果：%s", str(js_info)[:900])
                     submitted = bool(js_info.get("submitted") or submitted)
                 else:
                     submitted = True
@@ -2119,12 +2119,12 @@ def _complete_profile_page(page, name: str, birthday: str, timeout: int = 60) ->
                 last_submit = time.time()
                 _bu_delay("form")
             elif time.time() - last_log > 2:
-                logger.info("[BrowserUse] Đã gửi trang profile, Chờ chuyển hướng ngắn/Chuẩn bị lấy AT: url=%s", _page_url(page) or "-")
+                logger.info("[BrowserUse] 资料页已提交，等待短暂跳转/准备取 AT：url=%s", _page_url(page) or "-")
                 last_log = time.time()
 
             if submitted and post_submit_hard_exit_at and time.time() >= post_submit_hard_exit_at:
                 if _force_exit_profile_page(page, min(end, time.time() + (8 if _fast_mode() else 12))):
-                    logger.info("[BrowserUse] Đã thoát bằng chuyển hướng cưỡng bức sau khi gửi trang hồ sơ: %s", _page_url(page) or "-")
+                    logger.info("[BrowserUse] 资料页提交后已通过强制跳转退出：%s", _page_url(page) or "-")
                     return True
                 break
             time.sleep(0.35 if _fast_mode() else 0.8)
@@ -2132,23 +2132,23 @@ def _complete_profile_page(page, name: str, birthday: str, timeout: int = 60) ->
 
         if submitted:
             if _has_chatgpt_access_token(page):
-                logger.info("[BrowserUse] đã phát hiện sau submit trang profile accessToken")
+                logger.info("[BrowserUse] 资料页提交后已检测到 accessToken")
                 return True
             if post_submit_hard_exit_at is None:
                 post_submit_hard_exit_at = time.time() + (10 if _fast_mode() else 16)
             if time.time() - last_log > 2:
-                logger.info("[BrowserUse] Đã gửi trang profile, Chờ đồng bộ trạng thái đăng nhập: url=%s", _page_url(page) or "-")
+                logger.info("[BrowserUse] 资料页已提交，等待登录态同步：url=%s", _page_url(page) or "-")
                 last_log = time.time()
             if time.time() >= post_submit_hard_exit_at:
                 if _force_exit_profile_page(page, min(end, time.time() + (8 if _fast_mode() else 12))):
-                    logger.info("[BrowserUse] Đã thoát bằng chuyển hướng cưỡng bức sau khi gửi trang hồ sơ: %s", _page_url(page) or "-")
+                    logger.info("[BrowserUse] 资料页提交后已通过强制跳转退出：%s", _page_url(page) or "-")
                     return True
                 break
             time.sleep(0.35 if _fast_mode() else 0.8)
             continue
 
         if time.time() - last_log > 2:
-            logger.info("[BrowserUse] chờ trang profile/session đăng nhập: url=%s", _page_url(page) or "-")
+            logger.info("[BrowserUse] 等待资料页/登录态：url=%s", _page_url(page) or "-")
             last_log = time.time()
         time.sleep(0.25 if _fast_mode() else 0.6)
 
@@ -2156,8 +2156,8 @@ def _complete_profile_page(page, name: str, birthday: str, timeout: int = 60) ->
     if any(x in url for x in ("about-you", "profile", "create-account/about", "signup/profile")):
         last_diag = _profile_diagnostics(page)
         if submitted:
-            raise RuntimeError(f"sau submit trang profile timeout vẫn chưa chuyển trang, chuyển sang lấy AT; last_info={str(last_info)[:900]} diag={str(last_diag)[:1200]}")
-        raise RuntimeError(f"xử lý trang profile quá thời gian và chưa xác nhận gửi, chuyển sang lấy AT; last_info={str(last_info)[:900]} diag={str(last_diag)[:1200]}")
+            raise RuntimeError(f"资料页提交后超时仍未跳转，转入取 AT；last_info={str(last_info)[:900]} diag={str(last_diag)[:1200]}")
+        raise RuntimeError(f"资料页处理超时且未确认提交，转入取 AT；last_info={str(last_info)[:900]} diag={str(last_diag)[:1200]}")
     return submitted
 
 
@@ -2227,7 +2227,7 @@ def _pick_live_page(context, preferred=None):
             best_rank = score
     if best is not preferred:
         logger.info(
-            "[BrowserUse] chuyển sang trang khớp hơn: state=%s url=%s pages=%s",
+            "[BrowserUse] 切换到更匹配的页面：state=%s url=%s pages=%s",
             best_info.get("state") or "-",
             best_info.get("url") or "-",
             inventory,
@@ -2283,7 +2283,7 @@ def _browser_use_heartbeat(page, context=None, label: str = ""):
     if page is None:
         page = _recover_live(None)
     if page is None:
-        raise RuntimeError(f"BrowserUse trang đã đóng, không thể tiếp tục heartbeat{tag}；pages={_inventory()}")
+        raise RuntimeError(f"BrowserUse 页面已关闭，无法继续心跳{tag}；pages={_inventory()}")
 
     try:
         if page.is_closed():
@@ -2291,14 +2291,14 @@ def _browser_use_heartbeat(page, context=None, label: str = ""):
             if recovered is None:
                 raise RuntimeError(f"BrowserUse page.is_closed()=True{tag}；pages={_inventory()}")
             page = recovered
-            logger.info("[BrowserUse] heartbeat phục hồi về trang còn sống%s: url=%s", tag, _page_url(page) or "-")
+            logger.info("[BrowserUse] 心跳恢复到存活页%s：url=%s", tag, _page_url(page) or "-")
     except Exception as exc:
         if _is_target_closed_error(exc):
             recovered = _recover_live(None)
             if recovered is None:
-                raise RuntimeError(f"BrowserUse trang đã đóng, không thể tiếp tục heartbeat{tag}：{exc}；pages={_inventory()}") from exc
+                raise RuntimeError(f"BrowserUse 页面已关闭，无法继续心跳{tag}：{exc}；pages={_inventory()}") from exc
             page = recovered
-            logger.info("[BrowserUse] target Đóng xong chuyển sang trang còn sống%s: url=%s", tag, _page_url(page) or "-")
+            logger.info("[BrowserUse] target 关闭后切换存活页%s：url=%s", tag, _page_url(page) or "-")
         else:
             raise
 
@@ -2313,20 +2313,20 @@ def _browser_use_heartbeat(page, context=None, label: str = ""):
             if _is_target_closed_error(exc):
                 recovered = _recover_live(None)
                 if recovered is None:
-                    raise RuntimeError(f"BrowserUse trang đã đóng, không thể tiếp tục heartbeat{tag}：{exc}；pages={_inventory()}") from exc
+                    raise RuntimeError(f"BrowserUse 页面已关闭，无法继续心跳{tag}：{exc}；pages={_inventory()}") from exc
                 page = recovered
-                logger.info("[BrowserUse] evaluate Đóng xong chuyển sang trang còn sống%s: url=%s", tag, _page_url(page) or "-")
+                logger.info("[BrowserUse] evaluate 关闭后切换存活页%s：url=%s", tag, _page_url(page) or "-")
             else:
-                logger.debug("[BrowserUse] Heartbeat thất bại%s: %s", tag, str(exc)[:180])
+                logger.debug("[BrowserUse] 心跳失败%s：%s", tag, str(exc)[:180])
     except Exception as exc:
         if _is_target_closed_error(exc):
             recovered = _recover_live(None)
             if recovered is None:
-                raise RuntimeError(f"BrowserUse trang đã đóng, không thể tiếp tục heartbeat{tag}：{exc}；pages={_inventory()}") from exc
+                raise RuntimeError(f"BrowserUse 页面已关闭，无法继续心跳{tag}：{exc}；pages={_inventory()}") from exc
             page = recovered
-            logger.info("[BrowserUse] evaluate Đóng xong chuyển sang trang còn sống%s: url=%s", tag, _page_url(page) or "-")
+            logger.info("[BrowserUse] evaluate 关闭后切换存活页%s：url=%s", tag, _page_url(page) or "-")
         else:
-            logger.debug("[BrowserUse] Heartbeat thất bại%s: %s", tag, str(exc)[:180])
+            logger.debug("[BrowserUse] 心跳失败%s：%s", tag, str(exc)[:180])
     return page
 
 
@@ -2357,7 +2357,7 @@ def _wait_for_otp_with_browser_heartbeat(page, context, email: str, after_ts: fl
         remaining = max(1, int(deadline - time.time()))
         wait_this_round = min(slice_wait, remaining)
         logger.info(
-            "[BrowserUse][OTP] email polling ngắn: %s, thứ %s vòng, dài nhất %ss (tổng còn lại %ss)",
+            "[BrowserUse][OTP] 邮箱短轮询：%s，第 %s 轮，最长 %ss（总剩余 %ss）",
             email,
             attempt,
             wait_this_round,
@@ -2377,13 +2377,13 @@ def _wait_for_otp_with_browser_heartbeat(page, context, email: str, after_ts: fl
                 raise
             if time.time() >= deadline:
                 break
-            logger.info("[BrowserUse][OTP] Vòng này chưa lấy được mã OTP, Giữ trang cloud hoạt động rồi tiếp tục: %s: %s", type(exc).__name__, str(exc)[:220])
+            logger.info("[BrowserUse][OTP] 本轮未取到验证码，保持云端页面活跃后继续：%s: %s", type(exc).__name__, str(exc)[:220])
             page = _browser_use_heartbeat(page, context=context, label=f"otp-after-{attempt}")
             time.sleep(0.5 if _fast_mode() else 1.0)
 
     if last_exc is not None:
         raise last_exc
-    raise RuntimeError(f"chờ {email} của OTP quá thời gian (>{total_wait}s）")
+    raise RuntimeError(f"等待 {email} 的 OTP 超时（>{total_wait}s）")
 
 
 def _read_chatgpt_session_via_context(context, timeout_ms: int = 5000) -> dict | None:
@@ -2461,7 +2461,7 @@ def _fetch_chatgpt_session(page, context=None, timeout: int = 120) -> dict:
         if context is not None:
             live = _pick_live_page(context, page)
             if live is not None and live is not page:
-                logger.info("[BrowserUse] Hiện tại page Đã đóng/Không khả dụng, Chuyển sang cùng context Trang khả dụng: url=%s", _page_url(live) or "-")
+                logger.info("[BrowserUse] 当前 page 已关闭/不可用，切换到同 context 可用页面：url=%s", _page_url(live) or "-")
                 page = live
 
         url = _page_url(page).lower() if page is not None else ""
@@ -2472,16 +2472,16 @@ def _fetch_chatgpt_session(page, context=None, timeout: int = 120) -> dict:
             data = _read_chatgpt_session_via_context(context, timeout_ms=1800 if _fast_mode() else 5000)
             last = data
             if isinstance(data, dict) and data.get("accessToken"):
-                logger.info("[BrowserUse] /api/auth/session Đã trả về accessToken via=context url=%s", _page_url(page) or "-")
+                logger.info("[BrowserUse] /api/auth/session 已返回 accessToken via=context url=%s", _page_url(page) or "-")
                 return data
             err = str((data or {}).get("_error") or "") if isinstance(data, dict) else ""
             if err and _is_target_closed_error(err):
                 target_closed_count += 1
                 if target_closed_count >= 2:
-                    raise RuntimeError(f"BrowserUse context/page Đã đóng, Không đọc được session: {err}")
+                    raise RuntimeError(f"BrowserUse context/page 已关闭，无法读取 session：{err}")
             if time.time() - last_log > 2:
                 keys = list((data or {}).keys()) if isinstance(data, dict) else type(data)
-                logger.info("[BrowserUse] chờ accessToken via=context, url=%s keys=%s", _page_url(page) or "-", keys)
+                logger.info("[BrowserUse] 等待 accessToken via=context，url=%s keys=%s", _page_url(page) or "-", keys)
                 last_log = time.time()
 
         # 2) 如果已经在 chatgpt.com，再用页面内 fetch 兜底；但设置短超时。
@@ -2490,18 +2490,18 @@ def _fetch_chatgpt_session(page, context=None, timeout: int = 120) -> dict:
             data = _read_chatgpt_session_via_page(page, timeout_ms=2200 if _fast_mode() else 5000)
             last = data
             if isinstance(data, dict) and data.get("accessToken"):
-                logger.info("[BrowserUse] /api/auth/session Đã trả về accessToken via=page url=%s", _page_url(page) or "-")
+                logger.info("[BrowserUse] /api/auth/session 已返回 accessToken via=page url=%s", _page_url(page) or "-")
                 return data
             err = str((data or {}).get("_error") or "") if isinstance(data, dict) else ""
             if err and _is_target_closed_error(err):
                 target_closed_count += 1
-                logger.warning("[BrowserUse] trang target Đã đóng, Thử tiếp tục dùng context Đọc session: %s", err[:180])
+                logger.warning("[BrowserUse] 页面 target 已关闭，尝试继续用 context 读取 session：%s", err[:180])
                 if context is None or _pick_live_page(context) is None:
                     # 不再等到总超时；BrowserUse 远端目标没了，继续等没有意义。
-                    raise RuntimeError(f"BrowserUse trang đã đóng, Không đọc được session: {err}")
+                    raise RuntimeError(f"BrowserUse 页面已关闭，无法读取 session：{err}")
             elif time.time() - last_log > 2:
                 keys = list((data or {}).keys()) if isinstance(data, dict) else type(data)
-                logger.info("[BrowserUse] chờ accessToken via=page, url=%s keys=%s", _page_url(page) or "-", keys)
+                logger.info("[BrowserUse] 等待 accessToken via=page，url=%s keys=%s", _page_url(page) or "-", keys)
                 last_log = time.time()
         else:
             # 资料页提交后 Skyvern 偶发不会自动跳转；到 session 阶段说明 profile 处理已经结束，
@@ -2514,7 +2514,7 @@ def _fetch_chatgpt_session(page, context=None, timeout: int = 120) -> dict:
                         proactive_opened = True
                         continue
                 if time.time() - last_log > 2:
-                    logger.info("[BrowserUse] session Giai đoạn vẫn ở trang hồ sơ, Sau chờ ngắn sẽ buộc nhảy ra: url=%s", _page_url(page) or "-")
+                    logger.info("[BrowserUse] session 阶段仍在资料页，短暂等待后将强制跳出：url=%s", _page_url(page) or "-")
                     last_log = time.time()
                 time.sleep(0.4 if _fast_mode() else 1.0)
                 continue
@@ -2522,7 +2522,7 @@ def _fetch_chatgpt_session(page, context=None, timeout: int = 120) -> dict:
                 first_not_chatgpt_at = time.time()
             wait_before_open = 2.0 if _fast_mode() else 8.0
             if page is not None and _fast_mode() and not proactive_opened and time.time() - first_not_chatgpt_at >= wait_before_open:
-                logger.info("[BrowserUse] Chưa tự chuyển nhanh chatgpt.com, Chủ động mở trang chủ để đọc session: current=%s", _page_url(page) or "-")
+                logger.info("[BrowserUse] 未快速自动跳转 chatgpt.com，主动打开首页读取 session：current=%s", _page_url(page) or "-")
                 try:
                     page.goto("https://chatgpt.com/", wait_until="domcontentloaded", timeout=_timeout_ms(getattr(_cfg, "BROWSER_USE_NAVIGATION_TIMEOUT", 90)))
                     proactive_opened = True
@@ -2534,14 +2534,14 @@ def _fetch_chatgpt_session(page, context=None, timeout: int = 120) -> dict:
                     if _is_target_closed_error(exc):
                         target_closed_count += 1
                         if context is None or _pick_live_page(context) is None:
-                            raise RuntimeError(f"BrowserUse trang đã đóng, Không thể chủ động mở ChatGPT: {last}")
+                            raise RuntimeError(f"BrowserUse 页面已关闭，无法主动打开 ChatGPT：{last}")
             if time.time() - last_log > 2:
-                logger.info("[BrowserUse] Chờ vào chatgpt.com Hoặc đồng bộ trạng thái đăng nhập: url=%s", _page_url(page) or "-")
+                logger.info("[BrowserUse] 等待进入 chatgpt.com 或登录态同步：url=%s", _page_url(page) or "-")
                 last_log = time.time()
 
         time.sleep(0.45 if _fast_mode() else 2)
 
-    raise RuntimeError(f"等待 /api/auth/session accessToken 超时, phản hồi cuối: {str(last)[:800]}")
+    raise RuntimeError(f"等待 /api/auth/session accessToken 超时，最后响应: {str(last)[:800]}")
 
 
 def run_browser_use_registration(
@@ -2559,7 +2559,7 @@ def run_browser_use_registration(
         from playwright.sync_api import sync_playwright
     except ImportError as exc:
         raise RuntimeError(
-            "thiếu playwright. vui lòng thực hiện trước: uv pip install playwright --python .venv/bin/python"
+            "缺少 playwright。请先执行: uv pip install playwright --python .venv/bin/python"
         ) from exc
 
     provider = str(cloud_provider or "browser_use").strip().lower()
@@ -2575,7 +2575,7 @@ def run_browser_use_registration(
 
     _set_log_provider_label(cloud_label)
     _set_cloud_provider(provider_prefix)
-    _t_all = _StepTimer(f"{cloud_label} toàn bộ quy trình đăng ký")
+    _t_all = _StepTimer(f"{cloud_label} 注册全流程")
     session_info_open = client.open_session()
     create_acknowledged = False
     openai_password: str | None = None
@@ -2585,7 +2585,7 @@ def run_browser_use_registration(
     network_traffic: dict[str, Any] | None = None
 
     logger.info(
-        "[%s] bắt đầu đăng ký: %s proxyCountry=%s profileId=%s local_proxy_arg=%s",
+        "[%s] 开始注册：%s proxyCountry=%s profileId=%s local_proxy_arg=%s",
         cloud_label,
         email,
         session_info_open.proxy_country_code or "-",
@@ -2595,8 +2595,8 @@ def run_browser_use_registration(
 
     try:
         with sync_playwright() as p:
-            logger.info("[%s] kết nối CDP ...", cloud_label)
-            _t_cdp = _StepTimer(f"kết nối {cloud_label} CDP")
+            logger.info("[%s] 连接 CDP ...", cloud_label)
+            _t_cdp = _StepTimer(f"连接 {cloud_label} CDP")
             connect_kwargs = {}
             if provider_prefix == "skyvern" and hasattr(client, "cdp_headers"):
                 connect_kwargs["headers"] = client.cdp_headers()
@@ -2612,7 +2612,7 @@ def run_browser_use_registration(
             page.set_default_navigation_timeout(_timeout_ms(getattr(_cfg, "BROWSER_USE_NAVIGATION_TIMEOUT", 90)))
             # Browser Use/Skyvern 是云端浏览器，不安装本地省流量路由、网络流量
             # 监听器或 JS 覆盖率采集，确保云端页面按原始流程运行且不增加 CDP 开销。
-            logger.info("[%s] trình duyệt cloud bỏ qua tiết kiệm data, lắng nghe mạng và JS thu thập coverage", cloud_label)
+            logger.info("[%s] 云端浏览器跳过省流量、网络监听和 JS 覆盖率采集", cloud_label)
             if _should_apply_cloud_automation_mask(provider_prefix):
                 _apply_cloud_browser_automation_mask(
                     context,
@@ -2622,7 +2622,7 @@ def run_browser_use_registration(
                     proxy_country_code=session_info_open.proxy_country_code,
                 )
             else:
-                logger.info("[%s] Đã bỏ qua thêm JS Bản vá fingerprint, Dùng trình duyệt cloud gốc stealth Môi trường", cloud_label)
+                logger.info("[%s] 已跳过额外 JS 指纹补丁，使用云浏览器原生 stealth 环境", cloud_label)
 
             if provider_prefix == "skyvern":
                 try:
@@ -2632,8 +2632,8 @@ def run_browser_use_registration(
                     start_url = "https://chatgpt.com/auth/login"
             else:
                 start_url = str(getattr(_cfg, "BROWSER_USE_START_URL", "https://chatgpt.com/auth/login") or "https://chatgpt.com/auth/login")
-            logger.info("[%s] mở trang đăng nhập: %s", cloud_label, start_url)
-            _t_goto = _StepTimer("mở trang đăng nhập")
+            logger.info("[%s] 打开登录页：%s", cloud_label, start_url)
+            _t_goto = _StepTimer("打开登录页")
             page.goto(start_url, wait_until="domcontentloaded")
             _t_goto.done(f"url={_page_url(page) or '-'}")
             _bu_delay("navigate")
@@ -2648,7 +2648,7 @@ def run_browser_use_registration(
                     on_email_acquired(email)
                 return email
 
-            _t_email = _StepTimer("điền và submit email")
+            _t_email = _StepTimer("填写并提交邮箱")
             # OpenAI 可能在点击提交后立刻发 OTP，甚至邮件 ReceivedDateTime 早于 Playwright
             # 点击函数返回的本地时间；先记录时间戳，配合 _is_after 的时钟容忍，避免过滤掉首次验证码。
             otp_after_ts = time.time()
@@ -2661,14 +2661,14 @@ def run_browser_use_registration(
                 email_supplier=_email_supplier_after_input,
             )
             _t_email.done(f"state={next_state}")
-            logger.info("[BrowserUse] Đã gửi email: %s", email)
-            _assert_not_external_idp(page, "Sau khi gửi email")
+            logger.info("[BrowserUse] 已提交邮箱：%s", email)
+            _assert_not_external_idp(page, "提交邮箱后")
             _check_manual_stop()
 
-            _t_pwd = _StepTimer("kiểm tra/xử lý trang mật khẩu")
+            _t_pwd = _StepTimer("检测/处理密码页")
             try:
                 if next_state == "email_verification":
-                    logger.info('[BrowserUse] Gửi email đã vào trang mã OTP, Thử nhấp"Tiếp tục bằng mật khẩu"và đặt mật khẩu')
+                    logger.info("[BrowserUse] 邮箱提交已进入验证码页，尝试点击“使用密码继续”并设置密码")
                 openai_password = _fill_password_if_present(page, email, timeout=8 if _fast_mode() else 18, context=context)
                 _t_pwd.done("password_set=yes" if openai_password else "password_set=no")
             except Exception as exc:
@@ -2682,7 +2682,7 @@ def run_browser_use_registration(
                 这里改为重新打开注册入口、重新提交同一个邮箱来触发新 OTP，保持页面回到可输入验证码的状态。
                 """
                 nonlocal page, otp_after_ts, openai_password
-                logger.info("[BrowserUse][OTP] kích hoạt lại email OTP: %s", reason)
+                logger.info("[BrowserUse][OTP] 重新触发邮箱 OTP：%s", reason)
                 try:
                     _check_manual_stop()
                     page = _pick_live_page(context, page) or page
@@ -2700,8 +2700,8 @@ def run_browser_use_registration(
                         timeout_ms=12000 if _fast_mode() else 18000,
                     )
                     _check_manual_stop()
-                    logger.info("[BrowserUse][OTP] Đã gửi lại email: %s", email)
-                    _assert_not_external_idp(page, "Sau khi gửi lại email")
+                    logger.info("[BrowserUse][OTP] 已重新提交邮箱：%s", email)
+                    _assert_not_external_idp(page, "重新提交邮箱后")
                     try:
                         pwd = _fill_password_if_present(page, email, timeout=6 if _fast_mode() else 10, context=context)
                         _check_manual_stop()
@@ -2710,12 +2710,12 @@ def run_browser_use_registration(
                     except Exception as pwd_exc:
                         if _is_manual_stop_exception(pwd_exc):
                             raise
-                        logger.info("[BrowserUse][OTP] Khởi động lại OTP Bỏ qua xử lý trang mật khẩu sau luồng/Thất bại, Tiếp tục chờ trang mã OTP: %s", str(pwd_exc)[:140])
+                        logger.info("[BrowserUse][OTP] 重启 OTP 流后密码页处理跳过/失败，继续等待验证码页：%s", str(pwd_exc)[:140])
                     _bu_delay("api")
                 except Exception as restart_exc:
                     if _is_manual_stop_exception(restart_exc):
                         raise
-                    logger.warning("[BrowserUse][OTP] kích hoạt lại email OTP Thất bại, Tiếp tục xử lý theo trang hiện tại: %s: %s", type(restart_exc).__name__, str(restart_exc)[:180])
+                    logger.warning("[BrowserUse][OTP] 重新触发邮箱 OTP 失败，继续按当前页面处理：%s: %s", type(restart_exc).__name__, str(restart_exc)[:180])
 
             current_otp = otp_code
             max_otp_attempts = 3
@@ -2728,20 +2728,20 @@ def run_browser_use_registration(
                     state_info = _quick_auth_state(page)
                     state = str(state_info.get("state") or "other")
                     if "/log-in/password" in str(state_info.get("url") or _page_url(page) or "").lower() or state == "login_password":
-                        raise RuntimeError(f"邮箱提交后进入登录密码页, Coi như đã đăng ký/Xử lý email không dùng được và vô hiệu hoá: url={state_info.get('url') or _page_url(page) or 'https://auth.openai.com/log-in/password'}")
+                        raise RuntimeError(f"邮箱提交后进入登录密码页，按已注册/不可用邮箱处理并停用: url={state_info.get('url') or _page_url(page) or 'https://auth.openai.com/log-in/password'}")
                     if state == "email_verification":
-                        logger.info("[BrowserUse][OTP] Đã phát hiện trang mã OTP: url=%s", state_info.get("url") or "-")
+                        logger.info("[BrowserUse][OTP] 已检测到验证码页：url=%s", state_info.get("url") or "-")
                         break
                     if any(x in _page_url(page).lower() for x in ("about-you", "profile", "chatgpt.com/")):
                         break
                     if time.time() - last_verify_log > 5:
-                        logger.info("[BrowserUse][OTP] Chờ trang nhập mã OTP xuất hiện: state=%s url=%s", state, state_info.get("url") or "-")
+                        logger.info("[BrowserUse][OTP] 等待验证码输入页出现：state=%s url=%s", state, state_info.get("url") or "-")
                         last_verify_log = time.time()
                     time.sleep(0.2 if _fast_mode() else 0.4)
 
                 if current_otp is None:
-                    logger.info("[BrowserUse][OTP] Chờ mã OTP: %s (%s/%s)", email, otp_attempt, max_otp_attempts)
-                    _t_otp_wait = _StepTimer("chờ email OTP")
+                    logger.info("[BrowserUse][OTP] 等待验证码：%s（%s/%s）", email, otp_attempt, max_otp_attempts)
+                    _t_otp_wait = _StepTimer("等待邮箱 OTP")
                     try:
                         current_otp = _wait_for_otp_with_browser_heartbeat(page, context, email, after_ts=otp_after_ts)
                         page = _pick_live_page(context, page) or page
@@ -2753,24 +2753,24 @@ def run_browser_use_registration(
                         if otp_attempt >= max_otp_attempts:
                             raise
                         logger.warning(
-                            "[BrowserUse][OTP] Lần này chưa nhận mã OTP email, Kích hoạt lại OTP sau đó tiếp tục chờ (%s/%s): %s: %s",
+                            "[BrowserUse][OTP] 本次未收到邮箱验证码，重新触发 OTP 后继续等待（%s/%s）：%s: %s",
                             otp_attempt + 1,
                             max_otp_attempts,
                             type(exc).__name__,
                             str(exc)[:180],
                         )
-                        _restart_email_otp_flow("chờ mã OTP quá thời gian, tránh bấm resend dẫn đến 500/chrome-error")
+                        _restart_email_otp_flow("等待验证码超时，避免点击 resend 导致 500/chrome-error")
                         current_otp = None
                         continue
-                logger.info("[BrowserUse][OTP] Đã nhận mã OTP: %s", current_otp)
-                _t_otp_submit = _StepTimer("Gửi email OTP")
+                logger.info("[BrowserUse][OTP] 收到验证码：%s", current_otp)
+                _t_otp_submit = _StepTimer("提交邮箱 OTP")
                 _clear_otp_inputs(page)
                 _type_otp(page, current_otp)
                 _bu_delay("otp_input")
                 try:
                     _click_continue(page)
                 except Exception as exc:
-                    logger.info("[BrowserUse][OTP] Không tìm thấy nút gửi, Tiếp tục quan sát trang: %s", str(exc)[:120])
+                    logger.info("[BrowserUse][OTP] 提交按钮未找到，继续观察页面：%s", str(exc)[:120])
                 _check_manual_stop()
 
                 outcome = _wait_after_otp(page, timeout=6 if _fast_mode() else 12)
@@ -2779,13 +2779,13 @@ def run_browser_use_registration(
                     # unknown 也继续尝试资料页/session
                     break
                 if otp_attempt >= max_otp_attempts:
-                    raise RuntimeError("Mã OTP email sai liên tiếp/Hết hạn")
-                logger.warning("[BrowserUse][OTP] Mã OTP có thể không hợp lệ, Kích hoạt lại OTP (%s/%s)", otp_attempt + 1, max_otp_attempts)
-                _restart_email_otp_flow("Mã OTP sai/hết hạn hoặc trang chưa chuyển hướng, tránh bấm resend dẫn đến 500/chrome-error")
+                    raise RuntimeError("邮箱验证码连续错误/过期")
+                logger.warning("[BrowserUse][OTP] 验证码可能无效，重新触发 OTP（%s/%s）", otp_attempt + 1, max_otp_attempts)
+                _restart_email_otp_flow("验证码错误/过期或页面未跳转，避免点击 resend 导致 500/chrome-error")
                 current_otp = None
 
-            logger.info("[BrowserUse] xử lý trang profile/session đăng nhập")
-            _t_profile = _StepTimer("trang profile/session đăng nhập")
+            logger.info("[BrowserUse] 处理资料页/登录态")
+            _t_profile = _StepTimer("资料页/登录态")
             if provider_prefix == "skyvern":
                 profile_timeout = int(getattr(_cfg, "SKYVERN_PROFILE_TIMEOUT", 45) or 45)
                 session_timeout = int(getattr(_cfg, "SKYVERN_SESSION_ACCESS_TOKEN_TIMEOUT", 35) or 35)
@@ -2800,7 +2800,7 @@ def run_browser_use_registration(
                     _bu_delay("post_auth")
             except Exception as exc:
                 # 资料页是高频卡点：超时/强制跳出失败后不继续卡，直接进入取 AT；取不到则由下一步抛错失败。
-                logger.warning("[BrowserUse] Xử lý trang hồ sơ quá thời gian/Thất bại, Thử lấy trực tiếp AT: %s: %s", type(exc).__name__, str(exc)[:260])
+                logger.warning("[BrowserUse] 资料页处理超时/失败，直接尝试取 AT：%s: %s", type(exc).__name__, str(exc)[:260])
 
             try:
                 session_info = _fetch_chatgpt_session(page, context=context, timeout=session_timeout)
@@ -2810,18 +2810,18 @@ def run_browser_use_registration(
                 raise
             access_token = session_info.get("accessToken")
             if not access_token:
-                raise RuntimeError("Quy trình đăng ký kết thúc nhưng chưa lấy được accessToken")
+                raise RuntimeError("注册流程结束但未拿到 accessToken")
             create_acknowledged = True
-            logger.info("[BrowserUse] Đã lấy được accessToken: %s", email)
+            logger.info("[BrowserUse] 已拿到 accessToken：%s", email)
 
             if _twofa_cfg.ENABLE_2FA:
-                logger.warning("[BrowserUse] Đường dẫn hiện tại tạm không tự đặt 2FA, Đã bỏ qua")
+                logger.warning("[BrowserUse] 当前路径暂不自动设置 2FA，已跳过")
             totp_secret = None
 
             codex_result = {
                 "status": "skipped",
                 "ok": True,
-                "message": "ENABLE_CODEX_AUTO=False, bỏ qua Codex",
+                "message": "ENABLE_CODEX_AUTO=False，跳过 Codex",
             }
             try:
                 from config import codex as _codex_cfg
@@ -2829,27 +2829,27 @@ def run_browser_use_registration(
                 oauth_driver = str(getattr(_codex_cfg, "CODEX_OAUTH_DRIVER", "") or "").strip() or "same_as_registration"
                 if codex_auto_enabled:
                     logger.info(
-                        "[BrowserUse][Codex] ENABLE_CODEX_AUTO=True, Tự chạy sau khi đăng ký thành công Codex OAuth: driver=%s",
+                        "[BrowserUse][Codex] ENABLE_CODEX_AUTO=True，注册成功后自动执行 Codex OAuth：driver=%s",
                         oauth_driver,
                     )
                     # Codex OAuth 会创建自己的授权 session。先关闭注册阶段的 Browser Use
                     # CDP 连接，避免注册浏览器继续占用远端会话/代理资源并干扰后续 OAuth。
-                    _close_browser_use_session(browser, reason="Sắp thực thi Codex OAuth")
+                    _close_browser_use_session(browser, reason="即将执行 Codex OAuth")
                     if provider_prefix == "skyvern" and hasattr(client, "close_browser_session") and getattr(session_info_open, "session_id", ""):
                         try:
                             client.close_browser_session(session_info_open.session_id)
-                            logger.info("[Skyvern] Đã đóng đăng ký browser session: %s", session_info_open.session_id)
+                            logger.info("[Skyvern] 已关闭注册 browser session：%s", session_info_open.session_id)
                         except Exception as exc:
-                            logger.warning("[Skyvern] Đóng đăng ký browser session Thất bại: %s: %s", type(exc).__name__, str(exc)[:180])
+                            logger.warning("[Skyvern] 关闭注册 browser session 失败：%s: %s", type(exc).__name__, str(exc)[:180])
                     browser = None
                     context = None
                     page = None
                     from core.codex_oauth import run_codex_oauth
                     codex_result = run_codex_oauth(email, otp_provider=wait_for_otp, proxy=proxy, force=True)
                 else:
-                    logger.info("[BrowserUse][Codex] ENABLE_CODEX_AUTO=False, Bỏ qua sau đăng ký Codex OAuth")
+                    logger.info("[BrowserUse][Codex] ENABLE_CODEX_AUTO=False，注册后跳过 Codex OAuth")
             except Exception as exc:
-                logger.warning("[BrowserUse][Codex] Uỷ quyền tự động thất bại: %s: %s", type(exc).__name__, str(exc)[:220])
+                logger.warning("[BrowserUse][Codex] 自动授权失败：%s: %s", type(exc).__name__, str(exc)[:220])
                 codex_result = {
                     "status": "failed",
                     "ok": False,
@@ -2892,15 +2892,15 @@ def run_browser_use_registration(
                 "error": None,
             }
     except Exception as exc:
-        logger.error("[BrowserUse] đăng ký thất bại: %s: %s", type(exc).__name__, exc)
-        logger.debug("[BrowserUse] Chi tiết thất bại", exc_info=True)
+        logger.error("[BrowserUse] 注册失败：%s: %s", type(exc).__name__, exc)
+        logger.debug("[BrowserUse] 失败详情", exc_info=True)
         try:
             if email:
                 from core.email_provider import release_email
                 release_email(
                     email,
                     status="failed" if create_acknowledged else "available",
-                    note=f"BrowserUseđăng ký thất bại: {str(exc)[:180]}",
+                    note=f"BrowserUse注册失败: {str(exc)[:180]}",
                 )
         except Exception:
             pass

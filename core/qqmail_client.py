@@ -1,12 +1,12 @@
 # -*- coding: utf-8 -*-
 """
-Client IMAP email QQ (chế độ email domain Cloudflare)
+QQ 邮箱 IMAP 客户端（Cloudflare 域名邮箱模式）
 
-Luồng:
-    1. pick_domain_email()    sinh email domain random@domain và ghi DB
-    2. fetch_latest_otp()     poll OTP qua IMAP email QQ
+工作流：
+    1. pick_domain_email()    生成 random@domain 域名邮箱并落库
+    2. fetch_latest_otp()     通过 QQ 邮箱 IMAP 轮询取 OTP
 
-Phụ thuộc: thư viện chuẩn Python (imaplib, email, ssl), không thêm package bên thứ ba.
+依赖：Python 标准库（imaplib, email, ssl），无新增第三方包。
 """
 import imaplib
 import email as email_lib
@@ -27,15 +27,15 @@ _PROJECT_ROOT = Path(__file__).resolve().parent.parent
 
 
 class QQMailClientError(RuntimeError):
-    """Lỗi dịch vụ email QQ."""
+    """QQ 邮箱服务相关异常。"""
 
 
 # ============================================================
-# Công cụ parse thư
+# 邮件解析工具
 # ============================================================
 
 def _decode_email_header(header_value: str | None) -> str:
-    """Giải mã header thư (xử lý encoding kiểu =?UTF-8?B?...?=)."""
+    """解码邮件头（处理 =?UTF-8?B?...?= 等编码）。"""
     if not header_value:
         return ""
     decoded_parts = decode_header(header_value)
@@ -52,7 +52,7 @@ def _decode_email_header(header_value: str | None) -> str:
 
 
 def _parse_email_date(msg) -> float | None:
-    """Parse ngày từ email.message thành timestamp UTC."""
+    """从 email.message 解析日期为 UTC 时间戳。"""
     date_str = msg.get("Date") or msg.get("date")
     if not date_str:
         return None
@@ -75,7 +75,7 @@ def _parse_email_date(msg) -> float | None:
 
 
 def _get_msg_text(msg) -> str:
-    """Rút thân thư đệ quy (ưu tiên plain text)."""
+    """递归提取邮件正文（纯文本优先）。"""
     if msg.is_multipart():
         text_parts = []
         for part in msg.walk():
@@ -122,7 +122,7 @@ def _get_msg_text(msg) -> str:
 
 
 def _msg_to_dict(msg) -> dict:
-    """Chuyển email.message thành dict thống nhất (tương thích outlook_client)."""
+    """将 email.message 转为统一 dict（与 outlook_client 兼容）。"""
     subject = _decode_email_header(msg.get("Subject") or msg.get("subject") or "")
     from_ = _decode_email_header(msg.get("From") or msg.get("from") or "")
     to_ = _decode_email_header(msg.get("To") or msg.get("to") or "")
@@ -150,11 +150,11 @@ def _msg_to_dict(msg) -> dict:
 
 
 # ============================================================
-# Kết nối và tìm IMAP
+# IMAP 连接与搜索
 # ============================================================
 
 def _connect_imap() -> imaplib.IMAP4_SSL:
-    """Kết nối server IMAP email QQ và trả object kết nối."""
+    """连接 QQ 邮箱 IMAP 服务器并返回连接对象。"""
     server = _email_cfg.QQ_IMAP_SERVER
     port = _email_cfg.QQ_IMAP_PORT
     qq_email = _email_cfg.QQ_EMAIL
@@ -162,7 +162,7 @@ def _connect_imap() -> imaplib.IMAP4_SSL:
 
     if not qq_email or not password:
         raise QQMailClientError(
-            "IMAP email QQ chưa cấu hình, hãy đặt QQ_EMAIL và QQ_IMAP_PASSWORD trong config/email.py"
+            "QQ 邮箱 IMAP 未配置，请在 config/email.py 中设置 QQ_EMAIL 和 QQ_IMAP_PASSWORD"
         )
 
     try:
@@ -171,13 +171,13 @@ def _connect_imap() -> imaplib.IMAP4_SSL:
         mail.select("INBOX")
         return mail
     except imaplib.IMAP4.error as exc:
-        raise QQMailClientError(f"Đăng nhập IMAP email QQ thất bại: {exc}")
+        raise QQMailClientError(f"QQ 邮箱 IMAP 登录失败: {exc}")
     except Exception as exc:
-        raise QQMailClientError(f"Kết nối IMAP email QQ thất bại: {exc}")
+        raise QQMailClientError(f"QQ 邮箱 IMAP 连接失败: {exc}")
 
 
 def _search_messages(mail: imaplib.IMAP4_SSL, after_dt: datetime | None = None) -> list[dict]:
-    """Tìm thư trong hộp thư sau after_dt, trả danh sách dict."""
+    """搜索收件箱中 after_dt 之后的邮件，返回 dict 列表。"""
     search_criteria = "ALL"
     if after_dt is not None:
         date_str = after_dt.strftime("%d-%b-%Y")
@@ -185,14 +185,14 @@ def _search_messages(mail: imaplib.IMAP4_SSL, after_dt: datetime | None = None) 
 
     status, msg_ids = mail.search(None, search_criteria)
     if status != "OK":
-        logger.warning(f"[QQMail] IMAP search thất bại: {status}")
+        logger.warning(f"[QQMail] IMAP search 失败: {status}")
         return []
 
     ids = msg_ids[0].split() if msg_ids[0] else []
     if not ids:
         return []
 
-    # Chỉ lấy 15 thư gần nhất (tránh inbox quá lớn, vẫn đủ dùng)
+    # 只取最近 15 封（防止 inbox 太大，也够用）
     recent_ids = ids[-15:]
 
     messages = []
@@ -206,39 +206,39 @@ def _search_messages(mail: imaplib.IMAP4_SSL, after_dt: datetime | None = None) 
             item = _msg_to_dict(msg)
             messages.append(item)
         except Exception as exc:
-            logger.debug(f"[QQMail] Parse thư {mid} thất bại: {exc}")
+            logger.debug(f"[QQMail] 解析邮件 {mid} 失败: {exc}")
             continue
 
     return messages
 
 
 # ============================================================
-# API công khai
+# 公共接口
 # ============================================================
 
 def pick_domain_email() -> str:
     """
-    Sinh một địa chỉ email domain ngẫu nhiên và ghi vào DB.
-    Định dạng: {8 chữ/số ngẫu nhiên}@{EMAIL_DOMAIN}
+    生成一个随机的域名邮箱地址并记录到 DB。
+    格式：{8位随机数字母}@{EMAIL_DOMAIN}
     """
     from core.db import claim_next_domain_email
 
     domain = _email_cfg.EMAIL_DOMAIN
     if not domain:
         raise QQMailClientError(
-            "EMAIL_DOMAIN chưa cấu hình, hãy đặt domain Cloudflare của bạn trong config/email.py"
+            "EMAIL_DOMAIN 未配置，请在 config/email.py 中设置你的 Cloudflare 域名"
         )
 
     prefix = "".join(random.choices(string.ascii_lowercase + string.digits, k=8))
     email = f"{prefix}@{domain}"
 
     claim_next_domain_email(email)
-    logger.info(f"[QQMail] Sinh email domain: {email}")
+    logger.info(f"[QQMail] 生成域名邮箱: {email}")
     return email
 
 
 def release_domain_email(email: str, status: str = "available", note: str | None = None) -> None:
-    """Cập nhật trạng thái email domain."""
+    """更新域名邮箱状态。"""
     from core.db import release_domain_email as _release
     _release(email, status=status, note=note)
 
@@ -251,31 +251,31 @@ def fetch_latest_otp(
     settle_seconds: int | None = None,
 ) -> str:
     """
-    Poll OTP qua IMAP email QQ.
+    通过 QQ 邮箱 IMAP 轮询取 OTP。
 
-    Mỗi vòng poll:
-        1. Kết nối IMAP email QQ, tìm thư sau mốc after_ts
-        2. Lọc thư có địa chỉ TO khớp email
-        3. Dùng otp_utils nhận thư mã OTP OpenAI và rút OTP 6 số
-        4. Cơ chế settle: sau thư đầu chờ thêm OTP_SETTLE_SECONDS giây,
-           xác nhận không có thư muộn hơn mới trả, tránh lấy OTP cũ giữa chừng
+    每个轮询周期：
+        1. 连接 QQ 邮箱 IMAP，搜索 after_ts 时间点之后的邮件
+        2. 筛选 TO 收件地址匹配 email 的邮件
+        3. 用 otp_utils 识别 OpenAI 验证码邮件并提取 6 位 OTP
+        4. settle 机制：抓到首封后再等 OTP_SETTLE_SECONDS 秒，
+           确认没有更晚的邮件才返回，避免取到途中旧 OTP
 
     Args:
-        email: địa chỉ email domain dùng đăng ký (cũng dùng lọc địa chỉ TO của IMAP)
-        after_ts: timestamp UTC, chỉ xem thư mới hơn mốc này
-        max_wait / poll_interval: mặc định lấy từ config
+        email: 注册用的域名邮箱地址（同时用于 IMAP TO 收件地址过滤）
+        after_ts: UTC 时间戳，只看比这个时间新的邮件
+        max_wait / poll_interval: 默认走 config 里的值
     """
     if not after_ts:
         after_ts = time.time()
     deadline = time.time() + (max_wait or _email_cfg.OTP_MAX_WAIT)
     interval = poll_interval or _email_cfg.OTP_POLL_INTERVAL
     settle = settle_seconds if settle_seconds is not None else _email_cfg.OTP_SETTLE_SECONDS
-    # Dung sai lệch đồng hồ 30s
+    # 30s 时钟偏差容忍
     after_dt = datetime.fromtimestamp(after_ts - 30, tz=timezone.utc)
 
     logger.info(
-        f"[QQMail] Bắt đầu poll hộp thư email QQ (domain: {email}），"
-        f"tối đa {max_wait or _email_cfg.OTP_MAX_WAIT}s, settle={settle}s..."
+        f"[QQMail] 开始轮询 QQ 邮箱收件箱（域名: {email}），"
+        f"最长 {max_wait or _email_cfg.OTP_MAX_WAIT}s, settle={settle}s..."
     )
 
     target_lower = email.lower()
@@ -291,7 +291,7 @@ def fetch_latest_otp(
             mail = _connect_imap()
             messages = _search_messages(mail, after_dt=after_dt)
         except QQMailClientError as exc:
-            logger.warning(f"[QQMail] Kết nối IMAP thất bại: {exc}")
+            logger.warning(f"[QQMail] IMAP 连接失败: {exc}")
             messages = []
         finally:
             if mail:
@@ -300,15 +300,15 @@ def fetch_latest_otp(
                 except Exception:
                     pass
 
-        # Sắp thời gian giảm dần
+        # 按时间降序排列
         messages.sort(key=lambda m: m.get("date") or "", reverse=True)
 
-        # Tìm thư OpenAI mới nhất
+        # 查找最新 OpenAI 邮件
         for item in messages:
             if not looks_like_openai_email(item):
                 continue
 
-            # Phải khớp địa chỉ nhận (tránh nhặt mã OTP cũ của địa chỉ domain khác)
+            # 必须匹配收件地址（避免捡到其他域名地址的旧验证码）
             to_field = (item.get("to") or "").lower()
             if target_lower not in to_field:
                 continue
@@ -318,7 +318,7 @@ def fetch_latest_otp(
             if not otp:
                 continue
 
-            # Parse timestamp
+            # 解析时间戳
             ts = 0.0
             raw_ts = item.get("date") or item.get("receivedDateTime") or ""
             if raw_ts:
@@ -336,48 +336,48 @@ def fetch_latest_otp(
             if ts > best_ts:
                 if best_otp:
                     logger.info(
-                        f"[QQMail] Thấy OTP muộn hơn={otp} (ts={raw_ts}), "
-                        f"thay OTP trước {best_otp}, đặt lại đồng hồ settle"
+                        f"[QQMail] 发现更晚的 OTP={otp} (ts={raw_ts}), "
+                        f"替换之前的 {best_otp}, 重置 settle 计时"
                     )
                 else:
                     logger.info(
-                        f"[QQMail] Khoá OTP lần đầu={otp}, ts={raw_ts}, "
-                        f"subject={subject!r}, chờ {settle}s xem có thư muộn hơn không..."
+                        f"[QQMail] 首次锁定 OTP={otp}, ts={raw_ts}, "
+                        f"subject={subject!r}, 等 {settle}s 看是否有更晚邮件..."
                     )
                 best_otp = otp
                 best_ts = ts
                 best_subject = subject
                 settle_until = time.time() + settle
-            break  # Chỉ quan tâm thư mới nhất
+            break  # 只关心最新那一封
 
-        # Phán đoán settle
+        # settle 判断
         now = time.time()
         if best_otp and settle_until is not None and now >= settle_until:
             logger.info(
-                f"[QQMail] settle xong, trả OTP={best_otp}, subject={best_subject!r}"
+                f"[QQMail] settle 完成，返回 OTP={best_otp}, subject={best_subject!r}"
             )
             return best_otp
 
         remaining = int(deadline - now)
         if best_otp:
             logger.info(
-                f"[QQMail] Đã khoá OTP ứng viên={best_otp}, đang chờ settle"
-                f"(settle còn ~{int(settle_until - now)}s, tổng còn {remaining}s)..."
+                f"[QQMail] 已锁定候选 OTP={best_otp}，等 settle 中"
+                f"（剩余 settle ~{int(settle_until - now)}s, 总剩余 {remaining}s）..."
             )
         else:
             logger.info(
-                f"[QQMail] Chưa nhận thư OpenAI, {interval}s nữa thử lại (còn {remaining}s）..."
+                f"[QQMail] 暂未收到 OpenAI 邮件，{interval}s 后重试（剩余 {remaining}s）..."
             )
         time.sleep(interval)
 
-    # Hết hạn nhưng đã có ứng viên
+    # 超时但有候选
     if best_otp:
         logger.warning(
-            f"[QQMail] Hết hạn tổng nhưng đã có ứng viên, trả OTP={best_otp} (subject={best_subject!r})"
+            f"[QQMail] 总超时但已有候选，返回 OTP={best_otp} (subject={best_subject!r})"
         )
         return best_otp
 
     raise QQMailClientError(
-        f"Chờ {email} OTP quá hạn (>{max_wait or _email_cfg.OTP_MAX_WAIT}s）。"
-        f"Có thể: cấu hình IMAP email QQ sai / chuyển tiếp Cloudflare chưa có hiệu lực / thư OpenAI chưa tới."
+        f"等待 {email} 的 OTP 超时（>{max_wait or _email_cfg.OTP_MAX_WAIT}s）。"
+        f"可能：QQ 邮箱 IMAP 配置有误 / Cloudflare 转发未生效 / OpenAI 邮件未到达。"
     )

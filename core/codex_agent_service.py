@@ -117,7 +117,7 @@ def _run_generate(*, account_id: int, email: str, access_token: str, trigger: st
     attempt_count = 0
     try:
         if not db.mark_account_codex_agent_running(account_id):
-            return {"ok": False, "error": "Tài khoản đã xoá hoặc trạng thái Codex Agent đã bị đặt lại"}
+            return {"ok": False, "error": "账号已删除或 Codex Agent 状态已被重置"}
         from core.codex_agent import create_codex_agent_identity
         from core.chatgpt_plan import open_plan_check_proxy, resolve_plan_check_route
         from core.session import BrowserSession
@@ -142,7 +142,7 @@ def _run_generate(*, account_id: int, email: str, access_token: str, trigger: st
                     fingerprint_seed=f"account:{email.lower()}:attempt:{attempt}",
                 )
                 logger.info(
-                    "[CodexAgent] môi trường độc lập: %s attempt=%s/%s route=%s proxy=%s did=%s session=%s profile_ua=%s",
+                    "[CodexAgent] 独立环境: %s attempt=%s/%s route=%s proxy=%s did=%s session=%s profile_ua=%s",
                     email,
                     attempt,
                     attempts,
@@ -174,7 +174,7 @@ def _run_generate(*, account_id: int, email: str, access_token: str, trigger: st
                     raise
                 wait_seconds = min(30.0, retry_delay * attempt)
                 logger.warning(
-                    "[CodexAgent] tạo thất bại tạm thời, thứ %s/%s lần, %.1fs thử lại sau: %s: %s",
+                    "[CodexAgent] 生成临时失败，第 %s/%s 次，%.1fs 后重试: %s: %s",
                     attempt,
                     attempts,
                     wait_seconds,
@@ -184,7 +184,7 @@ def _run_generate(*, account_id: int, email: str, access_token: str, trigger: st
                 if wait_seconds > 0:
                     time.sleep(wait_seconds)
         if not isinstance(auth_json, dict):
-            raise RuntimeError(f"Codex Agent tạo chưa trả về auth_json: {last_exc}")
+            raise RuntimeError(f"Codex Agent 生成未返回 auth_json: {last_exc}")
         identity = auth_json.get("agent_identity") if isinstance(auth_json, dict) else {}
         sub2api_result = None
         try:
@@ -193,7 +193,7 @@ def _run_generate(*, account_id: int, email: str, access_token: str, trigger: st
                 from core.codex_agent import upsert_sub2api_account, upload_sub2api_account
                 mode = str(getattr(sub2api_cfg, "SUB2API_SYNC_MODE", "api") or "api").strip().lower()
                 if mode not in {"api", "file", "both"}:
-                    logger.warning("[CodexAgent] SUB2API_SYNC_MODE=%s không hợp lệ, đã nhấn api xử lý", mode)
+                    logger.warning("[CodexAgent] SUB2API_SYNC_MODE=%s 不合法，已按 api 处理", mode)
                     mode = "api"
                 proxy_key = str(getattr(sub2api_cfg, "SUB2API_PROXY_KEY", "") or "").strip() or None
 
@@ -217,7 +217,7 @@ def _run_generate(*, account_id: int, email: str, access_token: str, trigger: st
                     )
                     results.append({"mode": "api", **api_result})
                     logger.info(
-                        "[CodexAgent] đã thông qua API tải lên sub2api: %s url=%s status=%s payload=%s",
+                        "[CodexAgent] 已通过 API 上传 sub2api: %s url=%s status=%s payload=%s",
                         email,
                         api_result.get("url"),
                         api_result.get("status_code"),
@@ -232,7 +232,7 @@ def _run_generate(*, account_id: int, email: str, access_token: str, trigger: st
                     file_result = upsert_sub2api_account(auth_json, sub2api_output_path, proxy_key=proxy_key)
                     results.append({"mode": "file", **file_result})
                     logger.info(
-                        "[CodexAgent] đã đồng bộ cục bộ sub2api: %s path=%s action=%s total=%s",
+                        "[CodexAgent] 已同步本地 sub2api: %s path=%s action=%s total=%s",
                         email,
                         file_result.get("path"),
                         "updated" if file_result.get("updated") else "added",
@@ -248,12 +248,12 @@ def _run_generate(*, account_id: int, email: str, access_token: str, trigger: st
                     "total": next((r.get("total") for r in results if r.get("total") is not None), None),
                 }
         except Exception as sub_exc:
-            logger.warning("[CodexAgent] đồng bộ sub2api Thất bại (không ảnh hưởng Agent Token): %s: %s", type(sub_exc).__name__, str(sub_exc)[:180])
+            logger.warning("[CodexAgent] 同步 sub2api 失败（不影响 Agent Token）: %s: %s", type(sub_exc).__name__, str(sub_exc)[:180])
         result = {
             "ok": True,
             "status": "success",
             "checked_at": datetime.now().isoformat(timespec="seconds"),
-            "message": "Đã tạo Codex Agent Token" + (", đã đồng bộ sub2api" if sub2api_result else ""),
+            "message": "Codex Agent Token 已生成" + ("，已同步 sub2api" if sub2api_result else ""),
             "agent_runtime_id": (identity or {}).get("agent_runtime_id"),
             "auth_path": None,
             "auth_json": auth_json,
@@ -270,7 +270,7 @@ def _run_generate(*, account_id: int, email: str, access_token: str, trigger: st
             "request_timeout": timeout_seconds,
         }
         db.update_account_codex_agent(account_id, result)
-        logger.info("[CodexAgent] tạo thành công: %s runtime=%s", email, result.get("agent_runtime_id") or "-")
+        logger.info("[CodexAgent] 生成成功: %s runtime=%s", email, result.get("agent_runtime_id") or "-")
         return result
     except Exception as exc:
         result = {
@@ -289,8 +289,8 @@ def _run_generate(*, account_id: int, email: str, access_token: str, trigger: st
         try:
             db.update_account_codex_agent(account_id, result)
         except Exception:
-            logger.exception("[CodexAgent] ghi thất bại, trạng thái bất thường: account_id=%s", account_id)
-        logger.exception("[CodexAgent] tạo thất bại: %s", email)
+            logger.exception("[CodexAgent] 写入失败状态异常: account_id=%s", account_id)
+        logger.exception("[CodexAgent] 生成失败: %s", email)
         return result
     finally:
         if env is not None:
@@ -305,11 +305,11 @@ def _run_generate(*, account_id: int, email: str, access_token: str, trigger: st
 
 def enqueue_account_codex_agent(*, account_id: int, email: str, access_token: str, trigger: str = "manual", verify_task: bool = True) -> dict:
     if not _QUEUE_SLOTS.acquire(blocking=False):
-        return {"accepted": False, "busy": False, "error": "Hàng đợi Codex Agent đã đầy"}
+        return {"accepted": False, "busy": False, "error": "Codex Agent 队列已满"}
     try:
         if not db.claim_account_codex_agent(account_id, trigger=trigger):
             _QUEUE_SLOTS.release()
-            return {"accepted": False, "busy": True, "error": "Tài khoản này đang tạo Codex Agent Token"}
+            return {"accepted": False, "busy": True, "error": "该账号正在生成 Codex Agent Token"}
         fut = _EXECUTOR.submit(
             _run_generate,
             account_id=account_id,

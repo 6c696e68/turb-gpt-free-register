@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 """
-ChatGPT Auth mô-đun khối
-chỗ lý chatgpt.com miền tên dưới xác thựcrequest（bước1-3）
+ChatGPT Auth 模块
+处理 chatgpt.com 域名下的认证请求（步骤1-3）
 """
 import json
 import logging
@@ -21,9 +21,9 @@ _CC_CAPS = "login_methods chatgpt_login_finalizer_v1"
 
 def _ensure_authorize_context(authorize_url: str, session: BrowserSession, email: str) -> str:
     """
-với NextAuth trả về authorize URL làm cuốifallback：xác nhận giữ hiện tạifrontendmặc định
-login_or_signup chuỗi ngữ cảnhtham sốkhông cótại lại định tới tạogiai đoạnmất mất 。
-"""
+    对 NextAuth 返回的 authorize URL 做最后兜底：确保当前前端默认
+    login_or_signup 链路的上下文参数没有在重定向生成阶段丢失。
+    """
     try:
         parsed = urlparse(authorize_url)
         if not parsed.netloc.endswith("auth.openai.com"):
@@ -52,7 +52,7 @@ login_or_signup chuỗi ngữ cảnhtham sốkhông cótại lại định tới
         if not changed:
             return authorize_url
         logger.info(
-            "[Bước3] đã căn chỉnh ngữ cảnh authorize：ui_locales=%s oai-did=%s",
+            "[步骤3] authorize 上下文已对齐：ui_locales=%s oai-did=%s",
             ui_locale,
             str(session.device_id)[:12] + "...",
         )
@@ -63,64 +63,64 @@ login_or_signup chuỗi ngữ cảnhtham sốkhông cótại lại định tới
 
 def get_providers(session: BrowserSession) -> dict:
     """
-bước1: lấy OAuth Providers list。
-GET https://chatgpt.com/api/auth/providers
+    步骤1: 获取 OAuth Providers 列表。
+    GET https://chatgpt.com/api/auth/providers
 
-xác thực và chatgpt.com kết nốilà không bình thường， và lấycó thể dùng OAuth nêu chonhà cung cấp 。
+    验证与 chatgpt.com 的连接是否正常，并获取可用的 OAuth 提供商。
 
-Returns:
-providers ký tự điển ，ví dụ nếu :
-{
-\"openai\": {
-\"id\": \"openai\",
-\"name\": \"openai\",
-\"type\": \"oauth\",
-\"signinUrl\": \"https://chatgpt.com/api/auth/signin/openai\",
-\"callbackUrl\": \"https://chatgpt.com/api/auth/callback/openai\"
-},
-...
-}
-"""
+    Returns:
+        providers 字典，例如:
+        {
+            "openai": {
+                "id": "openai",
+                "name": "openai",
+                "type": "oauth",
+                "signinUrl": "https://chatgpt.com/api/auth/signin/openai",
+                "callbackUrl": "https://chatgpt.com/api/auth/callback/openai"
+            },
+            ...
+        }
+    """
     url = "https://chatgpt.com/api/auth/providers"
     headers = session.get_nextauth_headers(referer="https://chatgpt.com/auth/login")
 
-    logger.info("[Bước1] lấy OAuth Providers...")
+    logger.info("[步骤1] 获取 OAuth Providers...")
     resp = session.get(url, headers=headers)
     resp.raise_for_status()
 
     data = resp.json()
-    logger.info(f"[Bước1] lấy thành công {len(data)} providers: {list(data.keys())}")
+    logger.info(f"[步骤1] 成功获取 {len(data)} 个 providers: {list(data.keys())}")
     return data
 
 
 def get_csrf_token(session: BrowserSession) -> str:
     """
-bước2: lấy CSRF Token。
-GET https://chatgpt.com/api/auth/csrf
+    步骤2: 获取 CSRF Token。
+    GET https://chatgpt.com/api/auth/csrf
 
-CSRF token tại sau đó signin request dùng。
+    CSRF token 将在后续 signin 请求中使用。
 
-Returns:
-csrfToken ký tự ký hiệu chuỗi
-"""
+    Returns:
+        csrfToken 字符串
+    """
     url = "https://chatgpt.com/api/auth/csrf"
     headers = session.get_nextauth_headers(referer="https://chatgpt.com/auth/login")
 
-    logger.info("[Bước2] lấy CSRF Token...")
+    logger.info("[步骤2] 获取 CSRF Token...")
     resp = session.get(url, headers=headers)
     resp.raise_for_status()
 
     data = resp.json()
     csrf_token = data.get("csrfToken", "")
-    logger.info(f"[Bước2] lấy CSRF Token thành công: {csrf_token[:20]}...")
+    logger.info(f"[步骤2] 获取 CSRF Token 成功: {csrf_token[:20]}...")
     return csrf_token
 
 
 def probe_auth_session(session: BrowserSession) -> dict:
-    """theo Web trang đăng nhậpthuận thứ tự tại providers sau đóđọcmột ẩn tên NextAuth session。"""
+    """按 Web 登录页顺序在 providers 之后读取一次匿名 NextAuth session。"""
     url = "https://chatgpt.com/api/auth/session"
     headers = session.get_nextauth_headers(referer="https://chatgpt.com/auth/login")
-    logger.info("[Bước1.5] đọc Auth Session ẩn danh...")
+    logger.info("[步骤1.5] 读取匿名 Auth Session...")
     resp = session.get(url, headers=headers)
     resp.raise_for_status()
     try:
@@ -132,19 +132,19 @@ def probe_auth_session(session: BrowserSession) -> dict:
 
 def signin_openai(session: BrowserSession, csrf_token: str, email: str) -> str:
     """
-bước3: gửi OAuth Signin request。
-POST https://chatgpt.com/api/auth/signin/openai
+    步骤3: 发起 OAuth Signin 请求。
+    POST https://chatgpt.com/api/auth/signin/openai
 
-cấu trúc tạo OAuth uỷ quyềntham số，lấy authorize URL。
+    构造 OAuth 授权参数，获取 authorize URL。
 
-Args:
-session: trình duyệtphiên
-csrf_token: từbước2lấy CSRF token
-email: đăng kýemail
+    Args:
+        session: 浏览器会话
+        csrf_token: 从步骤2获取的 CSRF token
+        email: 注册邮箱
 
-Returns:
-authorize_url: auth.openai.com uỷ quyền URL
-"""
+    Returns:
+        authorize_url: auth.openai.com 的授权 URL
+    """
     # 构造 URL 查询参数
     query_params = {
         "prompt": "login",
@@ -167,7 +167,7 @@ authorize_url: auth.openai.com uỷ quyền URL
         "json": "true",
     })
 
-    logger.info(f"[Bước3] gửi request OAuth Signin, email: {email}")
+    logger.info(f"[步骤3] 发起 OAuth Signin 请求, 邮箱: {email}")
     resp = session.post(url, headers=headers, data=body)
     resp.raise_for_status()
 
@@ -175,9 +175,9 @@ authorize_url: auth.openai.com uỷ quyền URL
     authorize_url = data.get("url", "")
 
     if not authorize_url:
-        raise ValueError(f"[Bước3] không lấy được authorize URL, phản hồi: {data}")
+        raise ValueError(f"[步骤3] 未获取到 authorize URL, 响应: {data}")
 
     authorize_url = _ensure_authorize_context(authorize_url, session, email)
-    logger.info("[Bước3] lấy authorize URL thành công, đã xác nhận ngữ cảnh login_or_signup/oai-did")
-    logger.debug(f"[Bước3] URL: {authorize_url[:160]}...")
+    logger.info("[步骤3] 获取 authorize URL 成功，已确认 login_or_signup/oai-did 上下文")
+    logger.debug(f"[步骤3] URL: {authorize_url[:160]}...")
     return authorize_url

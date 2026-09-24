@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-"""Plus dùng thửrút linknềnhàng đợi。"""
+"""Plus 试用提链后台队列。"""
 from __future__ import annotations
 
 import json
@@ -25,9 +25,9 @@ logger = logging.getLogger(__name__)
 
 def _runtime_setting(name: str, default=None):
     """
-rút linkcấu hìnhnhiều số lưutại .env。phục vụ việc mô-đun khối sẽ ở WebUI khởi động khihơn sớm import，
-vì này mỗi lầnthực tếđọc khiđều lại mới thêm tải .env，tránh“trangđã lưu nhưng hiện tạivào quá trình vẫn đọc đến trống giá trị ”。
-"""
+    提链配置多数保存在 .env。服务模块会在 WebUI 启动时较早 import，
+    因此每次实际读取时都重新加载 .env，避免“页面已保存但当前进程仍读到空值”。
+    """
     try:
         from config.env_loader import load_env
         load_env(override=True)
@@ -53,21 +53,21 @@ SUPPORTED_LINK_TYPES = {"pix", "upi", "kakao_pay", "ideal"}
 def _link_type(value: str | None = None) -> str:
     t = str(value or _runtime_setting("EXTRACT_LINK_TYPE", "pix") or "pix").strip().lower()
     if t not in SUPPORTED_LINK_TYPES:
-        raise ValueError("Loại rút link không hợp lệ, chỉ hỗ trợ pix / upi / kakao_pay / ideal")
+        raise ValueError("提链类型无效，仅支持 pix / upi / kakao_pay / ideal")
     return t
 
 
 def _api_base() -> str:
     base = str(_runtime_setting("EXTRACT_LINK_API_BASE", "") or "").strip().rstrip("/")
     if not base:
-        raise ValueError("EXTRACT_LINK_API_BASE trống")
+        raise ValueError("EXTRACT_LINK_API_BASE 为空")
     return base
 
 
 def _cdk(value: str | None = None) -> str:
     cdk = str(value or _runtime_setting("EXTRACT_LINK_CDK", "") or "").strip()
     if not cdk:
-        raise ValueError("EXTRACT_LINK_CDK/CDK trống")
+        raise ValueError("EXTRACT_LINK_CDK/CDK 为空")
     return cdk
 
 
@@ -130,7 +130,7 @@ def _create_extract_job(*, token: str, link_type: str, cdk: str) -> dict:
             with urlopen(req, timeout=timeout) as resp:
                 data = json.loads(resp.read().decode("utf-8", "replace") or "{}")
             if not isinstance(data, dict) or not data.get("job_id"):
-                raise RuntimeError(f"Dịch vụ rút link không trả job_id: {data}")
+                raise RuntimeError(f"提链服务未返回 job_id: {data}")
             return data
         resp = s.post(f"{base}/api/extract", json=payload, timeout=timeout)
         try:
@@ -140,7 +140,7 @@ def _create_extract_job(*, token: str, link_type: str, cdk: str) -> dict:
         if resp.status_code < 200 or resp.status_code >= 300:
             raise RuntimeError(data.get("error") or f"HTTP {resp.status_code}")
         if not isinstance(data, dict) or not data.get("job_id"):
-            raise RuntimeError(f"Dịch vụ rút link không trả job_id: {data}")
+            raise RuntimeError(f"提链服务未返回 job_id: {data}")
         return data
     finally:
         try:
@@ -189,7 +189,7 @@ def _iter_sse_events(*, job_id: str, cdk: str):
             return
         resp = s.get(url, timeout=timeout, stream=True)
         if resp.status_code < 200 or resp.status_code >= 300:
-            raise RuntimeError(f"Lắng nghe sự kiện rút link thất bại HTTP {resp.status_code}: {(resp.text or '')[:300]}")
+            raise RuntimeError(f"监听提链事件失败 HTTP {resp.status_code}: {(resp.text or '')[:300]}")
         event = "message"
         data_lines: list[str] = []
         for raw in resp.iter_lines():
@@ -232,7 +232,7 @@ def _iter_sse_events(*, job_id: str, cdk: str):
 
 
 def _extract_error_message(data) -> str:
-    """hết lượng từrút linkphục vụ việc trả về nhiệm ý lỗikết cấu trúc nêu lấy người dùngcó thể đọc gốc vì 。"""
+    """尽量从提链服务返回的任意错误结构中提取用户可读原因。"""
     if data is None:
         return ""
     if isinstance(data, str):
@@ -259,10 +259,10 @@ def _format_failure_reason(exc: Exception, logs: list[str] | None = None, last_e
     reason = f"{type(exc).__name__}: {str(exc)}".strip()
     if (not str(exc).strip()) and logs:
         reason = str(logs[-1])
-    if last_event and "Luồng sự kiện rút link kết thúc nhưng không trả result" in reason:
+    if last_event and "提链事件流结束但未返回 result" in reason:
         extracted = _extract_error_message(last_event.get("data"))
         if extracted:
-            reason = f"Luồng sự kiện rút link kết thúc nhưng không trả result; sự kiện cuối {last_event.get('event')}: {extracted}"
+            reason = f"提链事件流结束但未返回 result；最后事件 {last_event.get('event')}: {extracted}"
     return reason[:500]
 
 
@@ -271,7 +271,7 @@ def _run_extract(*, account_id: int, email: str, access_token: str, link_type: s
     last_event = None
     try:
         if not db.mark_account_extract_running(account_id):
-            return {"ok": False, "error": "Tài khoản đã xoá hoặc trạng thái rút link đã bị reset"}
+            return {"ok": False, "error": "账号已删除或提链状态已被重置"}
         job = _create_extract_job(token=access_token, link_type=link_type, cdk=cdk)
         job_id = str(job.get("job_id") or "")
         db.update_account_extract(account_id, {
@@ -279,7 +279,7 @@ def _run_extract(*, account_id: int, email: str, access_token: str, link_type: s
             "status": "running",
             "job_id": job_id,
             "link_type": link_type,
-            "message": "Tác vụ rút link đã tạo, đang chờ kết quả",
+            "message": "提链任务已创建，等待结果",
             "cdk_remaining": job.get("cdk_remaining"),
         })
         for event, data in _iter_sse_events(job_id=job_id, cdk=cdk):
@@ -301,14 +301,14 @@ def _run_extract(*, account_id: int, email: str, access_token: str, link_type: s
                     result = {}
                 final = {"ok": True, "status": "success", "job_id": job_id, "link_type": link_type, "result": result, "logs": logs}
                 db.update_account_extract(account_id, final)
-                logger.info("[Rút link] thành công: %s type=%s job=%s", email, link_type, job_id)
+                logger.info("[提链] 成功: %s type=%s job=%s", email, link_type, job_id)
                 return final
             elif event == "error":
                 msg = _extract_error_message(data)
-                raise RuntimeError(msg or "Tác vụ rút link thất bại")
+                raise RuntimeError(msg or "提链任务失败")
             elif event == "done":
                 break
-        raise RuntimeError(f"Luồng sự kiện rút link kết thúc nhưng không trả result: {last_event}")
+        raise RuntimeError(f"提链事件流结束但未返回 result: {last_event}")
     except Exception as exc:
         reason = _format_failure_reason(exc, logs=logs, last_event=last_event)
         result = {
@@ -321,8 +321,8 @@ def _run_extract(*, account_id: int, email: str, access_token: str, link_type: s
         try:
             db.update_account_extract(account_id, result)
         except Exception:
-            logger.exception("[Rút link] ghithất bạitrạng tháilỗi: account_id=%s", account_id)
-        logger.exception("[Rút link] thất bại: %s", email)
+            logger.exception("[提链] 写入失败状态异常: account_id=%s", account_id)
+        logger.exception("[提链] 失败: %s", email)
         return result
     finally:
         _QUEUE_SLOTS.release()
@@ -330,13 +330,13 @@ def _run_extract(*, account_id: int, email: str, access_token: str, link_type: s
 
 def enqueue_account_extract(*, account_id: int, email: str, access_token: str, trigger: str = "manual", link_type: str | None = None, cdk: str | None = None) -> dict:
     if not _QUEUE_SLOTS.acquire(blocking=False):
-        return {"accepted": False, "busy": False, "error": "Hàng đợi rút link đã đầy"}
+        return {"accepted": False, "busy": False, "error": "提链队列已满"}
     try:
         lt = _link_type(link_type)
         code = _cdk(cdk)
         if not db.claim_account_extract(account_id, trigger=trigger, link_type=lt):
             _QUEUE_SLOTS.release()
-            return {"accepted": False, "busy": True, "error": "Tài khoản này đang rút link"}
+            return {"accepted": False, "busy": True, "error": "该账号正在提链中"}
         fut = _EXECUTOR.submit(_run_extract, account_id=account_id, email=email, access_token=access_token, link_type=lt, cdk=code, trigger=trigger)
         return {"accepted": True, "busy": False, "future": fut, "link_type": lt}
     except Exception:
