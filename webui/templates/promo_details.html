@@ -38,7 +38,7 @@
   @media (max-width: 560px) { #promoDetailsDialog .promo-field { grid-template-columns: 96px minmax(0, 1fr); gap: 8px; } #promoDetailsDialog .promo-dialog-head { padding: 18px; } #promoDetailsContent { padding: 14px; } }
 </style>
 <dialog id="promoDetailsDialog" aria-labelledby="promoDetailsTitle">
-  <div class="promo-dialog-head"><div class="promo-dialog-title"><span class="promo-dialog-icon">✦</span><h3 id="promoDetailsTitle">可用优惠详情</h3><form method="dialog" style="margin-left:auto"><button class="promo-dialog-close" type="submit" aria-label="关闭">×</button></form></div><p class="promo-dialog-subtitle">最近一次查套餐返回的活动信息，不代表已开通套餐</p></div>
+  <div class="promo-dialog-head"><div class="promo-dialog-title"><span class="promo-dialog-icon">✦</span><h3 id="promoDetailsTitle">Chi tiết ưu đãi khả dụng</h3><form method="dialog" style="margin-left:auto"><button class="promo-dialog-close" type="submit" aria-label="Đóng">×</button></form></div><p class="promo-dialog-subtitle">Thông tin khuyến mãi từ lần tra cứu gói gần nhất, không có nghĩa đã mở gói</p></div>
   <div id="promoDetailsContent"></div>
 </dialog>
 <script>
@@ -47,7 +47,7 @@ document.addEventListener('click', (event) => {
   if (!button) return;
   let campaigns;
   try { campaigns = JSON.parse(button.dataset.promoDetails); }
-  catch (_) { showToast('优惠详情数据无效，请重新查询套餐'); return; }
+  catch (_) { showToast('Dữ liệu ưu đãi không hợp lệ, hãy tra cứu gói lại'); return; }
   const content = document.getElementById('promoDetailsContent');
   content.replaceChildren();
   for (const [type, campaign] of Object.entries(campaigns)) {
@@ -57,12 +57,12 @@ document.addEventListener('click', (event) => {
     section.appendChild(heading);
     const meta = campaign.metadata || {};
     const fields = [
-      ['活动 ID', campaign.id], ['标题', meta.title], ['说明', meta.summary],
-      ['套餐', meta.plan_name], ['优惠类型', meta.promotion_type_label || meta.promotion_type],
-      ['折扣比例', meta.discount?.percentage != null ? meta.discount.percentage + '%' : null],
-      ['优惠时长', meta.duration ? [meta.duration.num_periods, meta.duration.period].filter(v => v != null).join(' ') : null],
-      ['优惠结束后自动续费', meta.no_auto_renewal_at_discount_end === false ? '是' : meta.no_auto_renewal_at_discount_end === true ? '否' : null],
-      ['支付处理方', meta.processor],
+      ['ID hoạt động', campaign.id], ['Tiêu đề', meta.title], ['Mô tả', meta.summary],
+      ['Gói', meta.plan_name], ['Loại ưu đãi', meta.promotion_type_label || meta.promotion_type],
+      ['Tỷ lệ giảm', meta.discount?.percentage != null ? meta.discount.percentage + '%' : null],
+      ['Thời hạn ưu đãi', meta.duration ? [meta.duration.num_periods, meta.duration.period].filter(v => v != null).join(' ') : null],
+      ['Tự gia hạn sau ưu đãi', meta.no_auto_renewal_at_discount_end === false ? 'Có' : meta.no_auto_renewal_at_discount_end === true ? 'Không' : null],
+      ['Bên xử lý thanh toán', meta.processor],
     ];
     for (const [label, value] of fields) {
       if (value == null || value === '') continue;
@@ -75,7 +75,7 @@ document.addEventListener('click', (event) => {
     }
     const details = document.createElement('details');
     const summary = document.createElement('summary');
-    summary.textContent = '查看全部原始字段';
+    summary.textContent = 'Xem mọi trường gốc';
     const pre = document.createElement('pre');
     pre.textContent = JSON.stringify(campaign, null, 2);
     details.append(summary, pre);

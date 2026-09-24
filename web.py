@@ -1,14 +1,14 @@
 # -*- coding: utf-8 -*-
 """
-WebUI 启动入口。
+Điểm vào khởi chạy WebUI.
 
-用法：
-    python web.py                 # 默认 http://127.0.0.1:5000，仅本地访问，不自动打开浏览器
-    python web.py --open-browser  # 启动后自动打开浏览器
-    python web.py --port 8000     # 换端口
-    python web.py --host 0.0.0.0  # 允许局域网访问（敏感工具，自行评估）
+Cách dùng:
+    python web.py                 # Mặc định http://127.0.0.1:5000, chỉ truy cập local, không tự mở trình duyệt
+    python web.py --open-browser  # Tự mở trình duyệt sau khi khởi chạy
+    python web.py --port 8000     # Đổi cổng
+    python web.py --host 0.0.0.0  # Cho phép truy cập LAN (công cụ nhạy cảm, tự đánh giá)
 
-与 CLI（python main.py）完全平行，互不影响。
+Song song hoàn toàn với CLI (python main.py), không ảnh hưởng lẫn nhau.
 """
 import argparse
 import logging
@@ -23,7 +23,7 @@ from webui.auth import is_generated_code
 
 
 def _acquire_single_instance(port: int):
-    """持有跨进程文件锁，防止同一端口启动多个 WebUI 实例。"""
+    """Giữ khoá file liên tiến trình, tránh nhiều instance WebUI trên cùng cổng."""
     lock_path = Path(tempfile.gettempdir()) / f"turb-gpt-free-register-web-{int(port)}.lock"
     handle = lock_path.open("a+", encoding="utf-8")
     handle.seek(0, os.SEEK_END)
@@ -40,7 +40,7 @@ def _acquire_single_instance(port: int):
             fcntl.flock(handle.fileno(), fcntl.LOCK_EX | fcntl.LOCK_NB)
     except (OSError, IOError) as exc:
         handle.close()
-        raise RuntimeError(f"端口 {port} 的 WebUI 已在运行") from exc
+        raise RuntimeError(f"WebUI cổng {port} đang chạy") from exc
     handle.seek(0)
     handle.truncate()
     handle.write(str(os.getpid()))
@@ -73,12 +73,12 @@ def _setup_logging(verbose: bool) -> None:
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser(description="GPT 注册 WebUI 控制台")
-    parser.add_argument("--host", default="127.0.0.1", help="绑定地址，默认仅本地 127.0.0.1")
-    parser.add_argument("--port", type=int, default=5000, help="端口，默认 5000")
-    parser.add_argument("--open-browser", action="store_true", help="启动后自动打开浏览器")
-    parser.add_argument("--auth-code", default=None, help="WebUI 授权码；也可配置 .env: WEBUI_AUTH_CODE=...")
-    parser.add_argument("--verbose", action="store_true", help="详细日志")
+    parser = argparse.ArgumentParser(description="Bảng điều khiển WebUI đăng ký GPT")
+    parser.add_argument("--host", default="127.0.0.1", help="Địa chỉ bind, mặc định chỉ local 127.0.0.1")
+    parser.add_argument("--port", type=int, default=5000, help="Cổng, mặc định 5000")
+    parser.add_argument("--open-browser", action="store_true", help="Tự mở trình duyệt sau khi khởi chạy")
+    parser.add_argument("--auth-code", default=None, help="Mã uỷ quyền WebUI; cũng có thể cấu hình .env: WEBUI_AUTH_CODE=...")
+    parser.add_argument("--verbose", action="store_true", help="Nhật ký chi tiết")
     args = parser.parse_args()
 
     _setup_logging(args.verbose)
@@ -95,18 +95,18 @@ def main() -> None:
 
     app = create_app(auth_code=args.auth_code)
     url = f"http://{'127.0.0.1' if args.host in ('0.0.0.0', '::') else args.host}:{args.port}"
-    logger.info(f"WebUI 已启动：{url}")
+    logger.info(f"WebUI đã khởi chạy: {url}")
     if is_generated_code():
         from webui.auth import expected_auth_code
-        logger.warning("未配置 WEBUI_AUTH_CODE/AUTH_CODE，已生成本次临时授权码：%s", expected_auth_code())
+        logger.warning("Chưa cấu hình WEBUI_AUTH_CODE/AUTH_CODE, đã tạo mã uỷ quyền tạm cho lần này: %s", expected_auth_code())
     if args.host in ("0.0.0.0", "::"):
-        logger.warning("已绑定到所有网卡，局域网内其他设备可访问。这是敏感工具，请确认网络环境可信。")
+        logger.warning("Đã bind mọi giao diện mạng, thiết bị khác trong LAN có thể truy cập. Đây là công cụ nhạy cảm, hãy xác nhận mạng tin cậy.")
 
-    # 默认不自动打开浏览器；需要时显式传 --open-browser
+    # Mặc định không tự mở trình duyệt; truyền --open-browser khi cần
     if args.open_browser:
         Timer(1.0, lambda: webbrowser.open(url)).start()
 
-    # debug=False：避免 reloader 双进程导致线程池/定时器重复
+    # debug=False: tránh reloader hai process làm trùng thread pool/timer
     try:
         app.run(host=args.host, port=args.port, debug=False, threaded=True)
     finally:

@@ -1,16 +1,16 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-# Turb GPT Free Register WebUI 管理脚本
+# Script quản lý WebUI Turb GPT Free Register
 #
-# 用法：
-#   ./webui.sh start      启动 WebUI
-#   ./webui.sh stop       关闭 WebUI
-#   ./webui.sh restart    重启 WebUI
-#   ./webui.sh status     查看状态
-#   ./webui.sh logs       实时查看日志
+# Cách dùng:
+#   ./webui.sh start      Khởi chạy WebUI
+#   ./webui.sh stop       Đóng WebUI
+#   ./webui.sh restart    Khởi động lại WebUI
+#   ./webui.sh status     Xem trạng thái
+#   ./webui.sh logs       Xem nhật ký realtime
 #
-# 可选环境变量：
+# Biến môi trường tuỳ chọn:
 #   HOST=127.0.0.1
 #   PORT=5000
 #   OPEN_BROWSER=1
@@ -37,19 +37,19 @@ mkdir -p "$RUN_DIR" "$LOG_DIR"
 
 usage() {
   cat <<EOF
-用法：$0 <command>
+Cách dùng: $0 <command>
 
 commands:
-  start      启动 WebUI
-  stop       关闭 WebUI
-  restart    重启 WebUI
-  status     查看运行状态
-  logs       实时查看日志
+  start      Khởi chạy WebUI
+  stop       Đóng WebUI
+  restart    Khởi động lại WebUI
+  status     Xem trạng thái chạy
+  logs       Xem nhật ký realtime
 
-环境变量：
+Biến môi trường:
   HOST=127.0.0.1 PORT=5000 OPEN_BROWSER=1 VERBOSE=1 AUTH_CODE=xxx EXTRA_ARGS="..."
 
-示例：
+Ví dụ:
   ./webui.sh start
   PORT=8000 OPEN_BROWSER=1 ./webui.sh start
   HOST=0.0.0.0 PORT=5000 ./webui.sh restart
@@ -74,8 +74,8 @@ get_python() {
   if [[ -x "$venv_python" ]] && "$venv_python" -c 'import sys; print(sys.executable)' >/dev/null 2>&1; then
     echo "$venv_python"
   elif [[ -e "$venv_python" ]]; then
-    echo "检测到 .venv 存在，但虚拟环境中的 Python 已失效。" >&2
-    echo "请重新创建虚拟环境并安装依赖：" >&2
+    echo "Phát hiện .venv tồn tại, nhưng Python trong môi trường ảo đã hỏng." >&2
+    echo "Hãy tạo lại môi trường ảo và cài dependency:" >&2
     echo "  rm -rf .venv && python3 -m venv .venv" >&2
     echo "  .venv/bin/python -m pip install -r requirements.txt" >&2
     return 1
@@ -85,11 +85,11 @@ get_python() {
     if "$system_python" -c 'import flask' >/dev/null 2>&1; then
       echo "$system_python"
     else
-      echo "未找到可用 Python 环境：系统 Python 缺少 Flask，请先创建 .venv 并安装 requirements.txt" >&2
+      echo "Không tìm thấy môi trường Python dùng được: Python hệ thống thiếu Flask, hãy tạo .venv và cài requirements.txt" >&2
       return 1
     fi
   else
-    echo "未找到 Python：请先创建 .venv 或安装 python3" >&2
+    echo "Không tìm thấy Python: hãy tạo .venv hoặc cài python3" >&2
     return 1
   fi
 }
@@ -124,7 +124,7 @@ cmd_start() {
   local old_pid py pid
   old_pid="$(read_pid)"
   if is_running "$old_pid"; then
-    echo "WebUI 已在运行：PID=${old_pid}，地址：http://${HOST}:${PORT}"
+    echo "WebUI đang chạy: PID=${old_pid}, địa chỉ: http://${HOST}:${PORT}"
     return 0
   fi
   rm -f "$PID_FILE"
@@ -147,17 +147,17 @@ cmd_start() {
     args+=("${extra_parts[@]}")
   fi
 
-  echo "启动 WebUI：http://${HOST}:${PORT}"
-  echo "日志文件：$LOG_FILE"
+  echo "Khởi chạy WebUI: http://${HOST}:${PORT}"
+  echo "File nhật ký: $LOG_FILE"
   nohup "$py" "${args[@]}" >> "$LOG_FILE" 2>&1 &
   pid=$!
   echo "$pid" > "$PID_FILE"
 
   sleep 1
   if is_running "$pid"; then
-    echo "启动成功：PID=$pid"
+    echo "Khởi chạy thành công: PID=$pid"
   else
-    echo "启动失败，请查看日志：$LOG_FILE" >&2
+    echo "Khởi chạy thất bại, xem nhật ký: $LOG_FILE" >&2
     rm -f "$PID_FILE"
     return 1
   fi
@@ -171,12 +171,12 @@ cmd_stop() {
   done < <(collect_running_pids)
 
   if [[ "${#pids[@]}" -eq 0 ]]; then
-    echo "WebUI 未运行"
+    echo "WebUI chưa chạy"
     rm -f "$PID_FILE"
     return 0
   fi
 
-  echo "正在关闭 WebUI：PID=${pids[*]}"
+  echo "Đang đóng WebUI: PID=${pids[*]}"
   for pid in "${pids[@]}"; do
     kill "$pid" >/dev/null 2>&1 || true
   done
@@ -196,13 +196,13 @@ cmd_stop() {
 
   for pid in "${pids[@]}"; do
     if is_running "$pid"; then
-      echo "进程未退出，强制结束：PID=$pid"
+      echo "Tiến trình chưa thoát, buộc kết thúc: PID=$pid"
       kill -9 "$pid" >/dev/null 2>&1 || true
     fi
   done
 
   rm -f "$PID_FILE"
-  echo "已关闭 WebUI"
+  echo "Đã đóng WebUI"
 }
 
 cmd_restart() {
@@ -219,13 +219,13 @@ cmd_status() {
   done < <(collect_running_pids)
 
   if [[ "${#pids[@]}" -eq 0 ]]; then
-    echo "WebUI 未运行"
+    echo "WebUI chưa chạy"
     return 1
   fi
 
-  echo "WebUI 运行中：PID=${pids[*]}"
-  echo "地址：http://${HOST}:${PORT}"
-  echo "日志：$LOG_FILE"
+  echo "WebUI đang chạy: PID=${pids[*]}"
+  echo "Địa chỉ: http://${HOST}:${PORT}"
+  echo "Nhật ký: $LOG_FILE"
 }
 
 cmd_logs() {
@@ -242,7 +242,7 @@ case "$cmd" in
   logs|log) cmd_logs ;;
   -h|--help|help|"") usage ;;
   *)
-    echo "未知命令：$cmd" >&2
+    echo "Lệnh không rõ: $cmd" >&2
     usage >&2
     exit 2
     ;;
