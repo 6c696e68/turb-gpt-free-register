@@ -1,20 +1,5 @@
 # -*- coding: utf-8 -*-
-"""
-邮箱来源调度层。
-
-EMAIL_SOURCE 支持单个或多个来源：
-    "outlook"
-    "cloudflare_domain"   # 自有域名 + QQ IMAP
-    "cloudflare"          # Cloudflare Worker 临时邮箱
-    "generic_api"
-    "imap"
-    "gptmail"
-    "mailnest"
-    "cloudmail"
-    "remail"
-    "outlook,generic_api,mailnest,cloudmail,remail"   # 按顺序兜底
-    ["outlook", "generic_api", "mailnest", "cloudmail", "remail"]  # 也兼容列表写法
-"""
+"\nemail nguồn điều phối mức lớp. \n\nEMAIL_SOURCE hỗ trợ một hoặc nhiều nguồn: \n  \"outlook\"\n  \"cloudflare_domain\"  # tự có miền tên + QQ IMAP\n  \"cloudflare\"  # Cloudflare Worker tạm email\n  \"generic_api\"\n  \"imap\"\n  \"gptmail\"\n  \"mailnest\"\n  \"cloudmail\"\n  \"remail\"\n  \"outlook,generic_api,mailnest,cloudmail,remail\"  # theo thứ tự dự phòng\n  [\"outlook\", \"generic_api\", \"mailnest\", \"cloudmail\", \"remail\"]  # cũng tương thích cột bảng ghi cách\n"
 import logging
 from typing import Iterable
 
@@ -24,7 +9,7 @@ _VALID_SOURCES = ("outlook", "generic_api", "imap", "cloudflare_domain", "cloudf
 
 
 def parse_email_sources(value=None) -> list[str]:
-    """把 EMAIL_SOURCE 解析为有序来源列表，去重并过滤空值。"""
+    "  EMAIL_SOURCE phân tích là có thứ tự nguồn cột bảng, khử trùng và lọc trống giá trị. "
     if value is None:
         from config import email as _email_cfg
         value = _email_cfg.EMAIL_SOURCE
@@ -41,7 +26,7 @@ def parse_email_sources(value=None) -> list[str]:
         if not s:
             continue
         if s not in _VALID_SOURCES:
-            logger.warning(f"[EmailProvider] 未知邮箱来源 {s!r}，已忽略")
+            logger.warning(f"[EmailProvider] nguồn email không xác định {s!r}, đã bỏ qua")
             continue
         if s not in out:
             out.append(s)
@@ -78,37 +63,33 @@ def _pick_from_source(source: str) -> str:
 
 
 def acquire_email() -> str:
-    """根据 EMAIL_SOURCE 领取一个用于注册的邮箱地址；多个来源时按顺序兜底。"""
+    "theo EMAIL_SOURCE lấy một email dùng để đăng ký địa chỉ; nhiều nguồn khi theo thứ tự dự phòng. "
     sources = parse_email_sources()
     last_exc: Exception | None = None
     for source in sources:
         try:
             email = _pick_from_source(source)
-            logger.info(f"[EmailProvider] 使用邮箱来源: {source}, email={email}")
+            logger.info(f"[EmailProvider] dùng nguồn email: {source}, email={email}")
             return email
         except Exception as exc:
             last_exc = exc
-            logger.warning(f"[EmailProvider] 来源 {source} 领取邮箱失败: {type(exc).__name__}: {exc}")
+            logger.warning(f"[EmailProvider] nguồn {source} lấy email thất bại: {type(exc).__name__}: {exc}")
             continue
-    raise RuntimeError(f"所有邮箱来源均领取失败: {sources}; last={last_exc}")
+    raise RuntimeError(f"mọi nguồn email đều lấy thất bại: {sources}; last={last_exc}")
 
 
 def acquire_email_from_source(source: str) -> str:
-    """从调用方指定的单一来源领取邮箱，不受 EMAIL_SOURCE 兜底顺序影响。"""
+    "từ gọi bên chỉ định đơn nguồn lấy email, không chịu EMAIL_SOURCE dự phòng ảnh hưởng thứ tự. "
     source = str(source or "").strip().lower()
     if source not in _VALID_SOURCES:
-        raise ValueError(f"不支持的邮箱来源: {source}")
+        raise ValueError(f"nguồn email không hỗ trợ: {source}")
     email = _pick_from_source(source)
-    logger.info("[EmailProvider] 指定来源领取邮箱: source=%s, email=%s", source, email)
+    logger.info("[EmailProvider] lấy email từ nguồn chỉ định: source=%s, email=%s", source, email)
     return email
 
 
 def acquire_email_after_input(email: str | None = None) -> str:
-    """在浏览器已找到邮箱输入框后领取邮箱。
-
-    浏览器驱动把“找到输入框”和“领取邮箱”拆成两个阶段，避免页面加载、风控
-    或入口识别失败时提前消耗邮箱。传入已有邮箱时不重复领取，兼容固定邮箱模式。
-    """
+    "ở trình duyệt đã thấy ô nhập email sau lấy email. \n\n  driver trình duyệt \"tìm đến ô nhập\"và\"lấy email\"tách thành hai giai đoạn, tránh trang tải, kiểm soát rủi ro\n  hoặc nhận diện lối vào thất bại khi nêu trước tiêu thụ email. truyền vào đã có email khi không trùng lấy, tương thích cố định email mẫu kiểu. \n  "
     current = str(email or "").strip()
     if current:
         return current
@@ -116,16 +97,16 @@ def acquire_email_after_input(email: str | None = None) -> str:
     from config import email as _email_cfg
 
     if not bool(getattr(_email_cfg, "USE_EMAIL_SERVICE", False)):
-        raise RuntimeError("页面已找到邮箱输入框，但自动取邮箱未启用且未配置 REGISTER_EMAIL")
+        raise RuntimeError("trang đã thấy ô nhập email, nhưng tự lấy email chưa bật và chưa cấu hình REGISTER_EMAIL")
     allocated = str(acquire_email() or "").strip()
     if not allocated:
-        raise RuntimeError("邮箱服务返回了空邮箱地址")
-    logger.info("[EmailProvider] 已找到邮箱输入框，开始分配邮箱: %s", allocated)
+        raise RuntimeError("dịch vụ email trả về địa chỉ email trống")
+    logger.info("[EmailProvider] đã thấy ô nhập email, bắt đầu cấp email: %s", allocated)
     return allocated
 
 
 def resolve_email_source(email: str) -> str:
-    """根据邮箱判断实际来源，已注册账号优先使用落库来源。"""
+    "theo email xác định thực tế nguồn, đã đăng ký tài khoản ưu tiên dùng ghi kho nguồn. "
     # 已注册账号的 email_source 是注册时的最终来源。必须先读它，不能因为
     # 当前进程里恰好残留了其它邮箱池上下文，或邮箱池顺序发生变化，就把同一
     # 地址误判到另一个服务商。
@@ -170,12 +151,7 @@ def resolve_email_source(email: str) -> str:
 
 
 def _normalize_explicit_email_source(value: str | None) -> str | None:
-    """规范化调用方明确指定的邮箱来源。
-
-    已注册账号的 ``email_source`` 是注册时落库的单一来源，查活时应优先使用
-    这个值，而不是重新根据当前进程的临时邮箱上下文或全局 EMAIL_SOURCE 猜测。
-    这里也兼容历史数据里偶尔保存的逗号/分号分隔值，取其中第一个有效来源。
-    """
+    "chuẩn hoá gọi bên chỉ rõ chỉ định email nguồn. \n\n  đã đăng ký tài khoản  ``email_source`` là đăng ký khi ghi kho đơn nguồn, kiểm tra sống khi nên ưu tiên dùng\n  này giá trị, mà không là lại theo hiện tại tiến trình tạm email trên dưới văn hoặc toàn cục EMAIL_SOURCE đoán. \n  này trong cũng tương thích lịch sử số dữ liệu đôi khi trong lưu phẩy số/phút số phút cách giá trị, lấy trong đó lần một hợp lệ nguồn. \n  "
     if value is None:
         return None
     raw = str(value or "").strip()
@@ -189,7 +165,7 @@ def _normalize_explicit_email_source(value: str | None) -> str | None:
 
 
 def _registered_email_source(email: str) -> str | None:
-    """读取已注册账号落库的邮箱来源。"""
+    "đọc đã đăng ký tài khoản ghi kho email nguồn. "
     try:
         from core import db
 
@@ -208,11 +184,7 @@ def wait_for_otp(
     email_source: str | None = None,
     force_service: bool = False,
 ) -> str:
-    """等待并返回该邮箱最新的 ChatGPT OTP（6 位数字字符串）。
-
-    USE_EMAIL_SERVICE=False 时走手动验证码通道（WebUI 提交 / CLI 输入），
-    不再强制要求 Outlook clientId/refreshToken。
-    """
+    "chờ và trả về này email mới nhất  ChatGPT OTP(6 chữ số số chuỗi ký tự). \n\n  USE_EMAIL_SERVICE=False khi đi thủ công mã OTP kênh(WebUI gửi / CLI nhập), \n  không lại ép yêu cầu Outlook clientId/refreshToken. \n  "
     try:
         from config import email as _email_cfg
         use_service = bool(getattr(_email_cfg, "USE_EMAIL_SERVICE", True))
@@ -275,7 +247,7 @@ def wait_for_otp(
 
 
 def email_material_line(email: str, source: str | None = None) -> str:
-    """返回账号换绑后应保存的邮箱素材行。"""
+    "trả về tài khoản đổi email sau nên lưu email nguyên liệu dòng. "
     source = _normalize_explicit_email_source(source) or resolve_email_source(email)
     from core import db
     row = None
@@ -291,7 +263,7 @@ def email_material_line(email: str, source: str | None = None) -> str:
 
 
 def release_email(email: str, status: str = "available", note: str | None = None) -> str:
-    """按邮箱实际来源回收状态，返回来源名。"""
+    "theo email thực tế nguồn thu hồi trạng thái, trả về nguồn tên. "
     source = resolve_email_source(email)
     if source == "gptmail":
         from core.gptmail_client import release_account
@@ -324,7 +296,7 @@ def release_email(email: str, status: str = "available", note: str | None = None
 
 
 def release_email_if_unconsumed(email: str, note: str | None = None) -> bool:
-    """回收仍停留在 used 的任务领取，且绝不覆盖已注册/已判废状态。"""
+    "thu hồi vẫn ở lại ở used  tác vụ lấy, và tuyệt không ghi đè đã đăng ký/đã đánh hỏng trạng thái. "
     if not (email or "").strip():
         return False
 
@@ -347,5 +319,5 @@ def release_email_if_unconsumed(email: str, note: str | None = None) -> bool:
         changed = True
 
     if changed:
-        logger.info("[EmailProvider] 已回收未消耗邮箱: source=%s, email=%s", source, email)
+        logger.info("[EmailProvider] đã thu hồi email chưa tiêu thụ: source=%s, email=%s", source, email)
     return changed

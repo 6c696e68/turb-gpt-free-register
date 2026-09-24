@@ -1,12 +1,5 @@
 # -*- coding: utf-8 -*-
-"""
-OTP 检测与抽取通用工具，被 outlook_client（Outlook 邮箱）使用。
-
-要求：
-    - 多语言关键字识别（英 / 中 / 日 / 韩）
-    - 字段名容错（不同邮件 API 用不同的字段命名约定）
-    - 上下文优先：在多个 6 位数中，选择离"验证码"等关键字最近的那个
-"""
+"\nOTP phát hiện và công cụ trích dùng công cụ, bị outlook_client(Outlook email)dùng. \n\nyêu cầu: \n  - nhận diện từ khoá đa ngôn ngữ(Anh / trong / Nhật / Hàn)\n  - trường tên dung sai(khác thư API dùng khác trường lệnh tên quy ước)\n  - trên dưới văn ưu tiên: ở nhiều 6 chữ số số trong, chọn gần\"mã OTP\"v.v.từ khoá gần nhất đó \n"
 import re
 
 _OPENAI_SENDER_HINT = "openai"
@@ -36,10 +29,7 @@ _OTP_REGEX = re.compile(r"\b(\d{6})\b")
 
 
 def _get_field(item: dict, *names: str) -> str:
-    """
-    从邮件 dict 中按顺序尝试多个可能的字段名，返回第一个非空字符串。
-    用于兼容不同邮件 API 的字段命名约定（例如 sendEmail / from / fromEmail / from.address）。
-    """
+    "\n  từ thư dict trong theo thử theo thứ tự nhiều có thể có thể trường tên, trả về lần một không trống chuỗi. \n  dùng để tương thích khác thư API  trường lệnh tên quy ước(ví dụ như sendEmail / from / fromEmail / from.address). \n  "
     for name in names:
         if "." in name:
             # 支持 "from.emailAddress.address" 这种点路径
@@ -59,15 +49,7 @@ def _get_field(item: dict, *names: str) -> str:
 
 
 def looks_like_openai_email(item: dict) -> bool:
-    """
-    判断邮件是否来自 OpenAI / ChatGPT。多语言、多字段名兼容。
-
-    字段名容错（不同 API 返回风格不一）：
-        发件人:  sendEmail / from / fromEmail / from.emailAddress.address
-        发件人名:sendName / fromName / from.emailAddress.name
-        纯文本:  text / bodyPreview / bodyText
-        HTML:    content / body / html / body.content / bodyHtml
-    """
+    "\n  xác định thư là có phải từ OpenAI / ChatGPT. đa ngôn ngữ, nhiều trường tên tương thích. \n\n  trường tên dung sai(khác API trả về phong cách không một): \n  người gửi:  sendEmail / from / fromEmail / from.emailAddress.address\n  người gửi tên:sendName / fromName / from.emailAddress.name\n  văn bản thuần này:  text / bodyPreview / bodyText\n  HTML:  content / body / html / body.content / bodyHtml\n  "
     sender = _get_field(item, "sendEmail", "from", "fromEmail", "from.emailAddress.address").lower()
     sender_name = _get_field(item, "sendName", "fromName", "from.emailAddress.name").lower()
     subject = _get_field(item, "subject").lower()
@@ -81,16 +63,7 @@ def looks_like_openai_email(item: dict) -> bool:
 
 
 def extract_otp(item: dict) -> str | None:
-    """
-    从邮件中抽出 6 位 OTP。
-
-    抽取顺序：
-        1. subject（OpenAI 部分邮件直接把 6 位数放在主题里，例 "Your OpenAI code is 525210"）
-        2. 纯文本字段（text / bodyPreview / bodyText）
-        3. HTML 字段（content / html / body / body.content / bodyHtml，去标签后）
-
-    若 body 中含多个 6 位数，优先选择离 "验证码 / code / 認証" 等关键字最近的那个。
-    """
+    "\n  từ thư trong trích ra 6 chữ số OTP. \n\n  thứ tự trích: \n  1. subject(OpenAI một phần thư trực tiếp  6 chữ số số đặt ở chính trong tiêu đề, ví dụ \"Your OpenAI code is 525210\")\n  2. văn bản thuần này trường(text / bodyPreview / bodyText)\n  3. HTML trường(content / html / body / body.content / bodyHtml, bỏ thẻ sau)\n\n  nếu body trong chứa nhiều 6 chữ số số, ưu tiên chọn gần \"mã OTP / code / xác thực\" v.v.từ khoá gần nhất đó . \n  "
     # 1. 主题里如果直接有 6 位数，最可信
     subject = _get_field(item, "subject")
     if subject:

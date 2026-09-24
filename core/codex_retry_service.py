@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-"""Codex 授权补跑服务，供账号页和注册任务队列共同使用。"""
+"Codex uỷ quyền chạy bù dịch vụ, cung cấp tài khoản trang và đăng ký tác vụ hàng đợi cùng cùng dùng. "
 import ctypes
 import logging
 import threading
@@ -19,7 +19,7 @@ _RESERVED_AT: dict[str, float] = {}
 
 
 class CodexRetryStopped(Exception):
-    """用户手动停止 Codex 补跑。"""
+    "người dùng dừng thủ công Codex chạy bù. "
 
 
 def _thread_alive(thread_id: int | None) -> bool:
@@ -44,7 +44,7 @@ def log_path(email: str) -> Path:
 
 
 def reserve(email: str) -> bool:
-    """进程内防止同一账号被重复补跑。"""
+    "tiến trình trong ngăn cùng một tài khoản bị trùng chạy bù. "
     key = (email or "").strip().lower()
     if not key:
         return False
@@ -65,7 +65,7 @@ def reserve(email: str) -> bool:
             terminal_status = status in {"stopped", "failed", "success", "deactivated", "skipped", "cancelled"}
             if ((not alive) and (status != "retrying" or age > 15 * 60)) or (terminal_status and (stop_req or age > 30)):
                 logger.warning(
-                    "[Codex 补跑] 清理脏占位：email=%s status=%s thread_id=%s alive=%s stop_requested=%s age=%.1fs",
+                    "[Codex chạy bù] dọn chỗ giữ bẩn: email=%s status=%s thread_id=%s alive=%s stop_requested=%s age=%.1fs",
                     email, status or "-", thread_id or "-", alive, stop_req, age,
                 )
                 _clear_state_locked(key)
@@ -96,11 +96,11 @@ def is_stop_requested(email: str) -> bool:
 
 def check_stop_requested(email: str) -> None:
     if is_stop_requested(email):
-        raise CodexRetryStopped("用户手动停止 Codex 补跑")
+        raise CodexRetryStopped("Người dùng dừng thủ công chạy bù Codex")
 
 
 def _async_raise(thread_id: int, exc_type: type[BaseException]) -> bool:
-    """向指定 Python 线程注入异常，用于尽快中断阻塞中的补跑流程。"""
+    "tới chỉ định Python luồng tiêm ngoại lệ, dùng để càng sớm càng tốt gián đoạn chặn trong chạy bù quy trình. "
     if not thread_id:
         return False
     res = ctypes.pythonapi.PyThreadState_SetAsyncExc(
@@ -116,20 +116,20 @@ def _async_raise(thread_id: int, exc_type: type[BaseException]) -> bool:
 
 
 def request_stop(email: str) -> dict:
-    """请求停止单个 Codex 补跑。运行中会注入停止异常；排队中会在启动前退出。"""
+    "request dừng một Codex chạy bù. chạy trong sẽ tiêm dừng ngoại lệ; xếp hàng trong sẽ ở khởi động trước thoát. "
     key = (email or "").strip().lower()
     if not key:
-        return {"ok": False, "error": "email 为空", "status": 400}
+        return {"ok": False, "error": "email trống", "status": 400}
     with _RETRYING_LOCK:
         retrying = key in _RETRYING
         thread_id = _RUNNING_THREADS.get(key)
         _STOP_REQUESTED.add(key)
     if not retrying:
-        db.update_account_codex_status(email, "stopped", "用户手动停止（未发现运行中的补跑）")
-        return {"ok": True, "message": "未发现运行中的补跑，已标记为已停止", "state": "stopped", "running": False}
+        db.update_account_codex_status(email, "stopped", "Người dùng dừng thủ công (không thấy chạy bù đang chạy)")
+        return {"ok": True, "message": "Không thấy chạy bù đang chạy, đã đánh dấu đã dừng", "state": "stopped", "running": False}
 
     injected = bool(thread_id and _async_raise(int(thread_id), CodexRetryStopped))
-    db.update_account_codex_status(email, "stopped", "用户手动停止 Codex 补跑")
+    db.update_account_codex_status(email, "stopped", "Người dùng dừng thủ công chạy bù Codex")
     # 如果没有可注入的存活线程，立即释放进程内占位，避免 UI 显示已停止但再次补跑仍 409。
     with _RETRYING_LOCK:
         if not _thread_alive(thread_id):
@@ -147,7 +147,7 @@ def request_stop(email: str) -> dict:
                     except Exception:
                         status = ""
                     if status == "stopped":
-                        logger.warning("[Codex 补跑] 停止后延迟释放占位：email=%s thread_id=%s", email, thread_id or "-")
+                        logger.warning("[Codex chạy bù] sau khi dừng, giải phóng chỗ giữ có trễ: email=%s thread_id=%s", email, thread_id or "-")
                         _clear_state_locked(key)
 
         threading.Thread(target=_delayed_release, name=f"codex-stop-release-{key}", daemon=True).start()
@@ -156,10 +156,10 @@ def request_stop(email: str) -> dict:
         p.parent.mkdir(parents=True, exist_ok=True)
         from datetime import datetime as _dt
         with p.open("a", encoding="utf-8") as f:
-            f.write(f"{_dt.now().strftime('%H:%M:%S')} [WARNING] [Codex 补跑] 用户手动停止，已发送停止信号 injected={injected}\n")
+            f.write(f"{_dt.now().strftime('%H:%M:%S')} [WARNING] [Codex chạy bù] người dùng dừng thủ công, đã gửi tín hiệu dừng injected={injected}\n")
     except Exception:
-        logger.exception("写入 Codex 停止日志失败")
-    return {"ok": True, "message": "已发送停止信号", "state": "stopped", "running": True, "injected": injected}
+        logger.exception("Ghi nhật ký dừng Codex thất bại")
+    return {"ok": True, "message": "Đã gửi tín hiệu dừng", "state": "stopped", "running": True, "injected": injected}
 
 
 def run_worker(
@@ -169,10 +169,10 @@ def run_worker(
     clear_log: bool = True,
     target_log_path: str | Path | None = None,
 ) -> dict:
-    """执行一次 Codex 补跑。调用前必须先 reserve，结束时会自动 release。"""
+    "thực thi một lần Codex chạy bù. gọi trước phải trước reserve, kết thúc khi sẽ tự động release. "
     fh: logging.FileHandler | None = None
     root_logger = logging.getLogger()
-    result: dict = {"status": "failed", "ok": False, "message": "Codex 补跑未返回结果"}
+    result: dict = {"status": "failed", "ok": False, "message": "Chạy bù Codex không trả kết quả"}
     key = (email or "").strip().lower()
     try:
         with _RETRYING_LOCK:
@@ -203,55 +203,55 @@ def run_worker(
             from config import codex as codex_cfg
             from config import roxybrowser as roxy_cfg
             logger.info(
-                "[Codex 补跑] 已热加载配置：CODEX_OAUTH_DRIVER=%s ROXY_OPEN_HEADLESS=%s ROXY_KEEP_BROWSER_OPEN=%s",
+                "[Codex chạy bù] đã tải nóng cấu hình: CODEX_OAUTH_DRIVER=%s ROXY_OPEN_HEADLESS=%s ROXY_KEEP_BROWSER_OPEN=%s",
                 getattr(codex_cfg, "CODEX_OAUTH_DRIVER", ""),
                 getattr(roxy_cfg, "ROXY_OPEN_HEADLESS", ""),
                 getattr(roxy_cfg, "ROXY_KEEP_BROWSER_OPEN", ""),
             )
         except Exception as exc:
-            logger.warning("[Codex 补跑] 配置热加载失败，将继续使用当前内存配置：%s: %s", type(exc).__name__, exc)
+            logger.warning("[Codex chạy bù] tải nóng cấu hình thất bại, sẽ tiếp tục dùng cấu hình đang có trong bộ nhớ: %s: %s", type(exc).__name__, exc)
 
         if batch_label:
-            logger.info("[Codex 补跑] 批量任务：%s", batch_label)
-        logger.info("[Codex 补跑] 开始：%s", email)
-        logger.info("[Codex 补跑] 阶段说明：获取授权地址 → 登录邮箱 → 邮箱 OTP → 手机验证 → 捕获 callback → 提交/保存凭证")
+            logger.info("[Codex chạy bù] hàng loạt tác vụ: %s", batch_label)
+        logger.info("[Codex chạy bù] bắt đầu: %s", email)
+        logger.info("[Codex chạy bù] giai đoạn mô tả: lấy địa chỉ uỷ quyền → đăng nhập email → email OTP → điện thoại xác minh → bắt callback → gửi/lưu credential")
         check_stop_requested(email)
         result = run_codex_oauth(email, force=True)
         check_stop_requested(email)
         logger.info(
-            "[Codex 补跑] 结果：status=%s ok=%s file=%s callback=%s",
+            "[Codex chạy bù] kết quả: status=%s ok=%s file=%s callback=%s",
             result.get("status"), result.get("ok"), result.get("file_path"), result.get("callback_url"),
         )
         result_status = result.get("status", "failed")
         if result.get("ok"):
             db.update_account_codex_status(email, "success", None)
-            logger.info("[Codex 补跑] %s 成功", email)
+            logger.info("[Codex chạy bù] %s thành công", email)
         elif result_status == "deactivated":
             db.update_account_codex_status(email, "deactivated", result.get("message"))
-            logger.warning("[Codex 补跑] %s 账号已废: %s", email, result.get("message"))
+            logger.warning("[Codex chạy bù] %s tài khoản đã hỏng: %s", email, result.get("message"))
         else:
             db.update_account_codex_status(email, result_status, result.get("message"))
-            logger.warning("[Codex 补跑] %s 失败: %s", email, result.get("message"))
+            logger.warning("[Codex chạy bù] %s thất bại: %s", email, result.get("message"))
         return result
     except CodexRetryStopped as exc:
-        result = {"status": "stopped", "ok": False, "message": str(exc) or "用户手动停止 Codex 补跑"}
+        result = {"status": "stopped", "ok": False, "message": str(exc) or "Người dùng dừng thủ công chạy bù Codex"}
         db.update_account_codex_status(email, "stopped", result["message"])
-        logger.warning("[Codex 补跑] %s 已停止: %s", email, result["message"])
+        logger.warning("[Codex chạy bù] %s đã dừng: %s", email, result["message"])
         return result
     except Exception as exc:
         if is_stop_requested(email):
-            result = {"status": "stopped", "ok": False, "message": "用户手动停止 Codex 补跑"}
+            result = {"status": "stopped", "ok": False, "message": "Người dùng dừng thủ công chạy bù Codex"}
             db.update_account_codex_status(email, "stopped", result["message"])
-            logger.warning("[Codex 补跑] %s 已停止", email)
+            logger.warning("[Codex chạy bù] %s đã dừng", email)
             return result
         result = {"status": "failed", "ok": False, "message": f"{type(exc).__name__}: {exc}"}
         db.update_account_codex_status(email, "failed", result["message"])
-        logger.exception("[Codex 补跑] %s 异常", email)
-        logger.error("[Codex 补跑] 已结束：异常失败")
+        logger.exception("[Codex chạy bù] %s ngoại lệ", email)
+        logger.error("[Codex chạy bù] đã kết thúc: ngoại lệ thất bại")
         return result
     finally:
         try:
-            logger.info("[Codex 补跑] 结束：%s", email)
+            logger.info("[Codex chạy bù] kết thúc: %s", email)
             if fh is not None:
                 root_logger.removeHandler(fh)
                 fh.close()
