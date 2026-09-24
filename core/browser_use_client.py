@@ -30,7 +30,7 @@ class BrowserUseClient:
     def require_api_key(self) -> str:
         if not self.api_key:
             raise RuntimeError(
-                "BROWSER_USE_API_KEY 为空。请到 Browser Use Cloud 创建 API Key，"
+                "BROWSER_USE_API_KEY Rỗng. Hãy đến Browser Use Cloud Tạo API Key, "
                 "并在 config/browser_use.py 或 WebUI 配置页填写。"
             )
         return self.api_key
@@ -88,7 +88,7 @@ class BrowserUseClient:
     def open_session(self) -> BrowserUseSession:
         mode = str(getattr(_cfg, "BROWSER_USE_CONNECT_MODE", "cdp_url") or "cdp_url").strip().lower()
         if mode not in ("cdp_url", "cdp", "websocket", "ws", "sdk"):
-            raise RuntimeError(f"不支持的 BROWSER_USE_CONNECT_MODE={mode!r}，当前支持 cdp_url")
+            raise RuntimeError(f"Không hỗ trợ BROWSER_USE_CONNECT_MODE={mode!r}, Hiện hỗ trợ cdp_url")
         # 目前 Browser Use 官方最稳的公开接入就是 CDP websocket。
         # sdk/rest create-session 接口若以后稳定，可在此扩展。
         return self.build_connect_url()

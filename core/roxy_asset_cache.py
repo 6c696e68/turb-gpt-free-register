@@ -237,14 +237,14 @@ class RoxyLocalAssetCache:
         if not self.enabled:
             return self
         if not self.debugger_address:
-            logger.warning("[%s][本地缓存] Roxy 未返回 debuggerAddress，无法启用", self.label)
+            logger.warning("[%s][Cache cục bộ] Roxy Chưa trả về debuggerAddress, Không thể bật", self.label)
             return self
         self.cache_dir.mkdir(parents=True, exist_ok=True)
         self._thread = threading.Thread(target=self._run, name="roxy-asset-cache", daemon=True)
         self._thread.start()
         self._ready.wait(timeout=8)
         if not self._ready.is_set():
-            logger.warning("[%s][本地缓存] CDP 连接未及时就绪，本轮继续走网络", self.label)
+            logger.warning("[%s][Cache cục bộ] CDP Kết nối chưa kịp sẵn sàng, Vòng này tiếp tục qua mạng", self.label)
         return self
 
     def _run(self) -> None:
@@ -253,7 +253,7 @@ class RoxyLocalAssetCache:
 
             ws_url = self._discover_page_ws()
             if not ws_url:
-                raise RuntimeError("未发现 page CDP target")
+                raise RuntimeError("Không thấy page CDP target")
             self._ws = websocket.create_connection(
                 ws_url,
                 timeout=1,
@@ -270,7 +270,7 @@ class RoxyLocalAssetCache:
                     for kind in sorted(_ALLOWED_RESOURCE_TYPES)
                 ]})
             self._ready.set()
-            logger.info("[%s][本地缓存] 已启用 mode=%s dir=%s", self.label, self.mode, self.cache_dir)
+            logger.info("[%s][Cache cục bộ] Đã bật mode=%s dir=%s", self.label, self.mode, self.cache_dir)
 
             while not self._stop.is_set():
                 try:
@@ -288,7 +288,7 @@ class RoxyLocalAssetCache:
                 self._handle_message(message)
         except Exception as exc:
             self._remember_error(f"run: {type(exc).__name__}: {exc}")
-            logger.warning("[%s][本地缓存] 已停用：%s: %s", self.label, type(exc).__name__, exc)
+            logger.warning("[%s][Cache cục bộ] Đã tắt: %s: %s", self.label, type(exc).__name__, exc)
         finally:
             self._ready.set()
             try:
@@ -457,13 +457,13 @@ class RoxyLocalAssetCache:
         self._final_snapshot = dict(result)
         if self.enabled:
             logger.info(
-                "[%s][本地缓存] 结束 recorded=%s hits=%s misses=%s saved=%sB errors=%s",
+                "[%s][Cache cục bộ] Kết thúc recorded=%s hits=%s misses=%s saved=%sB errors=%s",
                 self.label, result["recorded"], result["hits"], result["misses"],
                 result["bytes_saved"], len(result["errors"]),
             )
             if result.get("recorded_top"):
                 logger.info(
-                    "[%s][本地缓存] 本轮新增资源 Top：%s",
+                    "[%s][Cache cục bộ] Tài nguyên mới vòng này Top: %s",
                     self.label,
                     [
                         f"{item['bytes']}B {item['url']}"

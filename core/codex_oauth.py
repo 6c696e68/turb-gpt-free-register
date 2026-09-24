@@ -80,11 +80,11 @@ def _with_net_retry(label: str, fn):
                 break
             backoff = _NET_BACKOFF_BASE ** (attempt - 1)
             logger.warning(
-                f"[Codex] {label} 临时性网络错误 ({type(exc).__name__}: {str(exc)[:120]})，"
-                f"{backoff:.1f}s 后重试 (尝试 {attempt}/{_NET_MAX_ATTEMPTS})..."
+                f"[Codex] {label} lỗi mạng tạm thời ({type(exc).__name__}: {str(exc)[:120]})，"
+                f"{backoff:.1f}s thử lại sau (Thử {attempt}/{_NET_MAX_ATTEMPTS})..."
             )
             time.sleep(backoff)
-    raise last_exc if last_exc else RuntimeError(f"[Codex] {label} 重试耗尽但无异常记录")
+    raise last_exc if last_exc else RuntimeError(f"[Codex] {label} thử lại hết nhưng không có bản ghi bất thường")
 
 
 def _with_auth_navigation_retry(session: BrowserSession, label: str, fn):
@@ -110,13 +110,13 @@ def _with_auth_navigation_retry(session: BrowserSession, label: str, fn):
             _reset_retryable_circuit(session)
             backoff = _NET_BACKOFF_BASE ** (attempt - 1)
             logger.warning(
-                "[Codex] %s 临时失败（%s/%s）：%s: %s；"
+                "[Codex] %s thất bại tạm thời (%s/%s): %s: %s; "
                 "保留当前 session/deviceId/CF Cookie，%.1fs 后重试",
                 label, attempt, _NET_MAX_ATTEMPTS, type(exc).__name__,
                 str(exc)[:160], backoff,
             )
             time.sleep(backoff)
-    raise last_exc if last_exc else RuntimeError(f"[Codex] {label} 重试耗尽")
+    raise last_exc if last_exc else RuntimeError(f"[Codex] {label} thử lại hết")
 
 
 def _codex_auth_preflight(session: BrowserSession) -> None:
@@ -124,10 +124,10 @@ def _codex_auth_preflight(session: BrowserSession) -> None:
     headers = session.get_auth_navigate_headers(
         referer="", user_initiated=False, target_origin="https://auth.openai.com",
     )
-    logger.info("[Codex][预检] Auth document（统一 session/deviceId）")
+    logger.info("[Codex][kiểm tra trước] Auth document (thống nhất session/deviceId)")
     _with_auth_navigation_retry(
         session,
-        "auth document 预检",
+        "auth document kiểm tra trước",
         lambda: session.get(
             "https://auth.openai.com/log-in",
             headers=headers,
@@ -263,20 +263,20 @@ def _codex_auth_url_source() -> str:
 def _cpa_management_origin() -> str:
     raw = str(getattr(_cfg, "CPA_MANAGEMENT_URL", "") or "").strip()
     if not raw:
-        raise RuntimeError("[Codex][CPA] 尚未配置 CPA_MANAGEMENT_URL")
+        raise RuntimeError("[Codex][CPA] chưa cấu hình CPA_MANAGEMENT_URL")
     try:
         parsed = urlparse(raw)
     except Exception as exc:
-        raise RuntimeError(f"[Codex][CPA] CPA_MANAGEMENT_URL 格式无效: {raw}") from exc
+        raise RuntimeError(f"[Codex][CPA] CPA_MANAGEMENT_URL Định dạng không hợp lệ: {raw}") from exc
     if parsed.scheme not in ("http", "https") or not parsed.netloc:
-        raise RuntimeError(f"[Codex][CPA] CPA_MANAGEMENT_URL 格式无效: {raw}")
+        raise RuntimeError(f"[Codex][CPA] CPA_MANAGEMENT_URL Định dạng không hợp lệ: {raw}")
     return f"{parsed.scheme}://{parsed.netloc}"
 
 
 def _cpa_management_key() -> str:
     key = str(getattr(_cfg, "CPA_MANAGEMENT_KEY", "") or "").strip()
     if not key:
-        raise RuntimeError("[Codex][CPA] 尚未配置 CPA_MANAGEMENT_KEY")
+        raise RuntimeError("[Codex][CPA] chưa cấu hình CPA_MANAGEMENT_KEY")
     return key
 
 
@@ -310,7 +310,7 @@ def _cpa_request_json(method: str, path: str, body: dict | None = None) -> dict:
             if isinstance(payload, dict):
                 msg = payload.get("error") or payload.get("message") or payload.get("detail") or payload.get("reason") or ""
             raise RuntimeError(
-                f"[Codex][CPA] 管理接口失败 {method.upper()} {path} status={resp.status_code}: "
+                f"[Codex][CPA] API quản trị thất bại {method.upper()} {path} status={resp.status_code}: "
                 f"{msg or (resp.text or '')[:300]}"
             )
         return payload if isinstance(payload, dict) else {}
@@ -329,10 +329,10 @@ def _sub2_codex_base() -> str:
         or ""
     ).strip().rstrip("/")
     if not raw:
-        raise RuntimeError("[Codex][sub2] 尚未配置 SUB2API_API_BASE")
+        raise RuntimeError("[Codex][sub2] chưa cấu hình SUB2API_API_BASE")
     parsed = urlparse(raw)
     if parsed.scheme not in ("http", "https") or not parsed.netloc:
-        raise RuntimeError(f"[Codex][sub2] SUB2API_API_BASE 格式无效: {raw}")
+        raise RuntimeError(f"[Codex][sub2] SUB2API_API_BASE Định dạng không hợp lệ: {raw}")
     return raw
 
 
@@ -375,7 +375,7 @@ def _sub2_codex_request_json(method: str, path: str, body: dict | None = None) -
             if isinstance(payload, dict):
                 msg = payload.get("error") or payload.get("message") or payload.get("detail") or payload.get("reason") or ""
             raise RuntimeError(
-                f"[Codex][sub2] 接口失败 {method.upper()} {normalized_path} status={resp.status_code}: "
+                f"[Codex][sub2] API thất bại {method.upper()} {normalized_path} status={resp.status_code}: "
                 f"{msg or (resp.text or '')[:300]}"
             )
         return payload if isinstance(payload, dict) else {}
@@ -390,7 +390,7 @@ def _request_sub2_authorize_url() -> dict:
     """从 sub2 生成 Codex OAuth 授权地址；本地不生成 PKCE。"""
     from config import sub2api as _sub2_cfg
     path = str(getattr(_sub2_cfg, "SUB2_CODEX_AUTH_URL_PATH", "/api/v1/admin/openai/generate-auth-url") or "/api/v1/admin/openai/generate-auth-url")
-    logger.info("[Codex][sub2] 正在通过 sub2 接口生成授权地址...")
+    logger.info("[Codex][sub2] đang thông qua sub2 API tạo địa chỉ uỷ quyền...")
     payload = _sub2_codex_request_json("POST", path, {})
     data = payload.get("data") if isinstance(payload.get("data"), dict) else {}
     auth_url = _first_non_empty(
@@ -407,13 +407,13 @@ def _request_sub2_authorize_url() -> dict:
         _extract_state_from_auth_url(auth_url),
     )
     if not auth_url.startswith("http"):
-        raise RuntimeError(f"[Codex][sub2] sub2 未返回有效 auth_url: {payload}")
+        raise RuntimeError(f"[Codex][sub2] sub2 không trả về hợp lệ auth_url: {payload}")
     if not state:
-        raise RuntimeError("[Codex][sub2] 授权地址缺少 state")
-    logger.info("[Codex][sub2] 已获取授权地址，state=%s...", state[:12])
-    logger.info("[Codex][sub2] 完整授权地址: %s", auth_url)
+        raise RuntimeError("[Codex][sub2] địa chỉ uỷ quyền thiếu state")
+    logger.info("[Codex][sub2] đã lấy địa chỉ uỷ quyền, state=%s...", state[:12])
+    logger.info("[Codex][sub2] URL uỷ quyền đầy đủ: %s", auth_url)
     if not session_id:
-        logger.warning("[Codex][sub2] 授权地址响应缺少 session_id，后续 exchange-code 可能失败")
+        logger.warning("[Codex][sub2] Thiếu phản hồi địa chỉ uỷ quyền session_id, Tiếp theo exchange-code Có thể thất bại")
     return {"auth_url": auth_url, "state": state, "session_id": session_id, "origin": _sub2_codex_base(), "raw": payload}
 
 
@@ -452,11 +452,11 @@ def _submit_sub2_callback(callback_url: str, *, session_id: str = "", redirect_u
         code = (qs.get("code") or [""])[0]
         state = (qs.get("state") or [""])[0]
         if not session_id:
-            raise RuntimeError("[Codex][sub2] exchange-code 缺少 session_id")
+            raise RuntimeError("[Codex][sub2] exchange-code thiếu session_id")
         if not code:
-            raise RuntimeError(f"[Codex][sub2] callback_url 缺少 code: {callback_url}")
+            raise RuntimeError(f"[Codex][sub2] callback_url thiếu code: {callback_url}")
         if not state:
-            raise RuntimeError(f"[Codex][sub2] callback_url 缺少 state: {callback_url}")
+            raise RuntimeError(f"[Codex][sub2] callback_url thiếu state: {callback_url}")
         body = {"session_id": session_id, "code": code, "state": state}
         if redirect_uri:
             body["redirect_uri"] = redirect_uri
@@ -469,20 +469,20 @@ def _submit_sub2_callback(callback_url: str, *, session_id: str = "", redirect_u
     last_exc = None
     for attempt in range(1, max_attempts + 1):
         try:
-            logger.info("[Codex][sub2] 正在上传 OAuth callback（第 %s/%s 次）... callback=%s", attempt, max_attempts, callback_url)
+            logger.info("[Codex][sub2] Đang tải lên OAuth callback (thứ %s/%s lần)... callback=%s", attempt, max_attempts, callback_url)
             payload = _sub2_codex_request_json("POST", path, body)
-            logger.info("[Codex][sub2] callback 已上传并处理完成（第 %s 次成功）响应=%s", attempt, _summarize_sub2_response(payload))
+            logger.info("[Codex][sub2] callback Đã tải lên và xử lý xong (thứ %s Lần thành công)Phản hồi=%s", attempt, _summarize_sub2_response(payload))
             return payload
         except Exception as exc:
             last_exc = exc
             retryable = _is_cpa_callback_retryable(exc)
             if attempt >= max_attempts or not retryable:
-                logger.warning("[Codex][sub2] callback 上传失败且不再重试：attempt=%s/%s retryable=%s error=%s", attempt, max_attempts, retryable, exc)
+                logger.warning("[Codex][sub2] callback tải lên thất bại và không thử lại nữa: attempt=%s/%s retryable=%s error=%s", attempt, max_attempts, retryable, exc)
                 raise
             delay = base_delay * attempt
-            logger.warning("[Codex][sub2] callback 上传失败，将在 %.1fs 后重试：attempt=%s/%s error=%s", delay, attempt, max_attempts, exc)
+            logger.warning("[Codex][sub2] callback tải lên thất bại, Sẽ trong %.1fs thử lại sau: attempt=%s/%s error=%s", delay, attempt, max_attempts, exc)
             time.sleep(delay)
-    raise RuntimeError(f"[Codex][sub2] callback 上传失败：{last_exc}")
+    raise RuntimeError(f"[Codex][sub2] callback tải lên thất bại: {last_exc}")
 
 
 
@@ -516,7 +516,7 @@ def _cpa_request_raw(method: str, path: str, body: dict | None = None, *, respon
             except Exception:
                 pass
             raise RuntimeError(
-                f"[Codex][CPA] 管理接口失败 {method.upper()} {path} status={resp.status_code}: "
+                f"[Codex][CPA] API quản trị thất bại {method.upper()} {path} status={resp.status_code}: "
                 f"{msg or (resp.text or '')[:300]}"
             )
         if response_type == "bytes":
@@ -595,16 +595,16 @@ def download_cpa_codex_auth_text(*, cpa_name: str | None = None, email: str = ""
         meta = find_cpa_codex_auth_file(email=email, local_filename=local_filename)
         name = str((meta or {}).get("name") or "").strip()
     if not name:
-        target = email or local_filename or cpa_name or "未知"
-        raise RuntimeError(f"[Codex][CPA] 未在 CPA auth-files 中找到匹配的 Codex 凭证: {target}")
+        target = email or local_filename or cpa_name or "Không rõ"
+        raise RuntimeError(f"[Codex][CPA] Không trong CPA auth-files Tìm thấy khớp trong Codex Thông tin xác thực: {target}")
     text = _cpa_request_raw("GET", f"/v0/management/auth-files/download?name={quote(name, safe='')}", response_type="text")
     # 下载接口正常应返回 JSON 文本，这里做一次轻校验，避免把 HTML/错误文本当凭证导出。
     try:
         parsed = json.loads(text)
     except Exception as exc:
-        raise RuntimeError(f"[Codex][CPA] CPA 下载内容不是有效 JSON: {name}") from exc
+        raise RuntimeError(f"[Codex][CPA] CPA Nội dung tải xuống không hợp lệ JSON: {name}") from exc
     if not isinstance(parsed, dict):
-        raise RuntimeError(f"[Codex][CPA] CPA 下载内容不是 JSON 对象: {name}")
+        raise RuntimeError(f"[Codex][CPA] CPA Nội dung tải xuống không phải JSON Đối tượng: {name}")
     return json.dumps(parsed, ensure_ascii=False, indent=2) + "\n", name, (meta or {"name": name})
 
 def _first_non_empty(*values) -> str:
@@ -624,7 +624,7 @@ def _extract_state_from_auth_url(auth_url: str) -> str:
 
 def _request_cpa_authorize_url() -> dict:
     """从 CPA 生成 Codex OAuth 授权地址；本地不生成 PKCE。"""
-    logger.info("[Codex][CPA] 正在通过 CPA 管理接口生成授权地址...")
+    logger.info("[Codex][CPA] đang thông qua CPA API quản lý tạo địa chỉ uỷ quyền...")
     payload = _cpa_request_json("GET", "/v0/management/codex-auth-url")
     data = payload.get("data") if isinstance(payload.get("data"), dict) else {}
     auth_url = _first_non_empty(
@@ -645,11 +645,11 @@ def _request_cpa_authorize_url() -> dict:
         _extract_state_from_auth_url(auth_url),
     )
     if not auth_url.startswith("http"):
-        raise RuntimeError(f"[Codex][CPA] CPA 未返回有效 auth_url: {payload}")
+        raise RuntimeError(f"[Codex][CPA] CPA không trả về hợp lệ auth_url: {payload}")
     if not state:
-        raise RuntimeError("[Codex][CPA] CPA 授权地址缺少 state")
-    logger.info(f"[Codex][CPA] 已获取授权地址，state={state[:12]}...")
-    logger.info(f"[Codex][CPA] 完整授权地址: {auth_url}")
+        raise RuntimeError("[Codex][CPA] CPA địa chỉ uỷ quyền thiếu state")
+    logger.info(f"[Codex][CPA] đã lấy địa chỉ uỷ quyền, state={state[:12]}...")
+    logger.info(f"[Codex][CPA] URL uỷ quyền đầy đủ: {auth_url}")
     return {
         "auth_url": auth_url,
         "state": state,
@@ -703,28 +703,28 @@ def _submit_cpa_callback(callback_url: str) -> dict:
     for attempt in range(1, max_attempts + 1):
         try:
             logger.info(
-                "[Codex][CPA] 正在提交 OAuth callback 给 CPA（第 %s/%s 次）... callback=%s",
+                "[Codex][CPA] Đang gửi OAuth callback Cho CPA (thứ %s/%s lần)... callback=%s",
                 attempt, max_attempts, str(callback_url or "")
             )
             payload = _cpa_request_json("POST", "/v0/management/oauth-callback", body)
-            logger.info("[Codex][CPA] callback 已提交（第 %s 次成功）", attempt)
+            logger.info("[Codex][CPA] callback Đã gửi (thứ %s Lần thành công)", attempt)
             return payload
         except Exception as exc:
             last_exc = exc
             retryable = _is_cpa_callback_retryable(exc)
             if attempt >= max_attempts or not retryable:
                 logger.warning(
-                    "[Codex][CPA] callback 提交失败且不再重试：attempt=%s/%s retryable=%s error=%s",
+                    "[Codex][CPA] callback gửi thất bại và không thử lại nữa: attempt=%s/%s retryable=%s error=%s",
                     attempt, max_attempts, retryable, exc
                 )
                 raise
             delay = base_delay * attempt
             logger.warning(
-                "[Codex][CPA] callback 提交失败，将在 %.1fs 后重试：attempt=%s/%s error=%s",
+                "[Codex][CPA] callback gửi thất bại, Sẽ trong %.1fs thử lại sau: attempt=%s/%s error=%s",
                 delay, attempt, max_attempts, exc
             )
             time.sleep(delay)
-    raise RuntimeError(f"[Codex][CPA] callback 提交失败：{last_exc}")
+    raise RuntimeError(f"[Codex][CPA] callback gửi thất bại: {last_exc}")
 
 
 # ============================================================
@@ -750,14 +750,14 @@ def _extract_code(location: str, state: str) -> str:
     err = (qs.get("error") or [""])[0]
     if err:
         err_desc = (qs.get("error_description") or [""])[0]
-        raise RuntimeError(f"[Codex] 授权服务器返回错误: error={err}, desc={err_desc}")
+        raise RuntimeError(f"[Codex] Máy chủ uỷ quyền trả về lỗi: error={err}, desc={err_desc}")
     code = (qs.get("code") or [""])[0]
     if not code:
-        raise RuntimeError(f"[Codex] redirect_uri 缺少 code 参数: {location}")
+        raise RuntimeError(f"[Codex] redirect_uri thiếu code tham số: {location}")
     returned_state = (qs.get("state") or [""])[0]
     if returned_state and returned_state != state:
         raise RuntimeError(
-            f"[Codex] state 不匹配（疑似 CSRF）: expected={state[:8]}..., got={returned_state[:8]}..."
+            f"[Codex] state Không khớp (Nghi ngờ CSRF): expected={state[:8]}..., got={returned_state[:8]}..."
         )
     return code
 
@@ -832,7 +832,7 @@ def _cache_auth_session_metadata(session: BrowserSession, resp) -> None:
         if cached:
             session._codex_auth_session_payload = cached
     except Exception:
-        logger.debug("[Codex] 缓存 Auth session 元数据失败", exc_info=True)
+        logger.debug("[Codex] Cache Auth session Metadata thất bại", exc_info=True)
 
 
 def _phone_failure_reason(text: str, status_code: int | None = None) -> str:
@@ -878,20 +878,20 @@ def _bootstrap_authorize(
     # 默认使用调用方传入的 CPA 授权地址；未传时才走保留的本地 PKCE 生成逻辑。
     if not auth_url:
         if not code_challenge:
-            raise RuntimeError("[Codex] 本地生成授权地址需要 code_challenge")
+            raise RuntimeError("[Codex] Tạo địa chỉ uỷ quyền cục bộ cần code_challenge")
         auth_url = _build_authorize_url(state, code_challenge, prompt="login")
     auth_url = _ensure_oai_context_url(auth_url, session)
     # Codex CLI/CPA 授权地址是用户从外部客户端直接打开的顶层导航，不是从
     # chatgpt.com 页面点击而来。使用 sec-fetch-site:none 且不伪造 Referer。
     headers = session.get_auth_navigate_headers(referer="", user_initiated=True)
-    logger.info("[Codex] 跟随 Codex authorize URL 建立会话...")
-    logger.info(f"[Codex] 完整授权地址: {auth_url}")
+    logger.info("[Codex] theo Codex authorize URL thiết lập session...")
+    logger.info(f"[Codex] URL uỷ quyền đầy đủ: {auth_url}")
     resp = _with_auth_navigation_retry(
         session,
         "bootstrap authorize",
         lambda: session.get(auth_url, headers=headers, allow_redirects=True),
     )
-    logger.debug(f"[Codex] authorize 落点: {getattr(resp, 'url', '')}, status={getattr(resp, 'status_code', '')}")
+    logger.debug(f"[Codex] authorize điểm đến: {getattr(resp, 'url', '')}, status={getattr(resp, 'status_code', '')}")
 
 
 # ============================================================
@@ -913,11 +913,11 @@ def _submit_email(session: BrowserSession, email: str) -> dict:
     )
     if resp.status_code not in (200, 204):
         raise RuntimeError(
-            f"[Codex] 提交邮箱失败 status={resp.status_code}: {(resp.text or '')[:300]}"
+            f"[Codex] Gửi email thất bại status={resp.status_code}: {(resp.text or '')[:300]}"
         )
     result = _resp_json(resp)
     logger.info(
-        "[Codex] 已提交邮箱 %s，Auth 下一步：page=%s continue=%s",
+        "[Codex] Đã gửi email %s, Auth bước tiếp theo: page=%s continue=%s",
         email,
         _page_type(result) or "-",
         _extract_continue_url(result) or "-",
@@ -1039,9 +1039,9 @@ def _password_verify(session: BrowserSession, password: str) -> dict:
     )
     if resp.status_code != 200:
         raise RuntimeError(
-            f"[Codex] 密码验证失败 status={resp.status_code}: {(resp.text or '')[:300]}"
+            f"[Codex] Xác minh mật khẩu thất bại status={resp.status_code}: {(resp.text or '')[:300]}"
         )
-    logger.info("[Codex] 密码验证通过")
+    logger.info("[Codex] xác minh mật khẩu thành công")
     return _resp_json(resp)
 
 
@@ -1055,7 +1055,7 @@ def _mfa_issue_challenge(session: BrowserSession, factor_id: str) -> dict:
     )
     if resp.status_code != 200:
         raise RuntimeError(
-            f"[Codex] MFA challenge 发起失败 status={resp.status_code}: {(resp.text or '')[:300]}"
+            f"[Codex] MFA challenge Khởi tạo thất bại status={resp.status_code}: {(resp.text or '')[:300]}"
         )
     return _resp_json(resp)
 
@@ -1070,9 +1070,9 @@ def _mfa_verify(session: BrowserSession, factor_id: str, code: str) -> dict:
     )
     if resp.status_code != 200:
         raise RuntimeError(
-            f"[Codex] MFA 验证失败 status={resp.status_code}: {(resp.text or '')[:300]}"
+            f"[Codex] MFA Xác minh thất bại status={resp.status_code}: {(resp.text or '')[:300]}"
         )
-    logger.info("[Codex] MFA/TOTP 验证通过")
+    logger.info("[Codex] MFA/TOTP xác minh thành công")
     return _resp_json(resp)
 
 
@@ -1084,12 +1084,12 @@ def _complete_mfa_if_required(session: BrowserSession, email: str, result: dict 
 
     factor_id = _extract_factor_id(result, continue_url)
     if not factor_id:
-        raise RuntimeError(f"[Codex] Auth 要求 MFA，但未拿到 factor_id：{result}")
+        raise RuntimeError(f"[Codex] Auth yêu cầu MFA, Nhưng chưa lấy được factor_id: {result}")
     code = _account_totp_code(email)
     if not code:
-        raise RuntimeError(f"[Codex] Auth 要求 MFA，但账号没有可用 totp_secret：{email}")
+        raise RuntimeError(f"[Codex] Auth yêu cầu MFA, Nhưng tài khoản không có sẵn totp_secret: {email}")
 
-    logger.info("[Codex] Auth 要求 MFA，开始提交账号 TOTP：%s factor_id=%s", email, factor_id)
+    logger.info("[Codex] Auth yêu cầu MFA, bắt đầu gửi tài khoản TOTP: %s factor_id=%s", email, factor_id)
     _mfa_issue_challenge(session, factor_id)
     return _mfa_verify(session, factor_id, code)
 
@@ -1111,13 +1111,13 @@ def _follow_login_continue(session: BrowserSession, continue_url: str, state: st
         resp = session.get(url, headers=headers, allow_redirects=False)
         loc = resp.headers.get("location") or resp.headers.get("Location")
         logger.debug(
-            "[Codex] 登录 continue 跟随 hop %s: status=%s, location=%s",
+            "[Codex] đăng nhập continue theo hop %s: status=%s, location=%s",
             hop, getattr(resp, "status_code", ""), loc,
         )
         if not loc:
             return None
         url = loc if loc.startswith("http") else ("https://auth.openai.com" + loc)
-    raise RuntimeError(f"[Codex] 登录 continue 跟随超过 {_MAX_REDIRECTS} 跳")
+    raise RuntimeError(f"[Codex] đăng nhập continue theo vượt quá {_MAX_REDIRECTS} nhảy")
 
 
 def _try_password_mfa_login(
@@ -1137,14 +1137,14 @@ def _try_password_mfa_login(
     password = _account_registration_password(email)
     if not password or not _is_password_step(initial_result):
         logger.info(
-            "[Codex] 当前 Auth 未要求密码，按服务端返回继续：email=%s page=%s continue=%s",
+            "[Codex] Hiện tại Auth Không yêu cầu mật khẩu, Tiếp tục theo phản hồi máy chủ: email=%s page=%s continue=%s",
             email,
             _page_type(initial_result) or "-",
             _extract_continue_url(initial_result) or "-",
         )
         return "not_applicable", None, initial_result or {}
 
-    logger.info("[Codex] 账号存在注册密码，优先走密码登录：%s", email)
+    logger.info("[Codex] tài khoản đã có mật khẩu đăng ký, ưu tiên đăng nhập bằng mật khẩu: %s", email)
     result = _password_verify(session, password)
     continue_url = _extract_continue_url(result)
     page_type = _page_type(result)
@@ -1155,11 +1155,11 @@ def _try_password_mfa_login(
         page_type = _page_type(result)
 
     if _is_email_otp_step(result) or page_type in {"email_verification", "email_otp_send"}:
-        logger.info("[Codex] 密码登录后服务端仍要求邮箱 OTP，切换到邮箱 OTP：%s", email)
+        logger.info("[Codex] Sau đăng nhập mật khẩu, máy chủ vẫn yêu cầu email OTP, Chuyển sang email OTP: %s", email)
         return "email_otp", None, result
 
     callback_url = _follow_login_continue(session, continue_url, state) if continue_url else None
-    logger.info("[Codex] 密码/MFA 登录链已完成，继续 Codex workspace/callback：%s", email)
+    logger.info("[Codex] mật khẩu/MFA chuỗi đăng nhập đã hoàn tất, Tiếp tục Codex workspace/callback: %s", email)
     return "logged_in", callback_url, result
 
 
@@ -1183,22 +1183,22 @@ def _submit_email_otp(session: BrowserSession, code: str) -> dict:
         error_code = _extract_error_code(resp)
         if error_code in ("account_deactivated", "account_deleted", "account_banned"):
             raise AccountUnusableError(
-                f"[Codex] 账号已废（{error_code}）status={resp.status_code}: {(resp.text or '')[:200]}",
+                f"[Codex] Tài khoản đã chết ({error_code}）status={resp.status_code}: {(resp.text or '')[:200]}",
                 error_code=error_code,
             )
         body_error_code = detect_account_unusable_response_body(resp.text or "")
         if body_error_code:
             raise AccountUnusableError(
-                f"[Codex] 账号已废（{body_error_code}）status={resp.status_code}: {(resp.text or '')[:200]}",
+                f"[Codex] Tài khoản đã chết ({body_error_code}）status={resp.status_code}: {(resp.text or '')[:200]}",
                 error_code=body_error_code,
             )
         raise RuntimeError(
-            f"[Codex] 邮箱 OTP 验证失败 status={resp.status_code}: {(resp.text or '')[:300]}"
+            f"[Codex] email OTP Xác minh thất bại status={resp.status_code}: {(resp.text or '')[:300]}"
         )
-    logger.info("[Codex] 邮箱 OTP 验证通过")
+    logger.info("[Codex] email OTP xác minh thành công")
     result = _resp_json(resp)
     logger.info(
-        "[Codex] 邮箱 OTP 后 Auth 下一步：page=%s continue=%s phone=%s mfa=%s",
+        "[Codex] email OTP sau Auth bước tiếp theo: page=%s continue=%s phone=%s mfa=%s",
         _page_type(result) or "-",
         _extract_continue_url(result) or "-",
         _is_phone_step(result),
@@ -1221,7 +1221,7 @@ def _sleep_before_phone_retry(attempt: int, max_retries: int, *, prefix: str = "
     if attempt >= max_retries:
         return
     seconds = random.uniform(3.0, 8.0)
-    logger.info(f"{prefix} 换号前随机等待 {seconds:.1f} 秒")
+    logger.info(f"{prefix} chờ ngẫu nhiên trước khi đổi số {seconds:.1f} giây")
     time.sleep(seconds)
 
 
@@ -1244,8 +1244,8 @@ def _do_phone_verification(session: BrowserSession) -> dict:
             try:
                 activation_id, phone = sms_provider.acquire_number(http)
                 logger.info(
-                    f"[Codex] 手机验证尝试 {attempt}/{max_retries}，"
-                    f"provider={provider}, activation_id={activation_id}, 号码=+{phone}"
+                    f"[Codex] lần thử xác minh điện thoại {attempt}/{max_retries}，"
+                    f"provider={provider}, activation_id={activation_id}, số=+{phone}"
                 )
 
                 # 发短信
@@ -1260,8 +1260,8 @@ def _do_phone_verification(session: BrowserSession) -> dict:
                 if send_resp.status_code not in (200, 204) or send_reason:
                     # 号码无效 / 无法发送 / WhatsApp 通道 / 限流等 → 释放当前号并换号。
                     logger.warning(
-                        f"[Codex] add-phone/send 未成功 reason={send_reason or 'unknown'}, "
-                        f"status={send_resp.status_code}: {send_text[:240]}，换号重试"
+                        f"[Codex] add-phone/send chưa thành công reason={send_reason or 'unknown'}, "
+                        f"status={send_resp.status_code}: {send_text[:240]}, đổi số thử lại"
                     )
                     sms_provider.cancel(activation_id, http)
                     _sleep_before_phone_retry(attempt, max_retries)
@@ -1274,12 +1274,12 @@ def _do_phone_verification(session: BrowserSession) -> dict:
                 # 最长等待 SMS_CODE_WAIT；超时立即取消当前号并换号。
                 try:
                     logger.info(
-                        f"[Codex] 短信已发送，开始轮询验证码 activation_id={activation_id}, "
+                        f"[Codex] đã gửi SMS, bắt đầu polling mã OTP activation_id={activation_id}, "
                         f"wait={_cfg.SMS_CODE_WAIT}s, interval={_cfg.SMS_POLL_INTERVAL}s"
                     )
                     sms_code = sms_provider.wait_for_sms_code(activation_id, http)
                 except sms_provider.SmsCodeTimeout:
-                    logger.warning(f"[Codex] 号码 +{phone} 在 {_cfg.SMS_CODE_WAIT}s 内未收到短信，取消换号")
+                    logger.warning(f"[Codex] số +{phone} tại {_cfg.SMS_CODE_WAIT}s chưa nhận SMS trong hạn, huỷ đổi số")
                     sms_provider.cancel(activation_id, http)
                     _sleep_before_phone_retry(attempt, max_retries)
                     continue
@@ -1295,8 +1295,8 @@ def _do_phone_verification(session: BrowserSession) -> dict:
                     val_text = _response_text(val_resp)
                     val_reason = _phone_failure_reason(val_text, val_resp.status_code) or 'code_rejected'
                     logger.warning(
-                        f"[Codex] phone-otp/validate 失败 reason={val_reason}, status={val_resp.status_code}: "
-                        f"{val_text[:240]}，换号重试"
+                        f"[Codex] phone-otp/validate Thất bại reason={val_reason}, status={val_resp.status_code}: "
+                        f"{val_text[:240]}, đổi số thử lại"
                     )
                     sms_provider.cancel(activation_id, http)
                     _sleep_before_phone_retry(attempt, max_retries)
@@ -1304,7 +1304,7 @@ def _do_phone_verification(session: BrowserSession) -> dict:
 
                 # 成功
                 sms_provider.complete(activation_id, http)
-                logger.info("[Codex] 手机号验证通过")
+                logger.info("[Codex] qua xác minh số điện thoại")
                 return _resp_json(val_resp)
 
             except sms_provider.SmsNoBalanceError:
@@ -1312,15 +1312,15 @@ def _do_phone_verification(session: BrowserSession) -> dict:
                 raise
             except sms_provider.SmsProviderError as exc:
                 last_err = exc
-                logger.warning(f"[Codex] 接码尝试 {attempt} 失败：{exc}")
+                logger.warning(f"[Codex] thử nhận mã {attempt} Thất bại: {exc}")
                 if activation_id:
                     sms_provider.cancel(activation_id, http)
                 _sleep_before_phone_retry(attempt, max_retries)
                 continue
 
         raise RuntimeError(
-            f"[Codex] 手机号验证重试 {max_retries} 次仍失败（provider={provider}）"
-            + (f"，最后错误：{last_err}" if last_err else "")
+            f"[Codex] Thử lại xác minh số điện thoại {max_retries} lần vẫn thất bại (provider={provider}）"
+            + (f", Lỗi cuối: {last_err}" if last_err else "")
         )
     finally:
         http.close()
@@ -1365,14 +1365,14 @@ def _get_workspace_id(session: BrowserSession) -> str:
 
         wid = find_workspace_id(getattr(session, "_codex_auth_session_payload", {}) or {})
         if wid:
-            logger.info(f"[Codex] workspace_id={wid}（来自 Auth 响应元数据）")
+            logger.info(f"[Codex] workspace_id={wid} (Từ Auth siêu dữ liệu phản hồi)")
             return wid
 
         remaining = deadline - time.monotonic()
         if remaining <= 0:
             if not raw:
-                raise RuntimeError("[Codex] 找不到 oai-client-auth-session cookie，无法取 workspace_id")
-            raise RuntimeError("[Codex] oai-client-auth-session 中无可用 workspace_id")
+                raise RuntimeError("[Codex] không tìm thấy oai-client-auth-session cookie, không lấy được workspace_id")
+            raise RuntimeError("[Codex] oai-client-auth-session không có sẵn workspace_id")
         time.sleep(min(_WORKSPACE_POLL_INTERVAL_SECONDS, remaining))
 
 
@@ -1409,7 +1409,7 @@ def _select_workspace_and_get_callback(session: BrowserSession, state: str) -> s
 
     if not next_url:
         raise RuntimeError(
-            f"[Codex] workspace/select 后找不到下一跳 URL: status={resp.status_code}, "
+            f"[Codex] workspace/select Sau đó không tìm thấy bước tiếp theo URL: status={resp.status_code}, "
             f"body={(resp.text or '')[:300]}"
         )
 
@@ -1427,16 +1427,16 @@ def _follow_until_callback(session: BrowserSession, url: str, state: str) -> str
         headers = session.get_auth_navigate_headers(referer="https://auth.openai.com/")
         resp = session.get(url, headers=headers, allow_redirects=False)
         loc = resp.headers.get("location") or resp.headers.get("Location")
-        logger.debug(f"[Codex] callback 跟随 hop {hop}: status={getattr(resp,'status_code','')}, location={loc}")
+        logger.debug(f"[Codex] callback theo hop {hop}: status={getattr(resp,'status_code','')}, location={loc}")
         if loc is None:
             raise RuntimeError(
-                f"[Codex] 跟随中断，未命中 callback: url={url}, "
+                f"[Codex] theo dõi bị ngắt, không trúng callback: url={url}, "
                 f"status={getattr(resp,'status_code','')}, body={(resp.text or '')[:200]}"
             )
         if _is_redirect_uri(loc):
             return loc
         url = loc if loc.startswith("http") else ("https://auth.openai.com" + loc)
-    raise RuntimeError(f"[Codex] 跟随 callback 超过 {_MAX_REDIRECTS} 跳")
+    raise RuntimeError(f"[Codex] theo callback vượt quá {_MAX_REDIRECTS} nhảy")
 
 
 # ============================================================
@@ -1460,18 +1460,18 @@ def exchange_codex_token(session: BrowserSession, code: str, code_verifier: str)
     base.update(headers)
     headers = base
 
-    logger.info("[Codex] 用 authorization code 换 token...")
+    logger.info("[Codex] dùng authorization code đổi token...")
     resp = session.post(_cfg.CODEX_TOKEN_URL, headers=headers, data=urlencode(data))
     http_status = resp.status_code
     if http_status != 200:
         raise RuntimeError(
-            f"[Codex] 换 token 失败 status={http_status}: {(resp.text or '')[:300]}"
+            f"[Codex] đổi token Thất bại status={http_status}: {(resp.text or '')[:300]}"
         )
     token_resp = resp.json()
     if not token_resp.get("access_token"):
-        raise RuntimeError(f"[Codex] token 响应缺少 access_token: {token_resp}")
+        raise RuntimeError(f"[Codex] token Thiếu phản hồi access_token: {token_resp}")
     logger.info(
-        f"[Codex] 换 token 成功，expires_in={token_resp.get('expires_in')}, "
+        f"[Codex] đổi token thành công, expires_in={token_resp.get('expires_in')}, "
         f"access_token={token_resp['access_token'][:16]}..."
     )
     return token_resp
@@ -1491,7 +1491,7 @@ def _parse_id_token(id_token: str) -> dict:
             return {}
         claims = _decode_jwt_segment(parts[1])
     except Exception as exc:
-        logger.warning(f"[Codex] id_token 解析失败: {exc}")
+        logger.warning(f"[Codex] id_token phân tích thất bại: {exc}")
         return {}
 
     auth_claim = claims.get("https://api.openai.com/auth", {}) or {}
@@ -1621,7 +1621,7 @@ def _save_cpa_local_record(
         "cpa_management_origin": _cpa_management_origin(),
         "cpa_submit_response": submit_payload,
         "submitted_at": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
-        "note": "授权地址由 CPA 生成；callback 已提交给 CPA。若 CPA 响应未包含 token，本文件为本地回执记录。",
+        "note": "địa chỉ uỷ quyền do CPA tạo; callback đã gửi cho CPA. nếu CPA phản hồi không chứa token, tệp này là bản ghi biên nhận cục bộ. ",
     }
     db.upsert_codex_credential(record, fname)
     return f"sqlite://codex_accounts/{fname}"
@@ -1660,7 +1660,7 @@ def _save_sub2_local_record(
         "sub2_origin": sub2_origin,
         "sub2_submit_response": submit_payload,
         "submitted_at": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
-        "note": "授权地址由 sub2 生成；callback 已上传给 sub2。若 sub2 响应未包含 token，本文件为本地回执记录。",
+        "note": "địa chỉ uỷ quyền do sub2 tạo; callback đã tải lên cho sub2. nếu sub2 phản hồi không chứa token, tệp này là bản ghi biên nhận cục bộ. ",
     }
     db.upsert_codex_credential(record, fname)
     return f"sqlite://codex_accounts/{fname}"
@@ -1695,7 +1695,7 @@ def run_codex_oauth(
     if not force and not _cfg.ENABLE_CODEX_AUTO:
         return _codex_result(status="skipped", message="ENABLE_CODEX_AUTO=False")
     if not email:
-        return _codex_result(status="skipped", message="email 为空")
+        return _codex_result(status="skipped", message="email trống")
 
     # Codex OAuth 支持多种驱动：
     # protocol：原纯协议；roxy/cloak/browser_use：用真实浏览器跑页面并捕获 localhost callback。
@@ -1737,7 +1737,7 @@ def run_codex_oauth(
                     except Exception:
                         pass
         if oauth_driver not in ("protocol", "api", "http"):
-            raise RuntimeError(f"[Codex] 不支持的 CODEX_OAUTH_DRIVER={oauth_driver!r}，可选 protocol / roxy / cloak / browser_use / skyvern")
+            raise RuntimeError(f"[Codex] Không hỗ trợ CODEX_OAUTH_DRIVER={oauth_driver!r}, tuỳ chọn protocol / roxy / cloak / browser_use / skyvern")
     except ImportError:
         # 没装 selenium / 未提供 roxy 配置时继续走协议模式，保持旧行为。
         pass
@@ -1749,9 +1749,9 @@ def run_codex_oauth(
     task_seed = f"codex-oauth:{email.lower()}:{uuid.uuid4()}"
     session = BrowserSession(proxy=proxy, fingerprint_seed=task_seed)
     try:
-        logger.info(f"[Codex] 开始授权（全新 session）：{email}")
+        logger.info(f"[Codex] Bắt đầu uỷ quyền (Mới hoàn toàn session): {email}")
         logger.info(
-            "[Codex] 统一指纹上下文：device_id=%s oai_session_id=%s auth_session_logging_id=%s %s",
+            "[Codex] Thống nhất ngữ cảnh fingerprint: device_id=%s oai_session_id=%s auth_session_logging_id=%s %s",
             session.device_id,
             session.oai_session_id,
             session.auth_session_logging_id,
@@ -1769,18 +1769,18 @@ def run_codex_oauth(
             cpa_auth = _request_cpa_authorize_url()
             state = cpa_auth["state"]
             auth_url = cpa_auth["auth_url"]
-            logger.info(f"[Codex] 当前使用 CPA 授权地址: {auth_url}")
+            logger.info(f"[Codex] Đang dùng CPA Địa chỉ uỷ quyền: {auth_url}")
         elif auth_source == "sub2":
             sub2_auth = _request_sub2_authorize_url()
             state = sub2_auth["state"]
             auth_url = sub2_auth["auth_url"]
-            logger.info(f"[Codex] 当前使用 sub2 授权地址: {auth_url}")
+            logger.info(f"[Codex] Đang dùng sub2 Địa chỉ uỷ quyền: {auth_url}")
         elif auth_source == "local":
             code_verifier, code_challenge = _generate_pkce()
             state = _generate_state()
-            logger.info("[Codex] 当前使用本地 PKCE 生成授权地址，完整 URL 将在 bootstrap 阶段输出")
+            logger.info("[Codex] Hiện đang dùng local PKCE tạo địa chỉ uỷ quyền, đầy đủ URL Sẽ trong bootstrap đầu ra giai đoạn")
         else:
-            raise RuntimeError(f"[Codex] 不支持的 CODEX_AUTH_URL_SOURCE={auth_source!r}")
+            raise RuntimeError(f"[Codex] Không hỗ trợ CODEX_AUTH_URL_SOURCE={auth_source!r}")
 
         # 2. 网络预检 + 建立会话。预检不携带邮箱，不触发 OTP；
         #    真正烧邮箱的 authorize/continue 只在预检成功后执行。
@@ -1807,7 +1807,7 @@ def run_codex_oauth(
             email_otp = None
             max_email_otp_attempts = 3
             for email_otp_attempt in range(1, max_email_otp_attempts + 1):
-                logger.info(f"[Codex] 等待邮箱 OTP：{email}（第 {email_otp_attempt}/{max_email_otp_attempts} 次）")
+                logger.info(f"[Codex] chờ email OTP: {email} (thứ {email_otp_attempt}/{max_email_otp_attempts} lần)")
                 try:
                     email_otp = otp_provider(email, after_ts=otp_after_ts)
                     break
@@ -1815,7 +1815,7 @@ def run_codex_oauth(
                     if email_otp_attempt >= max_email_otp_attempts:
                         raise
                     logger.warning(
-                        "[Codex] 一直未收到邮箱 OTP，重新提交邮箱触发重发后继续等待（下一轮 %s/%s）：%s: %s",
+                        "[Codex] mãi chưa nhận được email OTP, gửi lại email để kích hoạt gửi lại rồi tiếp tục chờ (vòng tiếp theo %s/%s): %s: %s",
                         email_otp_attempt + 1,
                         max_email_otp_attempts,
                         type(exc).__name__,
@@ -1833,7 +1833,7 @@ def run_codex_oauth(
                         auth_result = retry_result
                         break
             if not password_login_done:
-                logger.info(f"[Codex] 邮箱 OTP 收到：{email_otp}")
+                logger.info(f"[Codex] email OTP đã nhận: {email_otp}")
                 human_delay("otp_input")
                 auth_result = _submit_email_otp(session, email_otp)
                 human_delay("api")
@@ -1850,7 +1850,7 @@ def run_codex_oauth(
 
         # 5. 是否需要手机号也完全由 Auth 返回决定，不再因为走过 OTP/密码而固定执行。
         if _is_phone_step(auth_result):
-            logger.info("[Codex] Auth 明确要求手机号验证，开始接码：%s", email)
+            logger.info("[Codex] Auth yêu cầu rõ xác minh số điện thoại, bắt đầu nhận mã: %s", email)
             phone_result = _do_phone_verification(session)
             phone_continue = _extract_continue_url(phone_result)
             if phone_continue:
@@ -1861,7 +1861,7 @@ def run_codex_oauth(
             human_delay("post_auth")
         else:
             logger.info(
-                "[Codex] Auth 未要求手机号验证，跳过：email=%s page=%s continue=%s",
+                "[Codex] Auth không yêu cầu xác minh số điện thoại, Bỏ qua: email=%s page=%s continue=%s",
                 email,
                 _page_type(auth_result) or "-",
                 _extract_continue_url(auth_result) or "-",
@@ -1870,7 +1870,7 @@ def run_codex_oauth(
         # 6. 选 workspace → 拿 callback code；若登录 continue 已经直接命中 callback，则复用。
         callback_url = early_callback_url or _select_workspace_and_get_callback(session, state)
         code = _extract_code(callback_url, state)
-        logger.info(f"[Codex] 已拿到 authorization code：{code[:24]}...")
+        logger.info(f"[Codex] Đã lấy được authorization code: {code[:24]}...")
 
         # 7A. CPA 模式：把 callback URL 交给 CPA，由 CPA 持有 verifier 并完成换 token / 写 auth。
         #     本地不再用 code 换 token；仅保存 CPA 返回的授权文件或回调回执。
@@ -1884,7 +1884,7 @@ def run_codex_oauth(
                 submit_payload=submit_payload,
             )
             msg = submit_payload.get("message") or submit_payload.get("status_message") or "CPA callback submitted"
-            logger.info(f"[Codex][CPA] 成功：{email}，{msg}，本地记录={path or 'disabled'}")
+            logger.info(f"[Codex][CPA] thành công: {email}，{msg}, bản ghi cục bộ={path or 'disabled'}")
             return _codex_result(
                 status="success",
                 ok=True,
@@ -1909,7 +1909,7 @@ def run_codex_oauth(
                 submit_payload=submit_payload,
             )
             msg = submit_payload.get("message") or submit_payload.get("status_message") or "sub2 callback uploaded"
-            logger.info(f"[Codex][sub2] 成功：{email}，{msg}，本地记录={path or 'disabled'}")
+            logger.info(f"[Codex][sub2] thành công: {email}，{msg}, bản ghi cục bộ={path or 'disabled'}")
             return _codex_result(
                 status="success",
                 ok=True,
@@ -1921,7 +1921,7 @@ def run_codex_oauth(
 
         # 7B. local 模式：保留旧实现，用本地 verifier 换 token 并保存 CPA 兼容授权文件。
         if not code_verifier:
-            raise RuntimeError("[Codex] local 模式缺少 code_verifier")
+            raise RuntimeError("[Codex] local Thiếu chế độ code_verifier")
         token_resp = exchange_codex_token(session, code, code_verifier)
 
         # 8. 解析 id_token + 落盘
@@ -1931,8 +1931,8 @@ def run_codex_oauth(
         path = save_codex_credential(storage, effective_email, id_claims.get("plan_type", ""))
 
         logger.info(
-            f"[Codex] 成功：{effective_email}，plan={id_claims.get('plan_type') or 'unknown'}, "
-            f"account_id={id_claims.get('account_id') or 'unknown'}, 已保存到 {path}"
+            f"[Codex] thành công: {effective_email}，plan={id_claims.get('plan_type') or 'unknown'}, "
+            f"account_id={id_claims.get('account_id') or 'unknown'}, Đã lưu vào {path}"
         )
         return _codex_result(
             status="success",
@@ -1943,16 +1943,16 @@ def run_codex_oauth(
             message=f"plan={id_claims.get('plan_type') or 'unknown'}",
         )
     except AccountUnusableError as exc:
-        logger.warning(f"[Codex] 账号已废（{exc.error_code}）：{email}")
+        logger.warning(f"[Codex] Tài khoản đã chết ({exc.error_code}）：{email}")
         return _codex_result(
             status="deactivated",
             email=email,
-            message=f"账号已废（{exc.error_code}）",
+            message=f"Tài khoản đã chết ({exc.error_code}）",
         )
     except Exception as exc:
         if _is_cpa_callback_reauth_error(exc) and _cpa_reauth_round < 2:
             logger.warning(
-                "[Codex][CPA] callback 返回 Timeout waiting for OAuth callback，重新开启第 %s/2 轮 Codex 授权：%s",
+                "[Codex][CPA] callback trả về Timeout waiting for OAuth callback, bắt đầu lại lần thứ %s/2 vòng Codex uỷ quyền: %s",
                 _cpa_reauth_round + 1, email,
             )
             return run_codex_oauth(
@@ -1962,8 +1962,8 @@ def run_codex_oauth(
                 force=force,
                 _cpa_reauth_round=_cpa_reauth_round + 1,
             )
-        logger.warning(f"[Codex] 失败：{email}，{type(exc).__name__}: {str(exc)[:200]}")
-        logger.debug("[Codex] 失败详情:", exc_info=True)
+        logger.warning(f"[Codex] Thất bại: {email}，{type(exc).__name__}: {str(exc)[:200]}")
+        logger.debug("[Codex] Chi tiết thất bại:", exc_info=True)
         return _codex_result(
             status="failed",
             email=email,
