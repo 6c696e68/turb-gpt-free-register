@@ -35,8 +35,8 @@ _LOG_DIR = Path(__file__).resolve().parent.parent / "注册日志"
 _RUNNING: set[str] = set()
 _RUNNING_LOCK = threading.Lock()
 
-# 查活网络预检失败（403/429/代理/超时等）多为出口 IP 被 CF 标记或代理池抖动，
-# 视为可换新 IP 重试；账号本身问题（废号/邮箱错误等）不重试。
+# Kiểm tra sống precheck mạng thất bại (403/429/proxy/timeout v.v.) phần lớn do IP đầu ra bị CF đánh dấu hoặc pool proxy dao động,
+# Coi là có thể đổi IP mới thử lại; vấn đề bản thân tài khoản (số hỏng/email sai v.v.) không thử lại.
 _RETRYABLE_NETWORK_HINTS = (
     "403", "429", "502", "503", "504",
     "proxy", "socks", "timeout", "timed out",
@@ -72,15 +72,15 @@ def _new_fingerprint_pinned_session(
     state = fingerprint_state if fingerprint_state is not None else {}
     saved_profile = state.get("browser_profile")
     identity = str(email).strip().lower()
-    # 每个查活任务生成一次独立 seed；同一任务内所有阶段/重试复用，下一任务及
-    # 其他账号均不会继承该组 device/session/sentinel 标识。
+    # Mỗi task check-live tạo một seed độc lập một lần; mọi stage/retry trong cùng task tái dùng, task sau và
+    # Các tài khoản khác đều không kế thừa định danh device/session/sentinel của nhóm đó.
     fingerprint_seed = str(state.get("fingerprint_seed") or "").strip()
     if not fingerprint_seed:
         fingerprint_seed = f"live-check:{identity}:{uuid.uuid4()}"
         state["fingerprint_seed"] = fingerprint_seed
     session = BrowserSession(
         proxy=proxy,
-        # 首次按当前出口生成地区画像；同一路由内部如需重建则原样复用。
+        # Lần đầu tạo hồ sơ khu vực theo lối ra hiện tại; trong cùng route nếu cần tạo lại thì tái sử dụng nguyên trạng.
         detect_exit_geo=not bool(saved_profile),
         browser_profile=dict(saved_profile) if isinstance(saved_profile, dict) else None,
         fingerprint_seed=fingerprint_seed,
@@ -111,11 +111,11 @@ def _warm_login_fingerprint_context(session: BrowserSession) -> None:
     nav = session.get(
         "https://chatgpt.com/auth/login",
         headers=session.get_chatgpt_navigate_headers(
-            # 地址栏级顶层导航：无 Referer，Sec-Fetch-Site=none。
+            # Điều hướng cấp thanh địa chỉ top-level: không Referer, Sec-Fetch-Site=none.
             referer="", user_initiated=True,
         ),
         allow_redirects=True,
-        # 代理端口可连接不代表其上游 TLS 可用，避免坏节点长期占住 worker。
+        # Proxy port connect được không nghĩa TLS upstream khả dụng; tránh node hỏng chiếm worker lâu.
         timeout=12,
     )
     nav.raise_for_status()
@@ -123,7 +123,7 @@ def _warm_login_fingerprint_context(session: BrowserSession) -> None:
     if callable(observe):
         observe(nav)
     anonymous_bootstrap(session, strict=False)
-    # best-effort bootstrap 的非关键接口不能阻断正式认证链。
+    # API non-critical của best-effort bootstrap không được chặn chuỗi auth chính thức.
     _clear_optional_bootstrap_circuit(session)
     get_providers(session)
     probe_auth_session(session)
@@ -139,8 +139,8 @@ def _network_preflight_with_retry(
     session: BrowserSession | None = None
     last_exc: BaseException | None = None
     state = fingerprint_state if fingerprint_state is not None else {}
-    # 一次网络预检只创建一个 BrowserSession。403 响应下发的新 __cf_bm、
-    # OAuth/设备上下文都保留在同一 Cookie Jar 中供下一轮使用。
+    # Một lần precheck mạng chỉ tạo một BrowserSession. __cf_bm mới do phản hồi 403 phát xuống,
+    # Ngữ cảnh OAuth/thiết bị đều giữ trong cùng Cookie Jar để dùng vòng sau.
     session = _new_fingerprint_pinned_session(email, proxy, state)
     for attempt in range(1, max_attempts + 1):
         logger.info(
@@ -153,7 +153,7 @@ def _network_preflight_with_retry(
         try:
             _warm_login_fingerprint_context(session)
             csrf = get_csrf_token(session)
-            # 成功 Web 样本在 signin 前会再次确认匿名 NextAuth session。
+            # Mẫu Web thành công sẽ xác nhận lại phiên NextAuth ẩn danh trước signin.
             probe_auth_session(session)
             authorize_url = signin_openai(session, csrf, email)
             return session, authorize_url
@@ -348,7 +348,7 @@ def _warm_authenticated_session(session: BrowserSession, access_token: str) -> N
         authenticated_bootstrap(session, access_token, strict=False)
         logger.info("[kiểm tra sống] accessToken làm nóng xong, tiếp tục đi reauth OTP")
     except Exception as exc:
-        # strict=False 已经会吞掉大部分单接口错误；这里仅兜住初始化异常。
+        # strict=False đã nuốt hầu hết lỗi từng API; đây chỉ bắt exception khởi tạo.
         logger.warning("[kiểm tra sống] accessToken làm nóng thất bại, tiếp tục đi reauth OTP: %s: %s", type(exc).__name__, str(exc)[:180])
     finally:
         _clear_optional_bootstrap_circuit(session)
@@ -405,8 +405,8 @@ def _validate_reauth_with_retry(
                 ) from exc
 
             status = _exception_status_code(exc)
-            # reauth validate 的 403 可能是 Cloudflare/出口拦截；不要在同一已熔断
-            # 会话上反复发送 OTP，交给上层的直连兜底处理。
+            # 403 của reauth validate có thể là Cloudflare/chặn egress; đừng trên cùng phiên đã circuit break
+            # Gửi OTP lặp lại trên phiên, giao cho lớp trên xử lý dự phòng kết nối trực tiếp.
             retryable_otp = status in (400, 401, 422)
             if attempt >= max_otp_attempts or not retryable_otp:
                 raise
@@ -608,12 +608,12 @@ def _validate_with_retry(
                 break
             logger.warning("[kiểm tra sống] OTP không hợp lệ/hết hạn, gửi lại rồi lấy tiếp: %s", str(exc)[:180])
             send_email_otp(session)
-            # 以“重新发送请求完成后”为新基准，避免刚刚失败的上一封旧码再次被 after 容忍窗口命中。
+            # Lấy mốc mới là “sau khi hoàn tất yêu cầu gửi lại”, tránh mã cũ vừa thất bại bị cửa sổ dung sai after bắt trúng lần nữa.
             otp_after_ts = time.time()
             current_otp = None
             time.sleep(1)
         except Exception as exc:
-            # 提交 OTP 后的网络抖动（连接断开/超时/代理波动）：同一会话重发验证码再验证一次。
+            # Dao động mạng sau khi gửi OTP (mất kết nối/timeout/biến động proxy): cùng phiên gửi lại mã xác minh rồi xác minh lại một lần.
             if attempt >= max_otp_attempts or not _is_retryable_network_error(exc):
                 raise
             last_exc = exc
@@ -670,10 +670,10 @@ def check_account_liveness(
         existing_access_token = _stored_access_token(email)
         has_totp = bool(_account_totp_secret(email))
         if existing_access_token and not has_totp:
-            # 2FA 设置流程已经验证：先用已有 AT 预热 ChatGPT 登录态，再走
-            # reauth → 邮箱 OTP → callback。该链路不依赖容易被 CF 拦截的
-            # /api/auth/providers。已开启 TOTP 的账号保留密码 → MFA 路径，
-            # 避免把 MFA challenge 误当成邮箱 OTP 页面。
+            # Flow setup 2FA đã verify: trước dùng AT có sẵn warm login state ChatGPT, rồi đi
+            # reauth → email OTP → callback. Chuỗi này không phụ thuộc thứ dễ bị CF chặn
+            # /api/auth/providers. Tài khoản đã bật TOTP giữ đường mật khẩu → MFA,
+            # Tránh nhầm MFA challenge thành trang OTP email.
             logger.info("[kiểm tra sống] quy trình: làm nóng trạng thái đăng nhập → CSRF → Reauth Signin → Authorize → email OTP → OAuth callback → Session/AT")
             session = _new_fingerprint_pinned_session(email, proxy, task_fingerprint_state)
             logger.info(
@@ -694,9 +694,9 @@ def check_account_liveness(
             except Exception as reauth_exc:
                 if not _is_retryable_network_error(reauth_exc):
                     raise
-                # reauth/callback 的同会话阶段重试已经耗尽。继续复用熔断的
-                # Cookie Jar 没有意义；参考 plus 纯协议注册，建立干净会话并按
-                # /auth/login → providers/session/csrf/session → signin 完整重登。
+                # Retry giai đoạn cùng phiên của reauth/callback đã cạn. Tiếp tục tái sử dụng cái đã circuit-break
+                # Cookie Jar không có ý nghĩa; tham khảo đăng ký pure protocol của plus, tạo session sạch và theo
+                # /auth/login → providers/session/csrf/session → signin đăng nhập lại đầy đủ.
                 failed_proxy = session.proxy if proxy is None else proxy
                 logger.warning(
                     "[kiểm tra sống] AT reauth chuỗi thất bại tạm, chuyển sang phiên sạch và đăng nhập đầy đủ bằng giao thức thuần: %s",
@@ -713,8 +713,8 @@ def check_account_liveness(
                     fingerprint_state=task_fingerprint_state,
                 )
         else:
-            # 兼容没有本地 AT 或已开启 TOTP 的记录，按 plus 成功注册样本复现
-            # 登录页 document 与完整 NextAuth 调用顺序。
+            # Tương thích bản ghi không có AT cục bộ hoặc đã bật TOTP, tái hiện theo mẫu đăng ký plus thành công
+            # document trang đăng nhập và thứ tự gọi NextAuth đầy đủ.
             logger.info(
                 "[kiểm tra sống] quy trình: trang đăng nhập → Providers/Session/CSRF/Session → Signin → "
                 "Authorize → mật khẩu/email OTP → MFA(nếu có) → OAuth callback → Session/AT"

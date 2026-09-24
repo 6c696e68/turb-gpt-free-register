@@ -53,9 +53,9 @@ def _run_live_check(*, account_id: int, email: str, proxy: str | None, trigger: 
         effective_proxy, relay = open_plan_check_proxy(
             route, selected_proxy, timeout=timeout,
         )
-        # 查活必须沿用账号注册时记录的邮箱来源。不能只调用
-        # resolve_email_source(email)：Remail 等临时邮箱的上下文只在领取进程
-        # 内存中存在，服务重启后按当前 EMAIL_SOURCE 推断会把来源判错。
+        # Kiểm tra sống phải dùng nguồn email đã ghi khi đăng ký tài khoản. Không chỉ gọi
+        # resolve_email_source(email): ngữ cảnh email tạm như Remail chỉ có trong process nhận
+        # Tồn tại trong bộ nhớ, sau khi khởi động lại dịch vụ suy luận theo EMAIL_SOURCE hiện tại sẽ phán sai nguồn.
         try:
             account = db.get_account(account_id) or {}
         except Exception:
@@ -70,8 +70,8 @@ def _run_live_check(*, account_id: int, email: str, proxy: str | None, trigger: 
             f"proxy_mode={route.get('proxy_mode')} proxy_used={route.get('proxy_used') or '-'} "
             f"fallback_reason={route.get('proxy_fallback_reason') or '-'}"
         )
-        # 每个网络路由尝试拥有自己的任务级身份状态；同一路由的完整认证链及
-        # 内部重试复用同一组 device/session 标识，不同账号绝不共享。
+        # Mỗi lần thử định tuyến mạng có trạng thái danh tính cấp nhiệm vụ riêng; chuỗi xác thực đầy đủ cùng route và
+        # Thử lại nội bộ tái sử dụng cùng một bộ định danh device/session, các tài khoản khác nhau tuyệt đối không chia sẻ.
         fingerprint_state: dict = {}
         result = check_account_liveness(
             email,
@@ -80,8 +80,8 @@ def _run_live_check(*, account_id: int, email: str, proxy: str | None, trigger: 
             email_source=email_source,
             fingerprint_state=fingerprint_state,
         )
-        # 认证链早期 403 通常是该出口被 CF 拦截，不代表账号死亡。
-        # auto/proxy 模式下如果用了代理，额外直连兜底一次，便于和套餐查询的 auto 语义保持接近。
+        # 403 sớm trong chuỗi xác thực thường là cổng ra bị CF chặn, không có nghĩa tài khoản chết.
+        # Ở chế độ auto/proxy nếu đã dùng proxy, thêm một lần kết nối trực tiếp dự phòng, để gần với ngữ nghĩa auto của truy vấn gói.
         err_text = str(result.get("error") or "")
         if (
             not result.get("ok")
@@ -94,9 +94,9 @@ def _run_live_check(*, account_id: int, email: str, proxy: str | None, trigger: 
                 email,
                 "[kiểm tra sống] phiên đầy đủ của tuyến proxy nhận 403, khởi chạy một lần dự phòng bằng phiên kết nối trực tiếp độc lập(không tái dùng hồ sơ proxy/Cookie/phiên ID)",
             )
-            # BrowserSession 约定：None=从代理池抽取，""=明确直连。
-            # 出口发生变化时必须重新按真实出口探测画像，不能把代理的 JP/VN
-            # 语言时区伪装到直连；因此直连兜底使用独立的任务身份状态。
+            # Ước BrowserSession: None=lấy từ proxy pool, ""=chỉ định direct.
+            # Khi cổng ra thay đổi phải thăm dò chân dung theo cổng ra thực tế lại, không được lấy JP/VN của proxy
+            # Ngôn ngữ múi giờ giả trang tới kết nối trực tiếp; vì vậy dự phòng kết nối trực tiếp dùng trạng thái danh tính nhiệm vụ độc lập.
             result = check_account_liveness(
                 email,
                 proxy="",

@@ -58,7 +58,7 @@ class Account:
 
 
 # ============================================================
-# 密码生成
+# Tạo mật khẩu
 # ============================================================
 
 
@@ -84,7 +84,7 @@ def generate_mailcom_password(length: int = 12) -> str:
 
 
 # ============================================================
-# HTML 解析辅助
+# Hỗ trợ phân tích HTML
 # ============================================================
 
 
@@ -145,7 +145,7 @@ def _password_headers(
 
 
 # ============================================================
-# 改密核心：登录 account.mail.com + 提交 passwordChange 表单
+# Lõi đổi mật khẩu: đăng nhập account.mail.com + gửi form passwordChange
 # ============================================================
 
 
@@ -271,7 +271,7 @@ def change_mailcom_password(
 
 
 # ============================================================
-# 对外公共接口
+# Giao diện công khai đối ngoại
 # ============================================================
 
 
@@ -296,7 +296,7 @@ def change_account_password(
     generated = not bool((new_password or "").strip())
     new_password = (new_password or "").strip() or generate_mailcom_password(12)
     old_password = account.password
-    # 发送变更前：明确打出旧密码与即将提交的随机/指定新密码（测活批量改密入口）
+    # Trước khi gửi thay đổi: in rõ mật khẩu cũ và mật khẩu mới ngẫu nhiên/chỉ định sắp gửi (điểm vào đổi mật khẩu hàng loạt kiểm tra sống)
     logger.info(
         """[MailCom][kiểm tra sống/đổi mật khẩu hàng loạt] trước khi đổi email=%s old_password=%s new_password=%s generated=%s (sắp gửi passwordChange)""",
         account.username,
@@ -352,7 +352,7 @@ def change_mailcom_password_for_email(
     generated = not bool((new_password or "").strip())
     new_password = (new_password or "").strip() or generate_mailcom_password(12)
 
-    # 取当前账号上下文（内存缓存 → DB fallback）
+    # Lấy ngữ cảnh tài khoản hiện tại (cache bộ nhớ → DB fallback)
     from core.mailcom_client import get_account_context
 
     account_ctx = get_account_context(email)
@@ -366,7 +366,7 @@ def change_mailcom_password_for_email(
     if not current_password:
         raise MailComError(f"{email} mật khẩu hiện tại trống, không đổi mật khẩu được")
 
-    # 发送变更前：先打出变更前密码与即将提交的随机/指定新密码（自动化注册前改密入口）
+    # Trước khi gửi thay đổi: in trước mật khẩu trước khi đổi và mật khẩu mới ngẫu nhiên/chỉ định sắp gửi (cổng đổi mật trước đăng ký tự động)
     logger.info(
         """[MailCom][đổi mật khẩu tự động] trước khi đổi email=%s old_password=%s new_password=%s generated=%s (sắp gửi passwordChange)""",
         email,
@@ -375,7 +375,7 @@ def change_mailcom_password_for_email(
         generated,
     )
 
-    # 改密
+    # Đổi mật khẩu
     _proxy = proxy or _mailcom_proxy()
     try:
         client = MailComLightClient(
@@ -401,12 +401,12 @@ def change_mailcom_password_for_email(
         new_password,
     )
 
-    # 回写内存缓存，后续 fetch_latest_otp 会用新密码
+    # Ghi lại bộ đệm bộ nhớ, fetch_latest_otp sau đó sẽ dùng mật khẩu mới
     from core.mailcom_client import MailComAccount
 
     _CONTEXT_CACHE[email] = MailComAccount(email=email, password=new_password)
 
-    # 回写 DB（email_pool.password）
+    # Ghi lại DB (email_pool.password)
     try:
         from core import db
 
@@ -451,7 +451,7 @@ def maybe_change_mailcom_password_before_register(
     if not bool(getattr(_email_cfg, "MAILCOM_CHANGE_PASSWORD_BEFORE_REGISTER", False)):
         return None
 
-    # 判断邮箱来源是否 mailcom
+    # Kiểm tra nguồn email có phải mailcom không
     try:
         from core.email_provider import resolve_email_source
 
@@ -469,7 +469,7 @@ def maybe_change_mailcom_password_before_register(
 
 
 if __name__ == "__main__":
-    # 独立调试：python -m core.mail_password_change 'email----password' [new_password]
+    # Debug độc lập: python -m core.mail_password_change 'email----password' [new_password]
     import sys as _sys
 
     logging.basicConfig(

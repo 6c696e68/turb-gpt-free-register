@@ -1,13 +1,13 @@
 # -*- coding: utf-8 -*-
 """
-注册任务服务层：
-    - 线程池并发执行 run_registration
-    - 每个任务在 data/registration_jobs.json 里有一条记录
-    - 每个任务的日志写到 data/logs/<job_uuid>.log，便于 Web UI 实时尾巴
+Lớp dịch vụ tác vụ đăng ký:
+    - Thread pool thực thi đồng thời run_registration
+    - Mỗi tác vụ có một bản ghi trong data/registration_jobs.json
+    - Log mỗi tác vụ ghi vào data/logs/<job_uuid>.log, tiện Web UI tail realtime
 
-使用：
+Cách dùng:
     submit_registration(email_source="outlook", count=5)
-    → 创建 5 个任务，丢入线程池，立即返回 [job_dict, ...]
+    → Tạo 5 tác vụ, đưa vào thread pool, trả về ngay [job_dict, ...]
 """
 import logging
 import threading
@@ -20,7 +20,7 @@ from core import codex_retry_service, db
 
 logger = logging.getLogger(__name__)
 
-# 全局线程池，最大并发数（WebUI 每次提交时可按最新 workers 重建）
+# Thread pool toàn cục, số đồng thời tối đa (WebUI mỗi lần submit có thể rebuild theo workers mới nhất)
 _DEFAULT_MAX_WORKERS = 4
 _MIN_MAX_WORKERS = 1
 _MAX_MAX_WORKERS = 16
@@ -99,25 +99,25 @@ def _random_display_name() -> str:
 
 def _prepare_registration_args() -> tuple[str | None, str, str]:
     """Tái dùng rule mặc định CLI, bổ sung tham số đăng ký cho entry Web cũ."""
-    # 用模块属性读，支持 WebUI 热加载
+    # Đọc bằng thuộc tính module, hỗ trợ hot-load WebUI
     from config import register as _r, email as _e
     from core.profile_utils import generate_random_birthday
 
     email = str(getattr(_r, "REGISTER_EMAIL", "") or "").strip()
     name = str(getattr(_r, "REGISTER_NAME", "") or "").strip()
-    # WebUI/配置里有时会把空值存成 "-"，这不是合法 OpenAI 显示名，按空处理并自动生成
+    # Trong WebUI/cấu hình đôi khi lưu giá trị rỗng thành "-", đây không phải tên hiển thị OpenAI hợp lệ, xử lý như rỗng và tự động tạo
     if name in {"-", "—", "无", "空", "none", "None", "null", "NULL"}:
         name = ""
 
     if not name:
-        # 手动模式也自动生成显示名，减少配置负担
+        # Chế độ thủ công cũng tự động tạo tên hiển thị, giảm gánh nặng cấu hình
         name = _random_display_name()
 
     birthday = generate_random_birthday()
 
-    # 自动邮箱不在准备阶段领取：浏览器驱动会等页面找到邮箱输入框后再领取，
-    # 协议驱动则在 run_registration 即将开始认证时领取。这样页面打不开/找不到
-    # 输入框时不会提前消耗邮箱订单或池中素材。
+    # Email tự động không nhận ở giai đoạn chuẩn bị: driver trình duyệt đợi trang tìm thấy ô nhập email rồi mới nhận,
+    # Điều khiển theo giao thức thì nhận khi run_registration sắp bắt đầu xác thực. Như vậy trang không mở được/không tìm thấy
+    # Khi ở ô nhập sẽ không tiêu thụ sớm đơn email hoặc tài nguyên trong pool.
     if not email and not _e.USE_EMAIL_SERVICE:
         raise RuntimeError(
             "Chế độ thủ công chưa cấu hình email. Đặt REGISTER_EMAIL ở trang Cấu hình WebUI, "
@@ -193,11 +193,11 @@ def _normalize_workers(max_workers: int | None) -> int:
 
 
 def get_executor(max_workers: int | None = None) -> ThreadPoolExecutor:
-    """返回注册线程池。
+    """Trả về thread pool đăng ký.
 
-    旧逻辑只在首次创建线程池时使用 max_workers，后续 WebUI 改线程数再提交仍会复用
-    上一次的池。这里改成：每次传入的 max_workers 和当前池不一致时，立即创建新池供
-    新提交任务使用；旧池不接收新任务，但会继续把已经排队/运行的任务跑完。
+    Logic cũ chỉ dùng max_workers khi tạo thread pool lần đầu; sau đó WebUI đổi số luồng rồi submit vẫn tái sử dụng
+    pool lần trước. Ở đây đổi thành: mỗi khi max_workers truyền vào khác với pool hiện tại, ngay lập tức tạo pool mới cho
+    các task submit mới sử dụng; pool cũ không nhận task mới, nhưng sẽ tiếp tục chạy hết các task đã xếp hàng/đang chạy.
     """
     global _executor, _executor_workers, _executor_generation
     requested_workers = _normalize_workers(max_workers) if max_workers is not None else _executor_workers
@@ -205,7 +205,7 @@ def get_executor(max_workers: int | None = None) -> ThreadPoolExecutor:
         if _executor is None or requested_workers != _executor_workers:
             old_executor = _executor
             if old_executor is not None:
-                # 不取消旧池里已提交的任务，只是不再往旧池追加新任务。
+                # Không hủy các task đã gửi trong pool cũ, chỉ là không còn thêm task mới vào pool cũ.
                 old_executor.shutdown(wait=False, cancel_futures=False)
                 _retired_executors.append(old_executor)
                 logger.info(
@@ -242,7 +242,7 @@ def shutdown_executor(wait: bool = True) -> None:
 
 
 # ============================================================
-# 单任务执行：日志重定向到任务专属文件
+# Thực thi đơn nhiệm vụ: chuyển hướng log sang file riêng của nhiệm vụ
 # ============================================================
 
 class _JobLogContext:
@@ -260,7 +260,7 @@ class _JobLogContext:
             "%(asctime)s [%(levelname)s] [%(threadName)s] %(message)s",
             datefmt="%H:%M:%S",
         ))
-        # 仅给本线程过滤 —— 用 thread name 做区分，避免污染其他任务的日志
+        # Chỉ lọc cho luồng này —— dùng thread name để phân biệt, tránh làm bẩn log của các tác vụ khác
         thread_name = threading.current_thread().name
         self.handler.addFilter(lambda r: r.threadName == thread_name)
         logging.getLogger().addHandler(self.handler)
@@ -277,8 +277,8 @@ def _run_one_job(job_id: int, log_file: str) -> None:
     log_logger = logging.getLogger(__name__)
     _activate_job(job_id)
 
-    # 取消检查：用户可能在任务排队期间点了"取消排队"，把 status 改成了 cancelled。
-    # 因为 Future 已经 submit 进线程池无法撤回，只能在真正执行前自检一下，跳过 cancelled 的。
+    # Kiểm tra hủy: người dùng có thể đã bấm "hủy xếp hàng" trong lúc task đang xếp hàng, đổi status thành cancelled.
+    # Vì Future đã submit vào thread pool không thể thu hồi, chỉ có thể tự kiểm tra trước khi thực thi thật, bỏ qua những cái đã cancelled.
     current = db.get_job(job_id)
     if not current:
         log_logger.info(f"[Job {job_id}] Bản ghi tác vụ đã xoá, bỏ qua thực thi")
@@ -334,7 +334,7 @@ def _run_one_job(job_id: int, log_file: str) -> None:
                 )
                 log_logger.info(f"[Job {job_id}] Thành công: {result.get('email')}")
             else:
-                # 注意：失败也可能伴随 account_id（如 Codex 失败但账号已注册成功）
+                # Lưu ý: thất bại cũng có thể kèm account_id (ví dụ Codex thất bại nhưng tài khoản đã đăng ký thành công)
                 err = (result or {}).get("error") if isinstance(result, dict) else "unknown"
                 result_email = (result or {}).get("email") if isinstance(result, dict) else None
                 db.update_job(
@@ -437,23 +437,23 @@ def _run_codex_retry_job(job_id: int, log_file: str, email: str, account_id: int
 
 
 # ============================================================
-# 公共接口
+# Giao diện công cộng
 # ============================================================
 
 def submit_registration(count: int = 1, email_source: str | None = None, workers: int | None = None) -> list[dict]:
     """
-    创建 N 个注册任务并提交到线程池。
-    email_source 仅记录到 DB；实际邮箱来源固定为 Outlook 账号池。
+    Tạo N nhiệm vụ đăng ký và gửi vào thread pool.
+    email_source chỉ ghi vào DB; nguồn email thực tế cố định là pool tài khoản Outlook.
 
     Returns:
-        N 个新创建的 job dict
+        N job dict mới tạo
     """
     if email_source is None:
         from config import email as _email_cfg
         email_source = _email_cfg.EMAIL_SOURCE
 
-    # 创建/切换线程池和提交本批任务必须整体串行化：否则另一请求在本批提交中途
-    # 切换 workers 并 shutdown 旧池，会导致后续 submit 报 cannot schedule new futures after shutdown。
+    # Tạo/chuyển thread pool và submit lô task này phải tuần tự hóa toàn bộ: nếu không request khác sẽ xen giữa lúc submit lô này
+    # Chuyển workers và shutdown pool cũ sẽ khiến submit sau đó báo cannot schedule new futures after shutdown.
     with _executor_lock:
         executor = get_executor(max_workers=workers)
         effective_workers = get_executor_workers()
@@ -622,11 +622,11 @@ def retry_job(job_id: int, workers: int | None = None) -> dict:
 
 def cancel_pending_jobs() -> int:
     """
-    把所有 status=pending 的任务批量改成 cancelled，避免它们被执行。
-    已经在 running 的任务不动（线程池中无法中途打断）。
-    返回成功取消的数量。
+    Đổi hàng loạt mọi task status=pending thành cancelled, tránh chúng bị thực thi.
+    Task đang running không đụng tới (không thể ngắt giữa chừng trong thread pool).
+    Trả về số lượng hủy thành công.
 
-    实际"不执行"的保证在 _run_one_job 开头——它真要跑起来时会先看 status 决定是否跳过。
+    Đảm bảo thực tế "không chạy" nằm ở đầu _run_one_job——khi thật sự sắp chạy nó sẽ xem status trước để quyết định có bỏ qua không.
     """
     jobs = db.list_jobs(limit=1000)
     cancelled = 0
@@ -664,8 +664,8 @@ def request_stop_job(job_id: int) -> dict:
             if ev is not None:
                 ev.set()
         if not active or ev is None:
-            # Web 服务重启、线程Ngoại lệ退出、历史残留 stopping，或之前手动停止时只创建了 stop event
-            # 但没有真实线程实例：直接落为 stopped，避免永远卡在“停止中”。
+            # Dịch vụ Web khởi động lại, thread thoát do ngoại lệ, stopping còn sót từ lịch sử, hoặc lần dừng thủ công trước chỉ tạo stop event
+            # nhưng không có instance luồng thật: đặt thẳng thành stopped, tránh kẹt mãi ở “đang dừng”.
             with _STOP_LOCK:
                 _STOP_EVENTS.pop(int(job_id), None)
                 _ACTIVE_JOBS.discard(int(job_id))

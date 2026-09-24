@@ -1,13 +1,13 @@
 # -*- coding: utf-8 -*-
-"""Roxy Chromium 静态资源本地缓存。
+"""Bộ đệm cục bộ tài nguyên tĩnh Roxy Chromium.
 
-通过页面 target 的 CDP WebSocket 同时使用：
+Qua CDP WebSocket của page target dùng đồng thời:
 
-* ``Network``：记录成功加载的静态资源正文；
-* ``Fetch``：后续请求命中本地文件时用 ``fulfillRequest`` 直接返回。
+* ``Network``: ghi lại nội dung tài nguyên tĩnh tải thành công;
+* ``Fetch``: request sau nếu trúng file cục bộ thì dùng ``fulfillRequest`` trả về trực tiếp.
 
-只处理精确 URL 的 GET 静态资源。document、API、认证、Cloudflare、Sentinel、
-CES 和 OBI 请求始终走真实网络。
+Chỉ xử lý tài nguyên tĩnh GET đúng URL chính xác. document, API, xác thực, Cloudflare, Sentinel,
+CES và OBI luôn đi mạng thật.
 """
 from __future__ import annotations
 
@@ -31,8 +31,8 @@ from config import roxybrowser as _cfg
 
 logger = logging.getLogger(__name__)
 
-# 多个注册窗口共享同一缓存目录。原子替换只能保证文件不损坏，不能阻止两个
-# 窗口同时把同一 URL 统计为新增，因此检查与写入需要进程级串行化。
+# Nhiều cửa sổ đăng ký chia sẻ cùng thư mục cache. Thay thế nguyên tử chỉ đảm bảo file không hỏng, không chặn được hai
+# Cửa sổ đồng thời thống kê cùng một URL là mới thêm, nên kiểm tra và ghi cần tuần tự hóa cấp tiến trình.
 _CACHE_STORE_LOCK = threading.Lock()
 
 _ALLOWED_RESOURCE_TYPES = {"Script", "Stylesheet", "Font", "Image"}
@@ -77,7 +77,7 @@ def _debugger_http_base(address: str) -> str:
 
 
 def _replace_ws_host(ws_url: str, debugger_address: str) -> str:
-    """Roxy 有时在 json/list 中返回 localhost；按实际 debugger host 修正。"""
+    """Roxy đôi khi trả về localhost trong json/list; sửa theo debugger host thực tế."""
     try:
         ws = urlsplit(ws_url)
         debug = urlsplit(_debugger_http_base(debugger_address))
@@ -95,8 +95,8 @@ class RoxyLocalAssetCache:
     def __init__(self, debugger_address: str | None, *, label: str = "Roxy"):
         self.debugger_address = str(debugger_address or "").strip()
         self.label = label
-        # 省流量模式开启时自动启用跨 Profile 静态资源缓存；显式缓存开关仍
-        # 可在未开启省流量模式时单独启用缓存。
+        # Khi bật chế độ tiết kiệm lưu lượng tự động bật cache tài nguyên tĩnh cross-Profile; công tắc cache tường minh vẫn
+        # Có thể bật cache riêng khi chưa bật chế độ tiết kiệm lưu lượng.
         self.enabled = bool(
             getattr(_cfg, "ROXY_LOCAL_ASSET_CACHE_ENABLED", False)
             or getattr(_browser_cfg, "BROWSER_DATA_SAVER_MODE", False)
@@ -162,7 +162,7 @@ class RoxyLocalAssetCache:
             item = json.loads(path.read_text(encoding="utf-8"))
             if item.get("url") != url or not item.get("body_b64"):
                 return None
-            # 兼容旧缓存中按 base64 长度估算而产生的 1~2 字节偏差。
+            # Tương thích độ lệch 1~2 byte do ước lượng theo độ dài base64 trong cache cũ.
             item["body_bytes"] = len(base64.b64decode(item["body_b64"]))
             return item
         except Exception:
@@ -188,9 +188,9 @@ class RoxyLocalAssetCache:
                 "stored_at": int(time.time()),
             }
             with _CACHE_STORE_LOCK:
-                # Chromium 某些版本无法稳定关联 Fetch 与 Network 的请求 ID，命中
-                # 本地缓存的响应也可能再次到达记录路径。已有有效文件不重复覆盖，
-                # 也不再误报成“本轮新增”。过期文件仍会正常刷新。
+                # Một số phiên bản Chromium không liên kết ổn định request ID của Fetch với Network, khớp
+                # Phản hồi bộ đệm cục bộ cũng có thể đến lại đường dẫn ghi. Đã có tệp hợp lệ thì không ghi đè lại,
+                # Cũng không còn báo nhầm thành "thêm mới vòng này". File hết hạn vẫn làm mới bình thường.
                 if self._load(url) is not None:
                     return
                 path = self._entry_path(url)
@@ -229,7 +229,7 @@ class RoxyLocalAssetCache:
         pages = [x for x in targets if isinstance(x, dict) and x.get("type") == "page" and x.get("webSocketDebuggerUrl")]
         if not pages:
             return ""
-        # 优先当前普通页面；about:blank 也可以，后续导航仍使用同一个 target。
+        # Ưu tiên trang thường hiện tại; about:blank cũng được, điều hướng sau vẫn dùng cùng target.
         target = next((x for x in pages if not str(x.get("url") or "").startswith("devtools://")), pages[0])
         return _replace_ws_host(str(target["webSocketDebuggerUrl"]), self.debugger_address)
 
@@ -276,7 +276,7 @@ class RoxyLocalAssetCache:
                 try:
                     raw = self._ws.recv()
                 except Exception as exc:
-                    # websocket-client 的超时用于周期检查停止信号。
+                    # Timeout của websocket-client dùng để kiểm tra định kỳ tín hiệu dừng.
                     if "timed out" in str(exc).lower():
                         continue
                     if self._stop.is_set():
@@ -334,8 +334,8 @@ class RoxyLocalAssetCache:
                 return
             headers = []
             for name, value in (cached.get("headers") or {}).items():
-                # 不回放旧 cf-ray/date/age/server/x-ms-* 等边缘节点或时效字段。
-                # Content-Encoding/Length 也由 fulfillRequest 根据解码后的 body 重建。
+                # Không phát lại các trường edge node hoặc có thời hạn cũ như cf-ray/date/age/server/x-ms-*.
+                # Content-Encoding/Length cũng được fulfillRequest xây lại theo body đã giải mã.
                 if str(name).lower() not in _REPLAY_RESPONSE_HEADERS:
                     continue
                 if isinstance(value, (str, int, float)):
@@ -352,9 +352,9 @@ class RoxyLocalAssetCache:
             with self._fulfilled_lock:
                 if network_id:
                     self._fulfilled_network_ids.add(network_id)
-                # 部分 Chromium 在 Request 阶段的 Fetch.requestPaused 不提供
-                # networkId；另有版本返回的 ID 与 Network.requestId 不一致。
-                # 无论是否拿到 networkId，都用精确 URL 计数作关联兜底。
+                # Một số Chromium ở giai đoạn Request của Fetch.requestPaused không cung cấp
+                # networkId; phiên bản khác trả về ID không khớp Network.requestId.
+                # Dù có lấy được networkId hay không, đều dùng đếm URL chính xác làm liên kết dự phòng.
                 self._fulfilled_urls[url] += 1
             self.cache_hits += 1
             self.bytes_saved += int(cached.get("body_bytes") or 0)
@@ -371,7 +371,7 @@ class RoxyLocalAssetCache:
         url = str(response.get("url") or "")
         with self._fulfilled_lock:
             if request_id and request_id in self._fulfilled_network_ids:
-                # ID 已匹配时也要消费 URL 兜底计数，避免残留计数误匹配后续请求。
+                # Khi ID đã khớp cũng phải tiêu thụ bộ đếm dự phòng URL, tránh bộ đếm dư khớp nhầm các request sau.
                 if self._fulfilled_urls.get(url, 0) > 0:
                     self._fulfilled_urls[url] -= 1
                     if self._fulfilled_urls[url] <= 0:
@@ -411,7 +411,7 @@ class RoxyLocalAssetCache:
             self._remember_error(f"body: {type(exc).__name__}: {exc}")
 
     def was_fulfilled_network_request(self, request_id: str) -> bool:
-        """供流量统计器识别 CDP 本地响应，避免误计为代理下载流量。"""
+        """Để bộ đếm lưu lượng nhận diện phản hồi CDP cục bộ, tránh tính nhầm thành lưu lượng tải qua proxy."""
         if not request_id:
             return False
         with self._fulfilled_lock:

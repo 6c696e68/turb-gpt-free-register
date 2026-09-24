@@ -22,7 +22,7 @@ from urllib.parse import quote, unquote, urlparse, urlunparse, parse_qsl, urlenc
 import requests
 
 from config import email as _email_cfg
-from config import proxy as _proxy_cfg  # 兼容旧调用方及可测试的代理池回退
+from config import proxy as _proxy_cfg  # Tương thích caller cũ và fallback kho proxy có thể test
 from core.otp_utils import extract_otp
 
 logger = logging.getLogger(__name__)
@@ -109,7 +109,7 @@ def _public_inbox_latest_code_url(code_url: str) -> str | None:
         return None
     match = _PUBLIC_INBOX_LINK_RE.match(parsed.path or "")
     if not match:
-        # 也接受用户直接导入 latest-code API 地址。
+        # Cũng chấp nhận người dùng nhập trực tiếp địa chỉ API latest-code.
         match = _PUBLIC_INBOX_API_RE.match(parsed.path or "")
     if not match:
         return None
@@ -182,7 +182,7 @@ def _fetch_public_inbox_page_otp(
         if not code:
             code = _extract_yangyang_openai_code(subject, preview)
         msg_id = str(item.get("id") or "").strip()
-        # 页面列表预览仍未抽到时，读取页面点击邮件时使用的详情 API。
+        # Khi xem trước danh sách trang vẫn chưa trích được, đọc API chi tiết dùng khi trang nhấp vào email.
         if not code and msg_id:
             detail_url = (
                 f"{origin}/api/public/inboxes/{quote(unquote(token_path), safe='')}"
@@ -260,7 +260,7 @@ def _extract_code(text: str) -> str | None:
     if not text:
         return None
 
-    # 兼容 JSON：优先把所有 value 拉平再抽取。
+    # Tương thích JSON: ưu tiên làm phẳng tất cả value rồi trích xuất.
     candidates_text = [_decode_data_uri(text), text]
     try:
         parsed = json.loads(text)
@@ -269,7 +269,7 @@ def _extract_code(text: str) -> str | None:
         pass
 
     for body in candidates_text:
-        # 复用邮件 OTP 抽取逻辑。
+        # Tái sử dụng logic trích xuất OTP email.
         code = extract_otp({"text": body, "content": body, "subject": body[:200]})
         if code:
             return code
@@ -298,7 +298,7 @@ def _extract_yangyang_openai_code(subject: str, body: str) -> str | None:
     subject_l = (subject or "").lower()
     text = "\n".join([subject or "", body])
 
-    # 去掉 style/script，减少 CSS 颜色、宽高等 6 位数字干扰。
+    # Bỏ style/script, giảm nhiễu số 6 chữ số như màu CSS, width/height, v.v.
     clean = re.sub(r"<style[^>]*>.*?</style>", " ", text, flags=re.DOTALL | re.IGNORECASE)
     clean = re.sub(r"<script[^>]*>.*?</script>", " ", clean, flags=re.DOTALL | re.IGNORECASE)
     clean = re.sub(r"#[0-9a-fA-F]{6}\b", " ", clean)
@@ -310,7 +310,7 @@ def _extract_yangyang_openai_code(subject: str, body: str) -> str | None:
     if not codes:
         return None
 
-    # 过滤已知模板噪声；保留其它 6 位候选。
+    # Lọc nhiễu mẫu đã biết; giữ các ứng viên 6 chữ số khác.
     noise = {"000000", "202123", "353740"}
     candidates = [c for c in codes if c not in noise]
     if not candidates:
@@ -328,7 +328,7 @@ def _extract_yangyang_openai_code(subject: str, body: str) -> str | None:
         if matches:
             return matches[-1]
 
-    # OpenAI 临时代码邮件：清理噪声后最后一个业务 6 位数最稳定。
+    # Email mã tạm OpenAI: sau khi làm sạch nhiễu, 6 chữ số nghiệp vụ cuối cùng ổn định nhất.
     if any(h in subject_l for h in _YANGYANG_OPENAI_SUBJECT_HINTS) or "openai" in lower or "chatgpt" in lower:
         return candidates[-1]
 
@@ -375,7 +375,7 @@ def _parse_generic_api_ts(value) -> float | None:
     raw = str(value).strip()
     if not raw:
         return None
-    # 数字时间戳：秒 / 毫秒
+    # Dấu thời gian số: giây / mili giây
     if re.fullmatch(r"\d+(?:\.\d+)?", raw):
         try:
             ts = float(raw)
@@ -393,7 +393,7 @@ def _parse_generic_api_ts(value) -> float | None:
         return dt.timestamp()
     except Exception:
         pass
-    # 常见字符串格式
+    # Định dạng chuỗi phổ biến
     for fmt in ("%Y-%m-%d %H:%M:%S", "%Y-%m-%dT%H:%M:%S", "%Y/%m/%d %H:%M:%S", "%Y-%m-%d %H:%M"):
         try:
             return datetime.strptime(raw[:19], fmt).timestamp()
@@ -418,7 +418,7 @@ def _extract_structured_api_code(text: str, after_ts: float | None = None) -> tu
     if not isinstance(data, dict):
         return None
 
-    # 常见字段优先级：code / otp / verification_code；没有再回退从拉平文本提取。
+    # Độ ưu tiên trường phổ biến: code / otp / verification_code; nếu không có thì fallback trích từ văn bản phẳng.
     raw_code = (
         data.get("code")
         or data.get("otp")
@@ -483,14 +483,14 @@ def _fetch_yangyang_otp(
 
     items: list[dict] = []
     cursor: str | None = None
-    # 一般第一页足够；保守支持最多翻 5 页。
+    # Thường trang đầu là đủ; hỗ trợ bảo thủ tối đa 5 trang.
     for _ in range(5):
         url = api_url if not cursor else f"{api_url}?cursor={quote(str(cursor), safe='')}"
         resp = session.get(url, headers={**headers, "Accept": "application/json"}, timeout=20, verify=False)
         if resp.status_code != 200:
             if resp.status_code == 404:
-                # 兼容 mail.ai1998.xyz 这类同样是 /messages/{token}/{email}，
-                # 但没有 /api/messages，邮件直接内嵌在 HTML 页面中的实现。
+                # Tương thích các loại như mail.ai1998.xyz cũng là /messages/{token}/{email},
+                # Nhưng không có /api/messages; triển khai email nhúng trực tiếp trong trang HTML.
                 return _fetch_inline_messages_page_otp(
                     session=session,
                     code_url=code_url,
@@ -507,7 +507,7 @@ def _fetch_yangyang_otp(
             break
         cursor = str(data.get("next_cursor"))
 
-    # API 默认新邮件在前；再次按时间倒序，尽量取最新验证码。
+    # API mặc định email mới ở trước; sắp xếp lại theo thời gian giảm dần, cố gắng lấy mã xác minh mới nhất.
     items.sort(key=lambda x: _parse_yangyang_ts(x.get("received_at") or x.get("receivedAt")) or 0, reverse=True)
     for item in items:
         msg_ts_raw = item.get("received_at") or item.get("receivedAt")
@@ -590,7 +590,7 @@ def _fetch_inline_messages_page_otp(
         return None
 
     cards = re.findall(r"<article\b[^>]*class=[\"'][^\"']*mail-card[^\"']*[\"'][^>]*>(.*?)</article>", html, flags=re.DOTALL | re.IGNORECASE)
-    # 没有 article 时退一步按 details 分块，避免 class 名细微变化。
+    # Khi không có article thì lùi một bước chia khối theo details, tránh thay đổi nhỏ của tên class.
     if not cards:
         cards = re.findall(r"<details\b[^>]*>(.*?)</details>", html, flags=re.DOTALL | re.IGNORECASE)
 
@@ -772,7 +772,7 @@ def fetch_latest_otp(
         )
 
     selected_proxy = str(getattr(_email_cfg, "GENERIC_API_PROXY", "") or "").strip()
-    # 兼容旧版配置：未设置通用 API 专用代理时沿用代理池；专用代理优先。
+    # Tương thích cấu hình cũ: khi chưa đặt proxy chuyên dụng API chung thì dùng pool proxy; proxy chuyên dụng được ưu tiên.
     if not selected_proxy:
         selected_proxy = str(_proxy_cfg.pick_proxy() or "").strip()
     routes: list[tuple[str, str]] = []
@@ -789,7 +789,7 @@ def fetch_latest_otp(
     while time.time() < deadline:
         attempt += 1
         try:
-            # 不修改 yangyang 的路径型 URL；其列表接口本身按邮件 ID 返回数据。
+            # Không sửa URL dạng path của yangyang; API danh sách của nó vốn trả dữ liệu theo ID email.
             base_poll_url = public_inbox_api_url or account.code_url
             poll_url = base_poll_url if is_yangyang else _cache_busted_url(base_poll_url, attempt)
             route_error: Exception | None = None
@@ -875,10 +875,10 @@ def fetch_latest_otp(
                     structured = None
                     last_error = f"latest-code trả email không khớp: expected={email}, actual={mailbox}"
                 else:
-                    # 此类公开 latest-code 服务的 receivedAt 可能使用独立服务器时间，
-                    # 与运行机器相差数小时甚至跨日。它只返回“最新一封”，因此这里
-                    # 把时间字段作为诊断信息，不作为硬过滤条件；候选更新仍由
-                    # code/messageId 变化及 settle 机制负责。
+                    # receivedAt của các dịch vụ latest-code công khai kiểu này có thể dùng thời gian máy chủ độc lập,
+                    # Chênh lệch vài giờ thậm chí sang ngày so với máy chạy. Nó chỉ trả về "email mới nhất", vì vậy ở đây
+                    # Đặt trường thời gian làm thông tin chẩn đoán, không làm điều kiện lọc cứng; cập nhật ứng viên vẫn do
+                    # Thay đổi code/messageId và cơ chế settle phụ trách.
                     structured = _extract_structured_api_code(
                         text,
                         after_ts=None if public_inbox_api_url else after_ts,

@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
-"""用户资料显示名样本。
+"""Mẫu tên hiển thị hồ sơ người dùng.
 
-只生成英文字母和空格，避免触发 OpenAI name_invalid_chars。
+Chỉ tạo chữ cái tiếng Anh và khoảng trắng, tránh kích hoạt OpenAI name_invalid_chars.
 """
 from __future__ import annotations
 
@@ -72,9 +72,9 @@ MIDDLE_NAMES = [
 
 
 def random_display_name() -> str:
-    """生成更真实的英文显示名。
+    """Tạo tên hiển thị tiếng Anh chân thực hơn.
 
-    大多数返回 First Last；少量返回 First Middle Last，仍只包含字母和空格。
+    Phần lớn trả về First Last; một ít trả về First Middle Last, vẫn chỉ gồm chữ cái và khoảng trắng.
     """
     first = random.choice(FIRST_NAMES)
     last = random.choice(LAST_NAMES)

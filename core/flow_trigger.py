@@ -3,13 +3,13 @@
 import json
 import logging
 
-# 这是个内部 HTTP 接口（156.225.31.95），无 Cloudflare 拦截，
-# 不需要 curl_cffi 的 TLS 指纹模拟，直接用标准 requests 库。
+# Đây là HTTP API nội bộ (156.225.31.95), không có chặn Cloudflare,
+# Không cần mô phỏng dấu vân tay TLS của curl_cffi, dùng trực tiếp thư viện requests tiêu chuẩn.
 import requests
 
-# 用模块属性方式读 config，支持 WebUI 热加载（config.reload_all()）。
+# Đọc config theo thuộc tính module, hỗ trợ hot-reload WebUI (config.reload_all()).
 from config import flow_trigger as _cfg
-from config.browser import USER_AGENT, ACCEPT_LANGUAGE  # 浏览器指纹固定，不需要热加载
+from config.browser import USER_AGENT, ACCEPT_LANGUAGE  # Fingerprint trình duyệt cố định, không cần hot-reload
 
 logger = logging.getLogger(__name__)
 
@@ -65,7 +65,7 @@ def _send_sync(access_token: str) -> dict:
     except Exception as exc:
         return _flow_result(status="failed", message=f"{type(exc).__name__}: {exc}")
 
-    # 简单解析 flow_id 打个日志，触发结果不影响主流程
+    # Phân tích đơn giản flow_id ghi log, kết quả kích hoạt không ảnh hưởng luồng chính
     flow_id = ""
     response_preview = (resp.text or "")[:200]
     try:

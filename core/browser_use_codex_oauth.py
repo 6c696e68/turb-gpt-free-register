@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-"""通过 Browser Use Cloud + Playwright 执行 Codex OAuth 授权。"""
+"""Thực hiện ủy quyền Codex OAuth qua Browser Use Cloud + Playwright."""
 from __future__ import annotations
 
 import logging
@@ -59,7 +59,7 @@ def _log_timing_enabled() -> bool:
 
 
 def _bu_delay(kind: str, seconds: float | None = None) -> None:
-    """Browser Use 专用轻量延迟。fast mode 下只保留极短 DOM 稳定等待。"""
+    """Độ trễ nhẹ dành riêng cho Browser Use. Ở fast mode chỉ giữ chờ ổn định DOM cực ngắn."""
     if _fast_mode():
         if seconds is None:
             seconds = {
@@ -168,7 +168,7 @@ def _wait_for_callback(context, page, timeout: int | None = None) -> str:
 
 
 def _wait_for_fresh_email_otp(otp_provider, email: str, after_ts: float, used_codes: set[str] | None = None, timeout: int = 90) -> str:
-    """获取一个未提交过的邮箱 OTP，避免重发后复用旧码。"""
+    """Lấy một OTP email chưa từng gửi, tránh dùng lại mã cũ sau khi gửi lại."""
     used_codes = {str(x) for x in (used_codes or set()) if x}
     end = time.time() + timeout
     last_code = ""
@@ -196,13 +196,13 @@ def _all_frames(page):
 
 
 def _wait_auth_page_ready(page, timeout: int = 8) -> None:
-    """等待 auth.openai.com 登录页真正渲染；Browser Use/CDP 有时 domcontentloaded 后 body 仍为空。"""
+    """Chờ trang đăng nhập auth.openai.com render thật sự; Browser Use/CDP đôi khi sau domcontentloaded body vẫn rỗng."""
     end = time.time() + timeout
     last_url = ""
     while time.time() < end:
         try:
             last_url = _page_url(page)
-            # 任意 frame 出现 input/button/body 文本即认为可操作
+            # Bất kỳ frame nào xuất hiện text input/button/body thì coi là thao tác được
             for frame in _all_frames(page):
                 try:
                     if frame.locator("input, button, textarea, [role='button']").count() > 0:
@@ -290,7 +290,7 @@ def _fill_first_any_frame(page, selectors: list[str], value: str, timeout_ms: in
 
 
 def _js_fill_email_fallback(page, email: str) -> bool:
-    """最后兜底：在所有 frame 里扫描可见 input，填第一个疑似邮箱/用户名输入框。"""
+    """Phương án cuối cùng: quét các input hiển thị trong mọi frame, điền ô nhập email/tên người dùng nghi ngờ đầu tiên."""
     script = r"""
     (email) => {
       const isVisible = (el) => {
@@ -426,7 +426,7 @@ def _fill_email_fast(page, email: str) -> bool:
     return False
 
 def _click_email_entry_if_present(page) -> None:
-    # OAuth 登录页在不同地区会先显示“Continue with email/メールで続行”等入口。
+    # Trang đăng nhập OAuth theo vùng có thể hiện trước lối vào kiểu “Continue with email” / email-continue.
     if _click_email_entry_fast(page):
         time.sleep(0.3)
         return
@@ -491,11 +491,11 @@ def _submit_visible_form_or_enter(page) -> bool:
         return False
 
 def _fill_email_for_codex(page, email: str) -> None:
-    # 页面已渲染时优先快速处理，避免 Browser Use/CDP 的长 timeout 叠加导致卡几十秒。
-    # 先不等 selector，直接 JS 扫描可见 input；页面已渲染时最快。
+    # Khi trang đã render, ưu tiên xử lý nhanh, tránh timeout dài của Browser Use/CDP chồng lên nhau gây kẹt hàng chục giây.
+    # Không đợi selector trước, quét JS trực tiếp input hiển thị; nhanh nhất khi trang đã render.
     if not _fill_email_fast(page, email):
         _click_email_entry_if_present(page)
-        # 点击邮箱入口后立即再尝试一次。
+        # Sau khi nhấp vào lối vào email, thử lại ngay một lần.
         _fill_email_fast(page, email)
     selectors = [
         "input[type='email']",
@@ -514,8 +514,8 @@ def _fill_email_for_codex(page, email: str) -> None:
         "input[aria-label*='邮箱']",
         "input[placeholder*='email' i]",
         "input[placeholder*='メール']",
-        "input[placeholder*='邮箱']",
-        "input[placeholder*='電子郵件']",
+        "input[placeholder*='email']",
+        "input[placeholder*='email']",
     ]
     ok = _fill_email_fast(page, email)
     if not ok:
@@ -523,7 +523,7 @@ def _fill_email_for_codex(page, email: str) -> None:
     if not ok:
         ok = _js_fill_email_fallback(page, email)
     if not ok:
-        # 最后再给 React/hydration 一小段时间，不再等很久。
+        # Cuối cùng cho React/hydration thêm một khoảng thời gian ngắn, không đợi lâu nữa.
         end = time.time() + 4
         while time.time() < end and not ok:
             ok = _fill_email_fast(page, email) or _fill_first_any_frame(page, selectors, email, timeout_ms=800)
@@ -570,7 +570,7 @@ def _looks_email_otp_page(page) -> bool:
 
 
 def _install_account_dead_response_tracker(page) -> dict:
-    """监听浏览器里的 email-otp/validate 响应，用于识别账号已废。"""
+    """Lắng nghe phản hồi email-otp/validate trong trình duyệt để nhận diện tài khoản đã bị vô hiệu."""
     tracker = {"code": "", "text": ""}
     try:
         def _on_response(resp):
@@ -730,7 +730,7 @@ def _fill_mfa_challenge_if_present(page, email: str, timeout: int = 15) -> bool:
 
 
 def _fill_login_password_if_present(page, email: str, timeout: int = 18) -> str | None:
-    """Codex OAuth 若账号有密码，优先在登录密码页输入密码。返回 next_step / email_otp / None。"""
+    """Codex OAuth nếu tài khoản có mật khẩu, ưu tiên nhập mật khẩu tại trang mật khẩu đăng nhập. Trả về next_step / email_otp / None."""
     password = _account_password_for_email(email)
     if not password:
         return None
@@ -842,7 +842,7 @@ def _fill_email_and_otp(page, email: str, otp_provider, auth_url: str, dead_trac
     used_codes: set[str] = set()
 
     def _restart_email_otp_flow(reason: str) -> None:
-        """Codex Auth 上直接点 resend 可能触发服务端 500；改为重开授权地址并重新提交邮箱。"""
+        """Nhấp resend trực tiếp trên Codex Auth có thể gây lỗi 500 phía server; hãy mở lại địa chỉ ủy quyền và gửi lại email."""
         nonlocal otp_after_ts
         logger.info("[Codex][BrowserUse] kích hoạt lại email OTP: %s", reason)
         otp_after_ts = time.time()
@@ -974,7 +974,7 @@ def _read_phone_input_value(page) -> str:
         "input[autocomplete='tel']",
         "input[aria-label*='phone' i]",
         "input[placeholder*='phone' i]",
-        "input[placeholder*='手机号']",
+        "input[placeholder*='số điện thoại']",
     ]
     loc = _visible_locator_any_frame(page, selectors, timeout_ms=700)
     if loc is None:
@@ -1053,7 +1053,7 @@ def _has_visible_phone_code_input(page) -> bool:
     if loc is None:
         return False
     body = _body_snippet(page, 800).lower()
-    # 避免误把邮箱 OTP 页残留输入框当成短信页。
+    # Tránh nhầm ô nhập còn sót trên trang OTP email thành trang SMS.
     if any(x in body for x in ("phone", "sms", "text message", "手机", "短信", "電話", "携帯")):
         return True
     url = _page_url(page).lower()
@@ -1061,7 +1061,7 @@ def _has_visible_phone_code_input(page) -> bool:
 
 
 def _wait_after_phone_send(page, timeout: int = 18) -> str:
-    """提交手机号后的状态：code_page / rejected / still_form / callback / unknown。"""
+    """Trạng thái sau khi gửi số điện thoại: code_page / rejected / still_form / callback / unknown."""
     end = time.time() + timeout
     last_state = ""
     while time.time() < end:
@@ -1079,7 +1079,7 @@ def _wait_after_phone_send(page, timeout: int = 18) -> str:
         last_state = state
         time.sleep(0.7)
     logger.warning("[Codex][BrowserUse] Sau khi gửi số điện thoại chưa xác nhận vào trang SMS, trạng thái cuối: %s", last_state)
-    # 仍然停留在可见手机号输入框，基本就是没发出去/按钮没点中/页面拒绝但未识别。
+    # Vẫn kẹt ở ô nhập SĐT visible: cơ bản là chưa gửi/không bấm trúng nút/trang từ chối nhưng chưa nhận diện.
     if _read_phone_input_value(page):
         return "still_form"
     return "unknown"
@@ -1096,8 +1096,8 @@ def _wait_phone_form_ready(page, timeout: int = 12) -> bool:
                 "input[autocomplete='tel']",
                 "input[aria-label*='phone' i]",
                 "input[placeholder*='phone' i]",
-                "input[placeholder*='電話']",
-                "input[placeholder*='手机号']",
+                "input[placeholder*='điện thoại']",
+                "input[placeholder*='số điện thoại']",
             ],
             timeout_ms=500,
         ) is not None:
@@ -1107,7 +1107,7 @@ def _wait_phone_form_ready(page, timeout: int = 12) -> bool:
 
 
 def _dismiss_phone_country_dropdown(page) -> None:
-    # OpenAI 的国家码 combobox 有时会保持展开，挡住/吃掉 Continue 点击。
+    # Combobox mã quốc gia của OpenAI đôi khi giữ trạng thái mở, chặn/nuốt cú nhấp Continue.
     try:
         page.keyboard.press("Escape")
         time.sleep(0.15)
@@ -1127,7 +1127,7 @@ def _dismiss_phone_country_dropdown(page) -> None:
 
 def _click_phone_continue(page) -> bool:
     _dismiss_phone_country_dropdown(page)
-    # 先用 JS 点可见的主按钮，避免 Playwright locator 被 country listbox/portal 干扰。
+    # Trước tiên dùng JS click nút chính đang hiển thị, tránh Playwright locator bị country listbox/portal can thiệp.
     script = r"""
     () => {
       const isVisible = (el) => {
@@ -1212,9 +1212,9 @@ def _fill_phone(page, phone: str) -> str:
         "input[autocomplete='tel']",
         "input[aria-label*='phone' i]",
         "input[placeholder*='phone' i]",
-        "input[placeholder*='手机号']",
+        "input[placeholder*='số điện thoại']",
         "input[aria-label*='電話']",
-        "input[placeholder*='電話']",
+        "input[placeholder*='điện thoại']",
     ]
     _clear_phone_inputs(page)
     ok = _fill_first_any_frame(page, selectors, phone_e164, timeout_ms=3500)
@@ -1305,13 +1305,13 @@ def _try_click_change_phone(page) -> bool:
 
 
 def _ensure_add_phone_form(page, *, reason: str = "") -> bool:
-    """确保当前回到 add-phone 手机号输入页；换号前调用，避免先取号后才发现页面空白。"""
+    """Đảm bảo quay lại trang nhập số điện thoại add-phone; gọi trước khi đổi số, tránh lấy số rồi mới phát hiện trang trống."""
     if _wait_phone_form_ready(page, timeout=2):
         return True
 
     logger.info("[Codex][BrowserUse] Chuẩn bị quay lại trang nhập số điện thoại: reason=%s url=%s", reason or "retry", _page_url(page) or "-")
 
-    # 如果在短信验证码页，优先点击 change/back 或浏览器后退，保留 auth transaction state。
+    # Nếu đang ở trang mã xác minh SMS, ưu tiên click change/back hoặc quay lại trình duyệt, giữ auth transaction state.
     try:
         if _try_click_change_phone(page):
             if _wait_phone_form_ready(page, timeout=8):
@@ -1326,7 +1326,7 @@ def _ensure_add_phone_form(page, *, reason: str = "") -> bool:
     except Exception:
         pass
 
-    # 直接打开 add-phone。有时 body 会短暂为空，所以 reload + wait。
+    # Mở thẳng add-phone. Đôi khi body tạm thời trống, nên reload + wait.
     for i in range(2):
         try:
             page.goto("https://auth.openai.com/add-phone", wait_until="domcontentloaded", timeout=_timeout_ms(getattr(_cfg, "BROWSER_USE_NAVIGATION_TIMEOUT", 90)))
@@ -1349,7 +1349,7 @@ def _ensure_add_phone_form(page, *, reason: str = "") -> bool:
     return False
 
 def _do_phone_verification_if_present(page) -> None:
-    # 给页面一点时间从邮箱 OTP 后跳到手机号页；没有就跳过。
+    # Cho trang một chút thời gian sau OTP email để nhảy sang trang số điện thoại; không có thì bỏ qua.
     end = time.time() + 20
     while time.time() < end:
         if _is_callback_url(_page_url(page)):
@@ -1614,7 +1614,7 @@ def _run_browser_use_codex_oauth_once(email: str, otp_provider=None, proxy: str 
 
 
 def _has_running_asyncio_loop() -> bool:
-    """当前线程如果已有 asyncio/Playwright 事件循环，不能再启动 sync_playwright。"""
+    """Nếu luồng hiện tại đã có vòng lặp sự kiện asyncio/Playwright, không thể khởi động sync_playwright nữa."""
     try:
         import asyncio
         loop = asyncio.get_event_loop()
@@ -1624,14 +1624,14 @@ def _has_running_asyncio_loop() -> bool:
 
 
 def _run_in_isolated_thread(fn, *args, **kwargs):
-    """在独立线程执行同步 Playwright 流程。
+    """Chạy luồng Playwright đồng bộ trên thread riêng.
 
-    BrowserUse 注册流程本身已经处于 `with sync_playwright()` 内，注册成功后如果
-    立刻自动跑 Codex BrowserUse，会在同一线程里再次进入 sync_playwright，从而触发：
+    Luồng đăng ký BrowserUse vốn đã nằm trong `with sync_playwright()`, nếu sau đăng ký thành công
+    ngay lập tức tự chạy Codex BrowserUse sẽ vào lại sync_playwright trên cùng thread, gây lỗi:
       It looks like you are using Playwright Sync API inside the asyncio loop.
 
-    这里复用父线程名启动子线程，保证 registration_service 的按 threadName 日志过滤
-    仍能把 Codex 日志写入同一个任务日志文件。
+    Ở đây tái sử dụng tên thread cha để khởi động thread con, đảm bảo bộ lọc log theo threadName
+    của registration_service vẫn ghi log Codex vào cùng file log tác vụ.
     """
     result_box = {}
     error_box = {}
@@ -1640,7 +1640,7 @@ def _run_in_isolated_thread(fn, *args, **kwargs):
     def _target():
         try:
             result_box["value"] = fn(*args, **kwargs)
-        except BaseException as exc:  # noqa: BLE001 - 需要跨线程回传
+        except BaseException as exc:  # noqa: BLE001 - cần trả về cross-thread
             error_box["error"] = exc
 
     t = threading.Thread(target=_target, name=parent_thread_name, daemon=False)
@@ -1652,7 +1652,7 @@ def _run_in_isolated_thread(fn, *args, **kwargs):
 
 
 def _run_browser_use_codex_oauth_impl(email: str, otp_provider=None, proxy: str | None = None, force: bool = False, cloud_provider: str = "browser_use") -> dict:
-    """Browser Use Codex OAuth 入口；CPA callback 409 timeout 时重新开启一轮授权。"""
+    """Cổng OAuth Browser Use Codex; khi CPA callback 409 timeout thì mở lại một vòng ủy quyền mới."""
     from core import codex_oauth as proto
 
     max_rounds = 2
@@ -1680,10 +1680,10 @@ def _run_browser_use_codex_oauth_impl(email: str, otp_provider=None, proxy: str 
 
 
 def run_browser_use_codex_oauth(email: str, otp_provider=None, proxy: str | None = None, force: bool = False, cloud_provider: str = "browser_use") -> dict:
-    """Browser Use Codex OAuth 入口。
+    """Điểm vào Browser Use Codex OAuth.
 
-    如果当前线程已经有 Playwright/asyncio loop（典型场景：BrowserUse 注册成功后
-    自动触发 Codex），则切到独立线程执行，避免 sync_playwright 嵌套报错。
+    Nếu luồng hiện tại đã có Playwright/asyncio loop (tình huống điển hình: sau khi đăng ký BrowserUse thành công
+    tự động kích hoạt Codex), thì chuyển sang luồng độc lập để thực thi, tránh lỗi lồng nhau của sync_playwright.
     """
     if _has_running_asyncio_loop():
         logger.info("[Codex][BrowserUse] Phát hiện luồng hiện tại đã có Playwright/asyncio loop, Chuyển sang luồng cách ly để chạy Codex")

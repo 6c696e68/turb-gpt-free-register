@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-"""RoxyBrowser 本地 API 客户端。"""
+"""Client API cục bộ RoxyBrowser."""
 from __future__ import annotations
 
 import json
@@ -16,11 +16,11 @@ from config import roxybrowser as _cfg
 
 logger = logging.getLogger(__name__)
 
-# Roxy 的 /browser/create 在多 worker 同时到达时可能返回“正在创建中”。
-# 为所有客户端实例共享创建时隙，确保进程内请求起始时间至少错开配置的间隔。
+# /browser/create của Roxy khi nhiều worker đến cùng lúc có thể trả về "đang tạo".
+# Chia sẻ khe thời gian tạo cho mọi instance client, đảm bảo thời điểm bắt đầu request trong process lệch ít nhất khoảng cấu hình.
 _CREATE_SLOT_LOCK = threading.Lock()
 _NEXT_CREATE_SLOT = 0.0
-# 创建 Profile 到拿到调试地址期间串行化，避免 Roxy 内核/端口竞争。
+# Tuần tự hóa từ tạo Profile đến khi nhận địa chỉ debug, tránh cạnh tranh kernel/cổng Roxy.
 _ROXY_WINDOW_CREATE_LOCK = threading.Lock()
 
 
@@ -70,13 +70,13 @@ def _mask_proxy(proxy_url: str) -> str:
 
 def _proxy_url_to_roxy_info(proxy_url: str) -> dict:
     """
-    将 config/proxy.py 里的代理 URL 转成 Roxy /browser/create 的 proxyInfo。
+    Chuyển URL proxy trong config/proxy.py thành proxyInfo của Roxy /browser/create.
 
-    支持：
+    Hỗ trợ:
       http://user:pass@host:port
       https://user:pass@host:port
       socks5://user:pass@host:port
-      socks5h://user:pass@host:port  -> Roxy 侧按 SOCKS5 处理
+      socks5h://user:pass@host:port  -> Phía Roxy xử lý như SOCKS5
     """
     text = str(proxy_url or "").strip()
     if not text:
@@ -94,9 +94,9 @@ def _proxy_url_to_roxy_info(proxy_url: str) -> dict:
         "socks5": "SOCKS5",
         "socks5h": "SOCKS5",
     }[scheme]
-    # Roxy /browser/create 官方字段是：
+    # Roxy /browser/create các trường chính thức là:
     # proxyMethod / proxyCategory / ipType / protocol / host / port / proxyUserName / proxyPassword / checkChannel
-    # 之前误用了 proxyType/proxyHost/proxyPort/proxyAccount，Roxy 会忽略，导致创建窗口实际未设置代理。
+    # Trước đó dùng nhầm proxyType/proxyHost/proxyPort/proxyAccount, Roxy sẽ bỏ qua, khiến cửa sổ tạo ra thực tế không đặt proxy.
     info = {
         "moduleId": 0,
         "proxyMethod": "custom",
@@ -148,11 +148,11 @@ def _project_id_value() -> str | int:
 
 
 def _apply_data_saver_open_args(params: dict) -> dict:
-    """在 Roxy 启动参数中尽早关闭图片加载，覆盖无扩展名图片 URL。
+    """Tắt tải ảnh sớm trong tham số khởi động Roxy, bao phủ cả URL ảnh không có phần mở rộng.
 
-    Network.setBlockedURLs 只能按 URL 后缀拦截，而 Roxy 浏览器在 Selenium 连接
-    前就已经启动；使用 Chromium 开关可以让图片在首个页面请求前就被禁用。该开关
-    只在用户明确开启省流量模式且包含 image 类型时追加。
+    Network.setBlockedURLs chỉ chặn theo hậu tố URL, trong khi trình duyệt Roxy đã khởi động
+    trước khi Selenium kết nối; dùng cờ Chromium để vô hiệu hóa ảnh trước request trang đầu tiên. Cờ này
+    chỉ được thêm khi người dùng bật rõ chế độ tiết kiệm dung lượng và bao gồm loại image.
     """
     try:
         from config import browser as _browser_cfg
@@ -200,7 +200,7 @@ def _random_roxy_os() -> str:
 
 def _random_roxy_profile_name() -> str:
     prefix = str(getattr(_cfg, "ROXY_PROFILE_NAME_PREFIX", "rb") or "rb").strip() or "rb"
-    # Roxy 环境名每次创建都不同：前缀 + 毫秒时间戳 + 随机 4 位十六进制。
+    # Tên môi trường Roxy mỗi lần tạo đều khác: tiền tố + timestamp mili giây + 4 ký tự hex ngẫu nhiên.
     return f"{prefix}-{int(time.time() * 1000)}-{random.randrange(0x10000):04x}"
 
 
@@ -212,7 +212,7 @@ class RoxyBrowserClient:
         self._proxy_pool_target = ""
         self.http = requests.Session()
         if self.token:
-            # 官方文档要求所有接口请求头必须加 token。这里同时兼容 token / Authorization。
+            # Tài liệu chính thức yêu cầu mọi header request API phải thêm token. Ở đây tương thích cả token / Authorization.
             self.http.headers.update({
                 "token": self.token,
                 "Authorization": f"Bearer {self.token}",
@@ -292,7 +292,7 @@ class RoxyBrowserClient:
         raise last_exc or RuntimeError(f"Roxy API Yêu cầu thất bại {method_u} {path}")
 
     def try_request(self, method: str, path: str, *, params: dict | None = None, json_body: dict | None = None) -> tuple[bool, dict | str]:
-        """宽松请求：用于探测不同 Roxy 版本接口，失败不抛出。"""
+        """Yêu cầu lỏng: dùng để dò giao diện các phiên bản Roxy khác nhau, thất bại không ném ngoại lệ."""
         try:
             return True, self.request(method, path, params=params, json_body=json_body)
         except Exception as exc:
@@ -300,10 +300,10 @@ class RoxyBrowserClient:
 
     @staticmethod
     def _extract_workspace_items(payload: dict) -> list[dict]:
-        """解析 /browser/workspace：团队 rows + project_details 项目列表；兼容递归兜底。"""
+        """Phân tích /browser/workspace: rows nhóm + danh sách dự án project_details; tương thích dự phòng đệ quy."""
         out = []
 
-        # 官方结构：data.rows[].id/workspaceName/project_details[].projectId/projectName
+        # Cấu trúc chính thức: data.rows[].id/workspaceName/project_details[].projectId/projectName
         rows = None
         if isinstance(payload, dict):
             data = payload.get("data")
@@ -344,7 +344,7 @@ class RoxyBrowserClient:
         if out:
             return out
 
-        # 兜底：递归抽 workspace/team/company 结构。
+        # Dự phòng: đệ quy trích cấu trúc workspace/team/company.
         def pick_id_name(item: dict) -> tuple[str, str]:
             wid = _first(item, [
                 ("workspaceId",), ("workspace_id",), ("workspaceID",),
@@ -389,8 +389,8 @@ class RoxyBrowserClient:
 
     def list_workspaces(self) -> dict:
         """
-        获取 Roxy 团队/工作区列表。
-        Roxy 不同版本路径可能有差异，因此先试配置路径，再试常见路径。
+        Lấy danh sách team/workspace Roxy.
+        Đường dẫn Roxy có thể khác giữa các phiên bản, nên thử đường dẫn cấu hình trước, rồi thử các đường dẫn phổ biến.
         """
         configured = str(getattr(_cfg, "ROXY_WORKSPACE_LIST_PATH", "") or "").strip()
         method = str(getattr(_cfg, "ROXY_WORKSPACE_LIST_METHOD", "GET") or "GET").upper()
@@ -448,25 +448,25 @@ class RoxyBrowserClient:
             body.update(payload)
         random_name_enabled = bool(getattr(_cfg, "ROXY_RANDOM_PROFILE_NAME_ON_CREATE", True))
         if random_name_enabled:
-            # 覆盖 ROXY_PROFILE_CREATE_PAYLOAD 里的固定 name，避免所有 Roxy 窗口同名。
+            # Ghi đè name cố định trong ROXY_PROFILE_CREATE_PAYLOAD, tránh tất cả cửa sổ Roxy cùng tên.
             body["name"] = _random_roxy_profile_name()
         random_os_enabled = bool(getattr(_cfg, "ROXY_RANDOM_OS_ON_CREATE", True))
         if random_os_enabled:
-            # 每次创建环境随机 Windows / macOS；覆盖 ROXY_PROFILE_CREATE_PAYLOAD 里的固定 os。
+            # Mỗi lần tạo môi trường ngẫu nhiên Windows / macOS; ghi đè os cố định trong ROXY_PROFILE_CREATE_PAYLOAD.
             body["os"] = _random_roxy_os()
-            # osVersion 跟 os 强绑定，随机 OS 时不沿用固定版本，避免 macOS 版本传给 Windows。
+            # osVersion gắn chặt với os, khi random OS không dùng phiên bản cố định, tránh truyền phiên bản macOS cho Windows.
             body.pop("osVersion", None)
         else:
             default_os = str(getattr(_cfg, "ROXY_DEFAULT_OS", "macOS") or "macOS").strip()
             if default_os:
-                # Roxy 官方枚举大小写敏感：Windows / macOS / Linux / IOS / Android。
+                # Roxy enum chính thức phân biệt chữ hoa/thường: Windows / macOS / Linux / IOS / Android.
                 body.setdefault("os", default_os)
             default_os_version = str(getattr(_cfg, "ROXY_DEFAULT_OS_VERSION", "") or "").strip()
             if default_os_version:
                 body.setdefault("osVersion", default_os_version)
         workspace_id = _workspace_id_value()
         if workspace_id:
-            # Roxy 官方 /browser/create 要求 workspaceId。
+            # Roxy chính thức /browser/create yêu cầu workspaceId.
             body.setdefault("workspaceId", workspace_id)
         project_id = _project_id_value()
         if project_id:
@@ -520,7 +520,7 @@ class RoxyBrowserClient:
     @staticmethod
     def _normalize_profile_id(value: str | None) -> str:
         text = str(value or "").strip()
-        # WebUI/人工配置里常用 - 表示“未配置”，这里统一按空处理。
+        # WebUI/cấu hình thủ công thường dùng - biểu thị "chưa cấu hình", ở đây thống nhất xử lý như rỗng.
         if text in ("-", "—", "无", "空", "none", "None", "null", "NULL"):
             return ""
         return text
@@ -547,14 +547,14 @@ class RoxyBrowserClient:
 
         path = str(_cfg.ROXY_OPEN_PATH).format(profile_id=pid)
         params = dict(getattr(_cfg, "ROXY_OPEN_EXTRA_PARAMS", {}) or {})
-        # Roxy 官方 /browser/open body: {workspaceId, dirId, args, forceOpen, headless}
+        # Body chính thức Roxy /browser/open: {workspaceId, dirId, args, forceOpen, headless}
         params.setdefault("workspaceId", _workspace_id_value())
         params.setdefault("dirId", int(pid) if str(pid).isdigit() else pid)
         params.setdefault("args", [])
         params.setdefault("forceOpen", True)
         _apply_data_saver_open_args(params)
-        # ROXY_OPEN_HEADLESS 是显式开关，优先级应高于 ROXY_OPEN_EXTRA_PARAMS，
-        # 否则 extra 里残留 headless=False 会导致 WebUI 保存无头后仍弹窗口。
+        # ROXY_OPEN_HEADLESS là công tắc tường minh, độ ưu tiên phải cao hơn ROXY_OPEN_EXTRA_PARAMS,
+        # Nếu không, headless=False còn sót trong extra sẽ khiến WebUI sau khi lưu headless vẫn bật cửa sổ.
         params["headless"] = bool(getattr(_cfg, "ROXY_OPEN_HEADLESS", False))
         logger.info("[Roxy] open tham số: profile=%s headless=%s keep_open=%s", pid, params.get("headless"), getattr(_cfg, "ROXY_KEEP_BROWSER_OPEN", False))
         result = self.request(
@@ -629,7 +629,7 @@ class RoxyBrowserClient:
             logger.warning("[Roxy] Xóa profile thất bại: %s", exc)
 
     def cleanup_profile(self, opened: RoxyOpenResult | None) -> None:
-        """任务结束清理：关闭窗口；一号一环境时删除本轮创建的 Profile。"""
+        """Dọn dẹp khi kết thúc nhiệm vụ: đóng cửa sổ; khi một số một môi trường thì xóa Profile đã tạo trong vòng này."""
         keep_open = bool(getattr(_cfg, "ROXY_KEEP_BROWSER_OPEN", False))
         try:
             if not opened or not opened.profile_id:
@@ -643,7 +643,7 @@ class RoxyBrowserClient:
                 and bool(opened.created_by_run)
             )
             if should_delete:
-                # 删除前尽量确保已关闭；若 keep_open=True 则不删除，便于调试保留现场。
+                # Trước khi xóa cố gắng đảm bảo đã đóng; nếu keep_open=True thì không xóa, tiện debug giữ hiện trường.
                 if keep_open:
                     logger.info("[Roxy] ROXY_KEEP_BROWSER_OPEN=True, Bỏ qua xóa profile: %s", opened.profile_id)
                     return
@@ -665,7 +665,7 @@ class RoxyBrowserClient:
             relay.close()
 
     def proxy_transport_snapshot(self) -> dict | None:
-        """返回本轮 Roxy 经本地代理链传输的全浏览器流量。"""
+        """Trả về toàn bộ lưu lượng trình duyệt Roxy truyền qua chuỗi proxy cục bộ trong vòng này."""
         relay = self._proxy_pool_relay
         if relay is None:
             return None
@@ -688,7 +688,7 @@ class RoxyBrowserClient:
         ])
         if value:
             value = value.strip()
-            # 兼容 http://127.0.0.1:xxxx / 127.0.0.1:xxxx / :xxxx / 9222
+            # Tương thích http://127.0.0.1:xxxx / 127.0.0.1:xxxx / :xxxx / 9222
             value = value.replace("http://", "").replace("https://", "").strip("/")
             if value.startswith(":") and value[1:].isdigit():
                 return f"127.0.0.1{value}"

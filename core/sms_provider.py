@@ -25,19 +25,19 @@ from urllib.parse import urljoin
 
 from curl_cffi.requests import Session as CurlSession
 
-# 注意：用 `from config import codex` 而不是 `from config.codex import X`，
-# 这样 WebUI 调 config.reload_all() 后，本模块通过 codex.X 读到的是最新值。
+# Lưu ý: dùng `from config import codex` chứ không phải `from config.codex import X`,
+# Như vậy sau khi WebUI gọi config.reload_all(), module này đọc qua codex.X sẽ là giá trị mới nhất.
 from config import codex as _cfg
 from config import IMPERSONATE
 
 logger = logging.getLogger(__name__)
 
-# GrizzlySMS 规则：号码取出后 2 分钟内不允许取消（防薅号）。
-# 这里留 5 秒缓冲，时间到了再发 setStatus=8。
+# Quy tắc GrizzlySMS: sau khi lấy số trong 2 phút không cho phép hủy (chống lạm dụng lấy số).
+# Ở đây để đệm 5 giây, hết thời gian rồi mới gửi setStatus=8.
 _MIN_CANCEL_DELAY = 125
 
-# 记录每个 activation_id 的取号时间，供 cancel() 判断是否要等。
-# 用模块级 dict 而不是改 acquire_number 返回值，保持向后兼容。
+# Ghi lại thời gian lấy số của mỗi activation_id, để cancel() quyết định có cần đợi hay không.
+# Dùng dict cấp module thay vì đổi giá trị trả về của acquire_number, giữ tương thích ngược.
 _ACQUIRED_AT: dict[str, float] = {}
 
 
@@ -81,7 +81,7 @@ def _request_grizzly(http: CurlSession, params: dict) -> str:
         )
     text = (resp.text or "").strip()
 
-    # 公共错误码（任何 action 都可能返回）
+    # Mã lỗi chung (mọi action đều có thể trả về)
     if text == "BAD_KEY":
         raise SmsProviderError("API key nền tảng nhận SMS không hợp lệ (BAD_KEY)")
     if text == "NO_BALANCE":
@@ -318,7 +318,7 @@ def _release_l_number(activation_id: str, http: CurlSession | None = None) -> di
         data = _post_l_json(http, "/api/admin/l/release", {"id": activation_id})
         failed = data.get("failed") if isinstance(data, dict) else None
         if isinstance(failed, list) and failed:
-            # 接口允许部分失败。单个释放时 failed 非空基本代表这个 id 释放失败。
+            # API cho phép thất bại một phần. Khi giải phóng đơn lẻ, failed không rỗng về cơ bản nghĩa là id này giải phóng thất bại.
             detail = json.dumps(failed, ensure_ascii=False)[:300]
             raise SmsProviderError(f"L release thất bại id={activation_id}: {detail}")
         released = data.get("released", data.get("updated", 0)) if isinstance(data, dict) else 0
@@ -384,7 +384,7 @@ def _h_phone_acquire_mode() -> str:
 
 
 # ============================================================
-# 取号
+# Lấy số
 # ============================================================
 
 def acquire_number(
@@ -453,8 +453,8 @@ def acquire_number(
             return activation_id, phone
 
         if _provider() == "h":
-            # H_API 使用 projectId + country；统一复用 SMS_SERVICE / SMS_COUNTRY，
-            # 避免接码平台之间出现重复的“服务/国家”配置。
+            # H_API dùng projectId + country; thống nhất tái sử dụng SMS_SERVICE / SMS_COUNTRY,
+            # Tránh cấu hình "dịch vụ/quốc gia" trùng lặp giữa các nền tảng nhận mã.
             project_id = str(service or _cfg.SMS_SERVICE).strip()
             h_country = str(country or _cfg.SMS_COUNTRY).strip()
             if not project_id:
@@ -496,7 +496,7 @@ def acquire_number(
             params["maxPrice"] = _cfg.SMS_MAX_PRICE
 
         text = _request_grizzly(http, params)
-        # 成功格式：ACCESS_NUMBER:激活ID:号码
+        # Định dạng thành công: ACCESS_NUMBER:ID kích hoạt:số
         if not text.startswith("ACCESS_NUMBER:"):
             raise SmsProviderError(f"getNumber phản hồi không mong đợi: {text[:200]}")
         parts = text.split(":")
@@ -513,7 +513,7 @@ def acquire_number(
 
 
 # ============================================================
-# 取短信验证码
+# Lấy mã xác minh SMS
 # ============================================================
 
 def wait_for_sms_code(
@@ -603,7 +603,7 @@ def wait_for_sms_code(
                 return code
             if text == "STATUS_CANCEL":
                 raise SmsProviderError("Kích hoạt đã bị huỷ (STATUS_CANCEL)")
-            # STATUS_WAIT_CODE / STATUS_WAIT_RETRY:* / STATUS_WAIT_RESEND → 继续等
+            # STATUS_WAIT_CODE / STATUS_WAIT_RETRY:* / STATUS_WAIT_RESEND → tiếp tục chờ
             remaining = max(0, int(deadline - time.time()))
             logger.info(f"[SMS] Vòng {round_no} vòng chưa nhận mã OTP, trạng thái={text}，{interval}s nữa thử lại (còn {remaining}s）")
             time.sleep(interval)
@@ -615,7 +615,7 @@ def wait_for_sms_code(
 
 
 # ============================================================
-# 改状态
+# Đổi trạng thái
 # ============================================================
 
 def set_status(activation_id: str, status: int, http: CurlSession | None = None) -> str:
@@ -649,7 +649,7 @@ def complete(activation_id: str, http: CurlSession | None = None) -> None:
         _ACQUIRED_AT.pop(activation_id, None)
         return
     if _provider() == "h":
-        # H 成功 fetch-code 后后台会自动按多次收码策略重取；这里不 release。
+        # Sau khi H fetch-code thành công, backend sẽ tự động lấy lại theo chiến lược nhận mã nhiều lần; ở đây không release.
         logger.info(f"[SMS:H] Đã hoàn tất id={activation_id}")
         _ACQUIRED_AT.pop(activation_id, None)
         return
@@ -682,7 +682,7 @@ def _do_cancel_sync(activation_id: str, http_factory) -> None:
             )
             time.sleep(wait)
 
-    # 后台线程不能复用外部 http session（curl_cffi 非线程安全），自己建一个
+    # Thread nền không thể tái sử dụng http session bên ngoài (curl_cffi không an toàn luồng), tự tạo một cái
     http = http_factory()
     try:
         for attempt in range(1, 3):

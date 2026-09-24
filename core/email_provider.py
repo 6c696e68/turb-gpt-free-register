@@ -107,9 +107,9 @@ def acquire_email_after_input(email: str | None = None) -> str:
 
 def resolve_email_source(email: str) -> str:
     "theo email xác định thực tế nguồn, đã đăng ký tài khoản ưu tiên dùng ghi kho nguồn. "
-    # 已注册账号的 email_source 是注册时的最终来源。必须先读它，不能因为
-    # 当前进程里恰好残留了其它邮箱池上下文，或邮箱池顺序发生变化，就把同一
-    # 地址误判到另一个服务商。
+    # email_source của tài khoản đã đăng ký là nguồn cuối cùng lúc đăng ký. Phải đọc nó trước, không được vì
+    # Trong tiến trình hiện tại vừa còn sót ngữ cảnh pool email khác, hoặc thứ tự pool email đổi, thì cùng một
+    # Địa chỉ bị nhận nhầm sang nhà cung cấp khác.
     registered_source = _registered_email_source(email)
     if registered_source:
         return registered_source
@@ -137,9 +137,9 @@ def resolve_email_source(email: str) -> str:
         return "generic_api"
     if db.get_outlook_by_email(email):
         return "outlook"
-    if db._find_domain_email(db._load_domain_pool(), email):  # 内部轻量查询，仅本项目使用
+    if db._find_domain_email(db._load_domain_pool(), email):  # Query nhẹ nội bộ, chỉ dự án này dùng
         return "cloudflare_domain"
-    # 兜底：如果域名匹配 EMAIL_DOMAIN，则按域名邮箱处理
+    # Dự phòng: Nếu tên miền khớp EMAIL_DOMAIN, thì xử lý theo email tên miền
     try:
         from config import email as _email_cfg
         domain = (_email_cfg.EMAIL_DOMAIN or "").lower().strip()
@@ -211,8 +211,8 @@ def wait_for_otp(
     if settle_seconds is not None:
         extra_kwargs["settle_seconds"] = settle_seconds
 
-    # 查活等已注册账号会传入注册时保存的来源；即使调用方没有显式传入，
-    # 这里也先读取账号落库来源，再按当前进程上下文/邮箱池/全局配置兜底。
+    # Tài khoản đã đăng ký như kiểm tra sống sẽ truyền nguồn lưu lúc đăng ký; dù bên gọi không truyền rõ,
+    # Ở đây cũng đọc trước nguồn lưu tài khoản vào DB, rồi fallback theo ngữ cảnh tiến trình hiện tại/pool email/cấu hình toàn cục.
     source = (
         _normalize_explicit_email_source(email_source)
         or _registered_email_source(email)
@@ -312,7 +312,7 @@ def release_email_if_unconsumed(email: str, note: str | None = None) -> bool:
     elif source == "cloudflare_domain":
         changed = db.release_unconsumed_domain_email(email, note=note)
     else:
-        # 临时邮箱不重新进入本地池，只清理进程上下文；已有本地账号时保留上下文。
+        # Email tạm không đưa lại vào pool cục bộ, chỉ dọn ngữ cảnh tiến trình; khi đã có tài khoản cục bộ thì giữ ngữ cảnh.
         if db.get_account_by_email(email) is not None:
             return False
         release_email(email, status="available", note=note)

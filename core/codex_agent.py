@@ -1,14 +1,14 @@
 """
-Codex Agent Identity 自动注册脚本
+Script tự đăng ký Codex Agent Identity
 by 久雾
 
-流程：
-1. 通过 ChatGPT session JWT 获取账号信息
-2. 生成 Ed25519 密钥对
-3. 在 auth.openai.com 注册 agent
-4. 生成 Codex CLI 可用的 auth.json
+Quy trình:
+1. Lấy thông tin tài khoản qua ChatGPT session JWT
+2. Sinh cặp khóa Ed25519
+3. Đăng ký agent trên auth.openai.com
+4. Sinh auth.json dùng được cho Codex CLI
 
-依赖：curl_cffi, cryptography
+Phụ thuộc: curl_cffi, cryptography
 """
 
 from __future__ import annotations
@@ -37,7 +37,7 @@ from cryptography.hazmat.primitives.serialization import (
 
 
 # ============================================================
-#  常量
+#  Hằng số
 # ============================================================
 
 AUTHAPI_BASE = "https://auth.openai.com/api/accounts"
@@ -51,21 +51,21 @@ USER_AGENT = (
     f"Chrome/{CHROME_VERSION}.0.0.0 Safari/537.36"
 )
 
-# Codex CLI agent 版本信息
+# Thông tin phiên bản Codex CLI agent
 AGENT_VERSION = "0.138.0-alpha.6"
 AGENT_HARNESS_ID = "codex-cli"
 RUNNING_LOCATION = "local"
 
 
 # ============================================================
-#  日志
+#  Nhật ký
 # ============================================================
 
 logger = logging.getLogger(__name__)
 
 
 def _log(step: str, msg: str, level: str = "INFO") -> None:
-    """统一走 logging，避免 WebUI/任务日志里混入 ANSI 彩色 stdout。"""
+    """Thống nhất dùng logging, tránh lẫn stdout màu ANSI vào nhật ký WebUI/nhiệm vụ."""
     text = f"[CodexAgent][{step}] {msg}"
     if level in {"WARN", "WARNING"}:
         logger.warning(text)
@@ -86,18 +86,18 @@ def _fingerprint(value: str, length: int = 12) -> str:
 
 
 # ============================================================
-#  Ed25519 密钥对生成
+#  Tạo cặp khóa Ed25519
 # ============================================================
 
 def generate_ed25519_keypair() -> tuple[str, str]:
     """
-    生成 Ed25519 密钥对。
+    Tạo cặp khóa Ed25519.
 
     :return: (private_key_pkcs8_base64, public_key_ssh)
     """
     private_key = Ed25519PrivateKey.generate()
 
-    # PKCS8 DER 格式私钥 → base64
+    # Khóa riêng định dạng PKCS8 DER → base64
     pkcs8_der = private_key.private_bytes(
         encoding=Encoding.DER,
         format=PrivateFormat.PKCS8,
@@ -105,14 +105,14 @@ def generate_ed25519_keypair() -> tuple[str, str]:
     )
     private_key_b64 = base64.b64encode(pkcs8_der).decode()
 
-    # 原始公钥字节
+    # Byte khóa công khai gốc
     public_key = private_key.public_key()
     pub_bytes = public_key.public_bytes(
         encoding=Encoding.Raw,
         format=PublicFormat.Raw,
     )
 
-    # 构造 SSH 公钥格式: ssh-ed25519 base64(blob)
+    # Xây dựng định dạng khóa công khai SSH: ssh-ed25519 base64(blob)
     ssh_header = b"ssh-ed25519"
     blob = bytearray()
     blob.extend(len(ssh_header).to_bytes(4, "big"))
@@ -126,23 +126,23 @@ def generate_ed25519_keypair() -> tuple[str, str]:
 
 
 # ============================================================
-#  JWT 解码（不验证签名，仅提取 claims）
+#  Giải mã JWT (không xác minh chữ ký, chỉ trích xuất claims)
 # ============================================================
 
 def decode_jwt_claims(jwt_token: str) -> dict[str, Any]:
     """
-    解码 JWT payload（不验证签名）。
+    Giải mã JWT payload (không xác minh chữ ký).
 
-    :param jwt_token: JWT 字符串
+    :param jwt_token: chuỗi JWT
     :return: claims dict
     """
     parts = jwt_token.split(".")
     if len(parts) != 3:
         raise ValueError("Invalid JWT format")
 
-    # JWT payload 是 base64url 编码
+    # JWT payload là mã hóa base64url
     payload_b64 = parts[1]
-    # 补齐 padding
+    # Bổ sung padding
     padding = 4 - len(payload_b64) % 4
     if padding != 4:
         payload_b64 += "=" * padding
@@ -152,15 +152,15 @@ def decode_jwt_claims(jwt_token: str) -> dict[str, Any]:
 
 
 # ============================================================
-#  Session 获取
+#  Lấy Session
 # ============================================================
 
 def get_session_from_cookies(cookies: dict[str, str]) -> dict[str, Any]:
     """
-    使用 cookies 调用 /api/auth/session 获取 accessToken 和账号信息。
+    Dùng cookies gọi /api/auth/session để lấy accessToken và thông tin tài khoản.
 
-    :param cookies: chatgpt.com 的 cookies dict
-    :return: session 数据
+    :param cookies: dict cookies của chatgpt.com
+    :return: dữ liệu session
     """
     r = requests.get(
         f"{CHATGPT_BASE}/api/auth/session",
@@ -175,10 +175,10 @@ def get_session_from_cookies(cookies: dict[str, str]) -> dict[str, Any]:
 
 def get_session_from_access_token(access_token: str) -> dict[str, Any]:
     """
-    如果已有 JWT access token，直接解码获取信息。
+    Nếu đã có JWT access token, giải mã trực tiếp để lấy thông tin.
 
     :param access_token: ChatGPT session JWT
-    :return: 包含 accessToken, accountId, email, userId, planType 的 dict
+    :return: dict chứa accessToken, accountId, email, userId, planType
     """
     claims = decode_jwt_claims(access_token)
     auth_info = claims.get("https://api.openai.com/auth", {})
@@ -194,7 +194,7 @@ def get_session_from_access_token(access_token: str) -> dict[str, Any]:
 
 
 def _agent_headers(access_token: str, env: Any | None = None) -> dict[str, str]:
-    """构造 Agent API 请求头；有 BrowserSession 时使用该账号独立指纹画像。"""
+    """Tạo header yêu cầu Agent API; khi có BrowserSession thì dùng hồ sơ vân tay độc lập của tài khoản đó."""
     if env is not None and hasattr(env, "_get_common_headers"):
         headers = env._get_common_headers()
     else:
@@ -221,7 +221,7 @@ def _agent_headers(access_token: str, env: Any | None = None) -> dict[str, str]:
 
 
 def _agent_post(url: str, *, access_token: str, payload: dict[str, Any], env: Any | None = None, timeout: int = 15):
-    """使用独立 BrowserSession 或默认 curl_cffi 发起 Agent API POST。"""
+    """Dùng BrowserSession độc lập hoặc curl_cffi mặc định để gửi Agent API POST."""
     headers = _agent_headers(access_token, env=env)
     if env is not None and hasattr(env, "session"):
         return env.session.post(url, headers=headers, json=payload, timeout=timeout)
@@ -229,7 +229,7 @@ def _agent_post(url: str, *, access_token: str, payload: dict[str, Any], env: An
 
 
 # ============================================================
-#  Agent 注册
+#  Đăng ký Agent
 # ============================================================
 
 def register_agent(
@@ -240,10 +240,10 @@ def register_agent(
     display_name: str | None = None,
 ) -> str:
     """
-    在 auth.openai.com 注册 agent。
+    Đăng ký agent trên auth.openai.com.
 
     :param access_token: ChatGPT session JWT
-    :param public_key_ssh: SSH 格式的 Ed25519 公钥
+    :param public_key_ssh: Khóa công khai Ed25519 định dạng SSH
     :return: agent_runtime_id
     """
     name = str(display_name or "").strip() or _random_agent_display_name()
@@ -252,7 +252,7 @@ def register_agent(
             "agent_version": AGENT_VERSION,
             "agent_harness_id": AGENT_HARNESS_ID,
             "running_location": RUNNING_LOCATION,
-            # OpenAI Agent 场景也使用本轮随机名称，避免固定同一个展示名。
+            # Kịch bản OpenAI Agent cũng dùng tên ngẫu nhiên vòng này, tránh cố định cùng một tên hiển thị.
             "display_name": name,
             "agent_name": name,
         },
@@ -270,7 +270,7 @@ def register_agent(
         payload=payload,
     )
 
-    # 兼容 OpenAI 接口严格校验未知字段的情况：如果命名字段不被接受，回退到原始协议。
+    # Tương thích trường hợp API OpenAI kiểm tra nghiêm các trường lạ: nếu trường đặt tên không được chấp nhận, fallback về giao thức gốc.
     if r.status_code == 400 and any(x in (r.text or "").lower() for x in ("unknown", "unrecognized", "extra", "invalid")):
         _log("Step 3", f"OpenAI Agent API đăng ký không chấp nhận trường tên, quay về bản gốc payload: {r.text[:180]}", "WARN")
         r = _agent_post(
@@ -300,7 +300,7 @@ def register_agent(
 
 
 # ============================================================
-#  Task 注册（验证密钥对可用性）
+#  Đăng ký Task (xác minh tính khả dụng của cặp khóa)
 # ============================================================
 
 def register_task(
@@ -311,20 +311,20 @@ def register_task(
     timeout: int = 15,
 ) -> str:
     """
-    在 auth.openai.com 注册 task（验证密钥对可用性）。
-    Codex CLI 启动时会自动执行此步骤。
+    Đăng ký task trên auth.openai.com (xác minh cặp khóa khả dụng).
+    Codex CLI khi khởi động sẽ tự thực hiện bước này.
 
-    :param access_token: ChatGPT session JWT（仅用于验证，实际 Codex CLI 用密钥签名）
-    :param agent_runtime_id: agent 运行时 ID
-    :param private_key_pkcs8_b64: PKCS8 base64 私钥
+    :param access_token: ChatGPT session JWT (chỉ dùng để xác minh; Codex CLI thực tế ký bằng khóa)
+    :param agent_runtime_id: ID runtime của agent
+    :param private_key_pkcs8_b64: khóa riêng PKCS8 base64
     :return: encrypted_task_id
     """
-    # 加载私钥
+    # Tải khóa riêng
     pkcs8_der = base64.b64decode(private_key_pkcs8_b64)
     pem = b"-----BEGIN PRIVATE KEY-----\n" + base64.encodebytes(pkcs8_der) + b"-----END PRIVATE KEY-----\n"
     private_key = load_pem_private_key(pem, password=None)
 
-    # 签名 payload: {agent_runtime_id}:{timestamp}
+    # Payload chữ ký: {agent_runtime_id}:{timestamp}
     timestamp = time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())
     payload = f"{agent_runtime_id}:{timestamp}"
     signature = private_key.sign(payload.encode())
@@ -349,11 +349,11 @@ def register_task(
 
 
 # ============================================================
-#  auth.json 生成
+#  Tạo auth.json
 # ============================================================
 
 def _random_agent_display_name() -> str:
-    """生成随机 Agent 名称，避免 sub2api 账号名直接暴露邮箱前缀。"""
+    """Tạo tên Agent ngẫu nhiên, tránh để tên tài khoản sub2api lộ trực tiếp tiền tố email."""
     adjectives = [
         "Amber", "Blue", "Cedar", "Delta", "Echo", "Falcon", "Golden", "Harbor",
         "Ivory", "Jade", "Lunar", "Nova", "Orion", "Pine", "Quartz", "River",
@@ -379,7 +379,7 @@ def generate_auth_json(
     display_name: str | None = None,
 ) -> dict[str, Any]:
     """
-    生成 Codex CLI 的 auth.json。
+    Tạo auth.json cho Codex CLI.
 
     :return: auth.json dict
     """
@@ -399,7 +399,7 @@ def generate_auth_json(
 
 
 # ============================================================
-#  sub2api 对接
+#  Kết nối sub2api
 # ============================================================
 
 def build_sub2api_account_entry(
@@ -407,7 +407,7 @@ def build_sub2api_account_entry(
     *,
     proxy_key: str | None = None,
 ) -> dict[str, Any]:
-    """把 Codex Agent Identity auth.json 转成 sub2api accounts[] 条目。"""
+    """Chuyển Codex Agent Identity auth.json thành mục accounts[] của sub2api."""
     identity = auth_json.get("agent_identity") if isinstance(auth_json, dict) else None
     if not isinstance(identity, dict):
         raise ValueError("auth_json thiếu agent_identity")
@@ -478,7 +478,7 @@ def upsert_sub2api_account(
     *,
     proxy_key: str | None = None,
 ) -> dict[str, Any]:
-    """把 Agent Token 追加/更新到 sub2api.json。"""
+    """Thêm/cập nhật Agent Token vào sub2api.json."""
     path = os.fspath(output_path)
     data: dict[str, Any]
     if os.path.exists(path):
@@ -506,7 +506,7 @@ def upsert_sub2api_account(
         if isinstance(existing, dict) and key and _sub2api_dedupe_key(existing) == key:
             merged = dict(existing)
             merged.update(incoming)
-            # 保留已人工调整的调度参数/代理键。
+            # Giữ các tham số lập lịch/khóa proxy đã điều chỉnh thủ công.
             for keep in ("concurrency", "priority", "rate_multiplier", "auto_pause_on_expired", "proxy_key"):
                 if keep in existing and (keep != "proxy_key" or not proxy_key):
                     merged[keep] = existing[keep]
@@ -544,15 +544,15 @@ def upload_sub2api_account(
     proxy_key: str | None = None,
     timeout: float = 20.0,
 ) -> dict[str, Any]:
-    """通过 sub2api HTTP API 直接上传/导入 Agent Token。
+    """Tải lên/nhập Agent Token trực tiếp qua HTTP API sub2api.
 
-    标准 Wei-Shaw/sub2api 使用：
+    Cách dùng chuẩn Wei-Shaw/sub2api:
       POST /api/v1/admin/accounts/import/codex-session
       {"contents":["<auth.json>"],"update_existing":true,...}
 
     payload_mode:
-      - codex_session_import: sub2api 原生 Codex Session/Agent Identity 导入接口
-      - account:  直接 POST 单个 account 对象
+      - codex_session_import: API nhập Codex Session/Agent Identity gốc của sub2api
+      - account:  POST trực tiếp một đối tượng account
       - accounts: POST {"accounts": [account]}
       - config:   POST {"accounts": [account], "proxies": [...]}
     """
@@ -620,7 +620,7 @@ def upload_sub2api_account(
 
 
 # ============================================================
-#  完整流程
+#  Quy trình hoàn chỉnh
 # ============================================================
 
 def create_codex_agent_identity(
@@ -631,16 +631,16 @@ def create_codex_agent_identity(
     timeout: int = 15,
 ) -> dict[str, Any]:
     """
-    完整流程：从 ChatGPT session JWT 创建 Codex Agent Identity auth.json。
+    Quy trình đầy đủ: tạo Codex Agent Identity auth.json từ ChatGPT session JWT.
 
-    :param access_token: ChatGPT session JWT（从 /api/auth/session 获取的 accessToken）
-    :param output_path: 可选的 auth.json 输出路径；不传时只返回内存对象
-    :param verify_task: 是否验证 task 注册（可选）
-    :return: auth.json dict
+    :param access_token: ChatGPT session JWT (accessToken lấy từ /api/auth/session)
+    :param output_path: đường dẫn xuất auth.json tùy chọn; không truyền thì chỉ trả object trong bộ nhớ
+    :param verify_task: có xác minh đăng ký task hay không (tùy chọn)
+    :return: dict auth.json
     """
     _banner("Codex Agent Identity bắt đầu đăng ký")
 
-    # Step 1: 解码 JWT 获取账号信息
+    # Step 1: Giải mã JWT lấy thông tin tài khoản
     _log("Step 1", "giải mã JWT lấy thông tin tài khoản...")
     session = get_session_from_access_token(access_token)
     account_id = session["accountId"]
@@ -656,19 +656,19 @@ def create_codex_agent_identity(
     _log("Step 1", f"email={email}", "OK")
     _log("Step 1", f"plan_type={plan_type}", "OK")
 
-    # Step 2: 生成 Ed25519 密钥对
+    # Step 2: Tạo cặp khóa Ed25519
     _log("Step 2", "tạo Ed25519 cặp khóa...")
     private_key_b64, public_key_ssh = generate_ed25519_keypair()
     _log("Step 2", "Ed25519 đã tạo khóa riêng (không xuất nội dung khóa riêng)", "OK")
     _log("Step 2", f"public_key_fingerprint={_fingerprint(public_key_ssh)}", "OK")
 
-    # Step 3: 注册 agent
+    # Step 3: Đăng ký agent
     agent_display_name = _random_agent_display_name()
     _log("Step 3", f"tại auth.openai.com đăng ký agent, display_name={agent_display_name}...")
     agent_runtime_id = register_agent(access_token, public_key_ssh, env=env, timeout=timeout, display_name=agent_display_name)
     _log("Step 3", f"agent_runtime_id={agent_runtime_id}", "OK")
 
-    # Step 4: 验证 task 注册（可选）
+    # Step 4: Xác minh đăng ký task (tùy chọn)
     if verify_task:
         _log("Step 4", "Xác minh task đăng ký...")
         try:
@@ -677,7 +677,7 @@ def create_codex_agent_identity(
         except Exception as e:
             _log("Step 4", f"Xác minh thất bại (không ảnh hưởng auth.json): {e}", "WARN")
 
-    # Step 5: 生成 auth.json
+    # Step 5: Tạo auth.json
     _log("Step 5", "tạo auth.json...")
     auth_json = generate_auth_json(
         agent_runtime_id=agent_runtime_id,
@@ -699,20 +699,20 @@ def create_codex_agent_identity(
 
 
 # ============================================================
-#  入口
+#  Điểm vào
 # ============================================================
 
 def main() -> None:
     """
-    使用方式：
+    Cách dùng:
 
-    1. 直接传入 JWT：
+    1. Truyền trực tiếp JWT:
        python codex_agent.py --token "eyJhbGci..."
 
-    2. 传入 JSON 文件（包含 accessToken）：
+    2. Truyền file JSON (chứa accessToken):
        python codex_agent.py --file session.json
 
-    3. 交互式输入：
+    3. Nhập tương tác:
        python codex_agent.py
     """
 
@@ -737,7 +737,7 @@ def main() -> None:
             data = json.load(f)
             access_token = data.get("accessToken") or data.get("access_token")
     else:
-        # 交互式输入
+        # Nhập liệu tương tác
         print("Vui lòng nhập ChatGPT session JWT (accessToken): ")
         print(" (từ chatgpt.com /api/auth/session lấy)")
         access_token = input("> ").strip()

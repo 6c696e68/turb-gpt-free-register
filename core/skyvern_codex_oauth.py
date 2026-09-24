@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-"""Skyvern 云端浏览器 Codex OAuth 入口。"""
+"""Điểm vào OAuth Codex của trình duyệt đám mây Skyvern."""
 from __future__ import annotations
 
 from core.browser_use_codex_oauth import run_browser_use_codex_oauth

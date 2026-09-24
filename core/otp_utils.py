@@ -4,20 +4,20 @@ import re
 
 _OPENAI_SENDER_HINT = "openai"
 
-# 多语言关键字（用于判断是否是 OpenAI 邮件）
+# Từ khóa đa ngôn ngữ (dùng để xác định có phải email OpenAI hay không)
 _OPENAI_KEYWORDS = (
     "chatgpt", "openai",
-    # 英文
+    # Tiếng Anh
     "verification code", "code is", "your code", "verify your email",
-    # 中文
+    # Tiếng Trung
     "代码", "验证码", "确认码",
-    # 日文
+    # Tiếng Nhật
     "認証コード", "検証コード", "確認コード", "一時検証", "認証",
-    # 韩文
+    # Tiếng Hàn
     "인증 코드", "확인 코드",
 )
 
-# OTP 上下文关键字（用于在多个 6 位数中挑出真正的验证码）
+# Từ khóa ngữ cảnh OTP (dùng để chọn mã xác minh thật trong nhiều dãy 6 chữ số)
 _OTP_CONTEXT_KEYWORDS = (
     "code", "verify", "verification",
     "代码", "验证", "确认",
@@ -32,7 +32,7 @@ def _get_field(item: dict, *names: str) -> str:
     "\n  từ thư dict trong theo thử theo thứ tự nhiều có thể có thể trường tên, trả về lần một không trống chuỗi. \n  dùng để tương thích khác thư API  trường lệnh tên quy ước(ví dụ như sendEmail / from / fromEmail / from.address). \n  "
     for name in names:
         if "." in name:
-            # 支持 "from.emailAddress.address" 这种点路径
+            # Hỗ trợ đường dẫn chấm kiểu "from.emailAddress.address"
             value = item
             for part in name.split("."):
                 if not isinstance(value, dict):
@@ -64,15 +64,15 @@ def looks_like_openai_email(item: dict) -> bool:
 
 def extract_otp(item: dict) -> str | None:
     "\n  từ thư trong trích ra 6 chữ số OTP. \n\n  thứ tự trích: \n  1. subject(OpenAI một phần thư trực tiếp  6 chữ số số đặt ở chính trong tiêu đề, ví dụ \"Your OpenAI code is 525210\")\n  2. văn bản thuần này trường(text / bodyPreview / bodyText)\n  3. HTML trường(content / html / body / body.content / bodyHtml, bỏ thẻ sau)\n\n  nếu body trong chứa nhiều 6 chữ số số, ưu tiên chọn gần \"mã OTP / code / xác thực\" v.v.từ khoá gần nhất đó . \n  "
-    # 1. 主题里如果直接有 6 位数，最可信
+    # 1. Nếu trong chủ đề trực tiếp có 6 chữ số, đáng tin cậy nhất
     subject = _get_field(item, "subject")
     if subject:
         codes_in_subject = _OTP_REGEX.findall(subject)
         if len(codes_in_subject) == 1:
-            # 主题里恰好只有一个 6 位数，几乎肯定就是 OTP
+            # Trong chủ đề đúng một dãy 6 chữ số, gần như chắc chắn là OTP
             return codes_in_subject[0]
 
-    # 2. body 字段
+    # 2. Trường body
     candidates = [
         ("text", _get_field(item, "text", "bodyPreview", "bodyText")),
         ("html", _get_field(item, "content", "html", "body", "body.content", "bodyHtml")),
@@ -81,15 +81,15 @@ def extract_otp(item: dict) -> str | None:
     for kind, body in candidates:
         if not body:
             continue
-        # 无论 text 还是 html，都先去 HTML 标签和 style 属性
-        # （QQ 邮箱转发的 OpenAI 邮件，text 字段也可能含 HTML）
+        # Dù text hay html, đều bỏ thẻ HTML và thuộc tính style trước
+        # (Email OpenAI được chuyển tiếp từ QQ Mail, trường text cũng có thể chứa HTML)
         body = re.sub(r"<style[^>]*>.*?</style>", " ", body, flags=re.DOTALL | re.IGNORECASE)
         body = re.sub(r"<[^>]+>", " ", body)
         all_codes = _OTP_REGEX.findall(body)
         if not all_codes:
             continue
         body_lower = body.lower()
-        # 优先选离上下文关键字最近的 6 位数
+        # Ưu tiên chọn 6 chữ số gần từ khóa ngữ cảnh nhất
         for code in all_codes:
             idx = body_lower.find(code)
             if idx < 0:

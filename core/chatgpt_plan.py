@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-"""ChatGPT 账号套餐/试用资格查询。"""
+"""Truy vấn gói tài khoản/điều kiện dùng thử ChatGPT."""
 from __future__ import annotations
 
 import base64
@@ -35,7 +35,7 @@ def normalize_token(token: str) -> str:
 
 
 def _mask_proxy(proxy: str) -> str:
-    """返回可用于日志/API 结果的代理摘要，不泄露用户名和密码。"""
+    """Trả về tóm tắt proxy dùng cho log/kết quả API, không tiết lộ tên người dùng và mật khẩu."""
     value = str(proxy or "").strip()
     if not value:
         return ""
@@ -51,7 +51,7 @@ def _mask_proxy(proxy: str) -> str:
 
 
 def _proxy_lines(value: Any) -> list[str]:
-    """兼容 .env 多行代理和旧的单行代理值。"""
+    """Tương thích giá trị proxy nhiều dòng trong .env và proxy một dòng cũ."""
     if value is None:
         return []
     if isinstance(value, (list, tuple)):
@@ -60,7 +60,7 @@ def _proxy_lines(value: Any) -> list[str]:
 
 
 def _local_proxy_status(proxy: str) -> tuple[bool, bool, str | None]:
-    """检查回环代理端口；非本地代理不做预探测，避免额外网络请求。"""
+    """Kiểm tra cổng proxy loopback; proxy không local thì không dò trước, tránh thêm yêu cầu mạng."""
     value = str(proxy or "").strip()
     if not value:
         return False, False, None
@@ -87,7 +87,7 @@ def _local_proxy_status(proxy: str) -> tuple[bool, bool, str | None]:
 
 
 def open_plan_check_proxy(route: dict, selected_proxy: str, *, timeout: float):
-    """返回实际请求代理；配置了上游时启动本地 HTTP CONNECT 中继。"""
+    """Trả về proxy yêu cầu thực tế; khi đã cấu hình upstream thì khởi động relay HTTP CONNECT cục bộ."""
     selected_proxy = str(selected_proxy or "").strip()
     upstream = str(route.get("upstream_proxy") or "").strip()
     if selected_proxy and upstream:
@@ -99,9 +99,9 @@ def open_plan_check_proxy(route: dict, selected_proxy: str, *, timeout: float):
 
 
 def resolve_plan_check_route(explicit_proxy: Optional[str] = None) -> dict:
-    """解析套餐查询的实际网络路径。
+    """Phân giải đường dẫn mạng thực tế cho truy vấn gói cước.
 
-    explicit_proxy 不是 None 时表示 API 调用方明确覆盖配置；空字符串代表直连。
+    Khi explicit_proxy không phải None nghĩa là phía gọi API ghi đè cấu hình rõ ràng; chuỗi rỗng đại diện kết nối trực tiếp.
     """
     if explicit_proxy is not None:
         selected = str(explicit_proxy or "").strip()
@@ -132,8 +132,8 @@ def resolve_plan_check_route(explicit_proxy: Optional[str] = None) -> dict:
         }
 
     candidates = _proxy_lines(getattr(proxy_cfg, "PLAN_CHECK_PROXY", ""))
-    # 专用代理配置为代理池时，每次新的套餐查询随机选择一个；
-    # 若未配置专用池，则继续从通用 PROXY_POOL 随机选择。
+    # Khi proxy chuyên dụng được cấu hình thành pool proxy, mỗi lần truy vấn gói mới sẽ chọn ngẫu nhiên một cái;
+    # Nếu chưa cấu hình pool chuyên dụng, thì tiếp tục chọn ngẫu nhiên từ PROXY_POOL chung.
     selected = random.choice(candidates) if candidates else str(proxy_cfg.pick_proxy() or "").strip()
     if not selected:
         if mode == "proxy":
@@ -172,7 +172,7 @@ def resolve_plan_check_route(explicit_proxy: Optional[str] = None) -> dict:
 
 
 def decode_jwt_payload_unverified(token: str) -> dict:
-    """仅本地解析 JWT payload，不校验签名。"""
+    """Chỉ phân tích JWT payload cục bộ, không xác minh chữ ký."""
     token = normalize_token(token)
     try:
         parts = token.split(".")
@@ -208,9 +208,9 @@ def token_claims(token: str) -> dict:
 
 
 def _common_headers(env: BrowserSession, token: str, claims: dict | None = None) -> dict[str, str]:
-    """生成与 ChatGPT 登录态前端一致的套餐查询头。"""
+    """Tạo header truy vấn gói khớp với frontend trạng thái đăng nhập ChatGPT."""
     headers = env.get_chatgpt_headers(referer="https://chatgpt.com/")
-    # GET 导航后的前端 fetch 不主动设置 content-type。
+    # Fetch frontend sau điều hướng GET không chủ động đặt content-type.
     headers.pop("content-type", None)
     headers.update({
         "authorization": f"Bearer {normalize_token(token)}",
@@ -224,7 +224,7 @@ def _common_headers(env: BrowserSession, token: str, claims: dict | None = None)
 
 
 def parse_accounts_check(data: dict, *, token: str = "") -> dict:
-    """从 accounts/check 响应提取套餐和 Plus 试用资格。"""
+    """Trích xuất gói cước và tư cách dùng thử Plus từ phản hồi accounts/check."""
     claims = token_claims(token) if token else {}
     claim_account_id = claims.get("account_id")
     accounts = data.get("accounts") if isinstance(data, dict) else None
@@ -264,8 +264,8 @@ def parse_accounts_check(data: dict, *, token: str = "") -> dict:
     is_free = str(plan_type).lower() == "free" or str(subscription_plan).lower() == "chatgptfreeplan"
     plus_trial_eligible = bool(is_free and plus_campaign)
 
-    # 保留 Free 账号返回的全部促销活动，供前端查看详情；Plus 资格判定仍然
-    # 只使用上面的 eligible_promo_campaigns.plus，保持原有语义不变。
+    # Giữ toàn bộ khuyến mãi Free account trả về, để frontend xem chi tiết; phán định tư cách Plus vẫn
+    # Chỉ dùng eligible_promo_campaigns.plus ở trên, giữ nguyên ngữ nghĩa ban đầu.
     promo_campaigns = {}
     if is_free and isinstance(eligible_promo_campaigns, dict):
         for campaign_key, campaign in eligible_promo_campaigns.items():
@@ -340,7 +340,7 @@ def _retryable_plan_error(http_status: int | None) -> bool:
 
 
 def _clear_plan_circuit(env: BrowserSession) -> None:
-    """清除可重试响应产生的本地熔断，同时保留 Cookie Jar。"""
+    """Xóa cầu chì cục bộ do phản hồi có thể thử lại tạo ra, đồng thời giữ Cookie Jar."""
     reset = getattr(env, "reset_circuit_breaker", None)
     if callable(reset):
         reset()
@@ -350,7 +350,7 @@ def _clear_plan_circuit(env: BrowserSession) -> None:
 
 
 def _warm_plan_session(env: BrowserSession) -> None:
-    """先访问 ChatGPT document 建立同一会话的边缘 Cookie；失败不阻断正式查询。"""
+    """Trước tiên truy cập document ChatGPT để thiết lập Cookie biên của cùng phiên; thất bại không chặn truy vấn chính thức."""
     try:
         resp = env.get(
             "https://chatgpt.com/",
@@ -428,13 +428,13 @@ def check_account_plan(
     identity = str(
         claims.get("email") or claims.get("account_id") or normalize_token(token)[:32]
     ).lower()
-    # 任务级随机 seed：同一查询的所有重试统一 device/session/Cookie；不同账号
-    # 或下一次查询不会复用旧浏览器身份。
+    # Seed ngẫu nhiên cấp task: mọi retry cùng query thống nhất device/session/Cookie; tài khoản khác nhau
+    # Hoặc lần truy vấn tiếp theo sẽ không tái sử dụng danh tính trình duyệt cũ.
     task_seed = f"plan-check:{identity}:{uuid.uuid4()}"
     env: BrowserSession | None = None
     relay = None
     try:
-        # 首次按代理真实出口自动生成语言/时区画像，随后整条查询链固定不漂移。
+        # Lần đầu tự sinh hồ sơ ngôn ngữ/múi giờ theo cổng ra thật của proxy, sau đó cả chuỗi truy vấn cố định không trôi.
         effective_proxy, relay = open_plan_check_proxy(
             route, route["proxy"], timeout=timeout_seconds,
         )
@@ -526,8 +526,8 @@ def check_account_plan(
             if not last_result.get("retryable") or attempt >= attempts:
                 return last_result
 
-            # 403/429 会打开 BrowserSession 熔断。保留服务端刚下发的 CF Cookie，
-            # 只清除本地熔断并在同一会话内退避重试。
+            # 403/429 sẽ bật circuit breaker BrowserSession. Giữ CF Cookie server vừa gửi xuống,
+            # Chỉ xóa cầu chì cục bộ và thử lại với backoff trong cùng phiên.
             _clear_plan_circuit(env)
             wait_seconds = _retry_wait_seconds(resp, base_delay, attempt)
             logger.warning(

@@ -62,8 +62,8 @@ def _resolve_twofa_proxy(proxy: str | None):
         return transport or None, relay, "pool"
     target = _normalize_proxy(proxy)
     if not target:
-        # 没有可复用的目标代理时交给 BrowserSession 从代理池选择；
-        # BrowserSession 会自行管理代理池链式中继生命周期。
+        # Khi không có proxy đích tái sử dụng được thì giao cho BrowserSession chọn từ pool proxy;
+        # BrowserSession tự quản lý vòng đời relay chuỗi của pool proxy.
         return None, None, "pool"
     from core.proxy_chain import open_proxy_pool_proxy
 

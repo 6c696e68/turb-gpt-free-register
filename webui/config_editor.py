@@ -1,13 +1,13 @@
 # -*- coding: utf-8 -*-
 """
-配置读写层（供 WebUI /api/config 使用）。
+Lớp đọc/ghi cấu hình (dùng cho WebUI /api/config).
 
-设计原则：
-    1. 白名单：只暴露"运行时安全"的开关/数值/默认值，协议级常量
-       （client_id / scope / sentinel 版本等）一律不开放，避免一改就废号。
-    2. 所有 WebUI 可编辑项统一写入项目根 `.env`，不再修改 `config/*.py`。
-    3. `config/*.py` 只保留默认值；运行时通过 config.env_loader 用 `.env` 覆盖。
-    4. 读取时优先 `.env`，缺失时回退解析 `config/*.py` 默认值。
+Nguyên tắc thiết kế:
+    1. Whitelist: chỉ expose các công tắc/giá trị số/giá trị mặc định "an toàn runtime"; hằng số cấp giao thức
+       (client_id / scope / phiên bản sentinel v.v.) đều không mở, tránh sửa một chút là hỏng tài khoản.
+    2. Mọi mục WebUI chỉnh được ghi thống nhất vào `.env` gốc dự án, không còn sửa `config/*.py`.
+    3. `config/*.py` chỉ giữ giá trị mặc định; runtime ghi đè bằng `.env` qua config.env_loader.
+    4. Khi đọc ưu tiên `.env`, thiếu thì fallback parse giá trị mặc định từ `config/*.py`.
 """
 import ast
 import os
@@ -22,16 +22,16 @@ EXPLICIT_EMPTY_LIST_KEYS = {
 
 
 # ============================================================
-# 白名单：每个可编辑项声明它在哪个文件、键名、类型、分组、说明
-# type 决定前端控件 + 写回时的字面量格式：
+# Whitelist: mỗi mục có thể chỉnh sửa khai báo nó ở file nào, tên khóa, kiểu, nhóm, mô tả
+# type quyết định control frontend + định dạng literal khi ghi lại:
 #   bool   -> True/False
-#   int    -> 整数
-#   str    -> 带引号字符串
-#   list_str_multiline -> 多行字符串列表（PROXY_POOL 专用，整块替换）
+#   int    -> số nguyên
+#   str    -> chuỗi có dấu ngoặc kép
+#   list_str_multiline -> danh sách chuỗi nhiều dòng (dành riêng cho PROXY_POOL, thay thế cả khối)
 # ============================================================
 
 EDITABLE_FIELDS = [
-    # ---- WebUI 授权 ----
+    # ---- Ủy quyền WebUI ----
     {
         "key": "WEBUI_AUTH_CODE", "file": "codex.py", "type": "str", "group": "Uỷ quyền WebUI",
         "label": "Mã uỷ quyền WebUI", "help": "Chỉ lưu trong .env (WEBUI_AUTH_CODE), tránh hiện trên dòng lệnh tiến trình; sau khi lưu, khởi động lại WebUI để có hiệu lực",
@@ -42,7 +42,7 @@ EDITABLE_FIELDS = [
         "label": "Khoá ký Session", "help": "Tuỳ chọn, lưu trong .env (WEBUI_SESSION_SECRET); để trống thì suy ra từ mã uỷ quyền cố định, sửa mã uỷ quyền sẽ làm đăng nhập hiện có hết hiệu lực",
         "storage": "env", "secret": True,
     },
-    # ---- 功能开关 ----
+    # ---- Công tắc chức năng ----
     {
         "key": "ENABLE_CODEX_AUTO", "file": "codex.py", "type": "bool", "group": "Công tắc tính năng",
         "label": "Bật Codex OAuth", "help": "Sau khi đăng ký thành công tự chạy uỷ quyền Codex (session mới + nhận mã), ghi file codex-email.json",
@@ -316,7 +316,7 @@ EDITABLE_FIELDS = [
         "key": "ENABLE_HUMANIZE_BROWSER_ACTIONS", "file": "humanize.py", "type": "bool", "group": "Nhịp thao tác",
         "label": "Ngẫu nhiên hoá thao tác trình duyệt", "help": "Roxy/Cloak click, nhập, quan sát trang dùng điểm chuột ngẫu nhiên và nhập từng ký tự, giảm dấu vết thao tác máy",
     },
-    # ---- 邮箱 / OTP ----
+    # ---- Email / OTP ----
     {
         "key": "USE_EMAIL_SERVICE", "file": "email.py", "type": "bool", "group": "Email / OTP",
         "label": "Tự lấy email và nhận mã", "help": "True=tự lấy email từ kho email và tự nhận OTP; False=chế độ thủ công: dùng REGISTER_EMAIL, OTP điền tay ở trang tác vụ",
@@ -498,7 +498,7 @@ EDITABLE_FIELDS = [
         "key": "REMAIL_REQUEST_TIMEOUT", "file": "email.py", "type": "int", "group": "Email / OTP",
         "label": "Timeout request Remail (giây)", "help": "Timeout mỗi request HTTP Remail API, mặc định 20 giây",
     },
-    # ---- 浏览器地区画像 ----
+    # ---- Hồ sơ khu vực trình duyệt ----
     {
         "key": "BROWSER_LOCALE_PROFILE", "file": "browser.py", "type": "str", "group": "Hồ sơ trình duyệt",
         "label": "Hồ sơ vùng", "help": "Nên khớp khu vực egress của proxy; tuỳ chọn jp/cn/us/sg. Proxy local hiện đo được là Tokyo, Nhật Bản, khuyến nghị jp",
@@ -541,7 +541,7 @@ EDITABLE_FIELDS = [
         "label": "Số mục tối đa coverage JS trình duyệt local", "help": "Chỉ có hiệu lực với Roxy/Cloak; số hàm đã chạy tối đa mà nhật ký xuất ra, đồng thời giới hạn số bản tóm tắt script được lưu, mặc định 1000, tối đa 10000",
     },
 
-    # ---- 代理池 ----
+    # ---- Pool proxy ----
     {
         "key": "PROXY_POOL", "file": "proxy.py", "type": "list_str_multiline", "group": "Kho proxy",
         "label": "Kho proxy (mỗi dòng một)", "help": "Mỗi dòng một URL proxy, dòng trống bị bỏ; để trống thì không dùng proxy",
@@ -617,7 +617,7 @@ EDITABLE_FIELDS = [
         "key": "PLAN_CHECK_JITTER", "file": "proxy.py", "type": "float", "group": "Kho proxy",
         "label": "Độ lệch ngẫu nhiên request gói/Agent (giây)", "help": "Thêm độ trễ ngẫu nhiên vào khoảng cách tối thiểu của tra cứu gói và tạo Agent Token, tránh request quá đều",
     },
-    # ---- 提链 ----
+    # ---- Trích xuất liên kết ----
     {
         "key": "EXTRACT_LINK_API_BASE", "file": "extract_link.py", "type": "str", "group": "Rút link",
         "label": "Địa chỉ dịch vụ rút link", "help": "Điền địa chỉ API dịch vụ rút link",
@@ -635,7 +635,7 @@ EDITABLE_FIELDS = [
         "key": "EXTRACT_LINK_WORKERS", "file": "extract_link.py", "type": "int", "group": "Rút link",
         "label": "Số luồng rút link", "help": "Số luồng nền rút link hàng loạt, nên 1-4",
     },
-    # ---- Codex 配置 ----
+    # ---- Cấu hình Codex ----
     {
         "key": "SUB2API_AUTO_EXPORT", "file": "sub2api.py", "type": "bool", "group": "Codex",
         "label": "Tự đồng bộ Agent sub2", "help": "Sau khi tạo Codex Agent Token thành công, tự đồng bộ sang sub2api",
@@ -664,8 +664,8 @@ EDITABLE_FIELDS = [
         "key": "SUB2API_PROXY_KEY", "file": "sub2api.py", "type": "str", "group": "Codex",
         "label": "Khoá proxy Agent sub2", "help": "Tuỳ chọn; ghi vào account.proxy_key, và khởi tạo proxies[0].proxy_key khi proxies trống",
     },
-    # ---- 接码平台 ----
-    # ---- Codex：基础 / CPA / sub2api 配置 ----
+    # ---- Nền tảng nhận mã ----
+    # ---- Codex: cấu hình cơ bản / CPA / sub2api ----
     {
         "key": "CODEX_AUTH_URL_SOURCE", "file": "codex.py", "type": "str", "group": "Codex",
         "label": "Nguồn URL uỷ quyền", "help": "cpa=CPA tạo và tải lên CPA; sub2=sub2 tạo và tải lên sub2; local=PKCE local",
@@ -782,21 +782,21 @@ _FIELD_BY_KEY = {f["key"]: f for f in EDITABLE_FIELDS}
 
 
 # ============================================================
-# 读：解析源码取当前值（不 import，避免缓存/副作用）
+# Đọc: phân tích mã nguồn lấy giá trị hiện tại (không import, tránh cache/tác dụng phụ)
 # ============================================================
 
 def _config_path(filename: str) -> Path:
     path = (_CONFIG_DIR / filename).resolve()
-    # 防目录穿越：必须落在 config/ 下
+    # Chống directory traversal: phải nằm trong config/
     if _CONFIG_DIR not in path.parents:
         raise ValueError(f"Đường dẫn cấu hình không hợp lệ: {filename}")
     return path
 
 
 def _literal_default_from_expr(node):
-    """尽量从赋值表达式中取“源码默认值”，不执行模块代码。
+    """Cố gắng lấy “giá trị mặc định trong mã nguồn” từ biểu thức gán, không thực thi mã module.
 
-    兼容：
+    Tương thích:
       KEY = "literal"
       KEY: str = env_str("KEY", "default")
       KEY = env_bool("KEY", True)
@@ -814,7 +814,7 @@ def _literal_default_from_expr(node):
         elif isinstance(node.func, ast.Attribute):
             func_name = node.func.attr
 
-        # env_str/env_bool/env_int/env_float/env_list 的第二个位置参数是默认值。
+        # Tham số vị trí thứ hai của env_str/env_bool/env_int/env_float/env_list là giá trị mặc định.
         if func_name in {"env_str", "env_bool", "env_int", "env_float", "env_list"}:
             if len(node.args) >= 2:
                 try:
@@ -852,9 +852,9 @@ def _find_assignment_value_node(source: str, key: str):
 
 
 def _parse_value_from_source(source: str, key: str, vtype: str):
-    """从源码里解析 KEY 的当前值。失败返回 None。"""
+    """Phân tích giá trị hiện tại của KEY từ mã nguồn. Thất bại trả về None."""
     if vtype == "list_str_multiline":
-        # 用 AST 解析整个模块，取这个赋值的 list 字面量
+        # Dùng AST phân tích toàn bộ module, lấy list literal của phép gán này
         value_node = _find_assignment_value_node(source, key)
         if value_node is None:
             return None
@@ -866,14 +866,14 @@ def _parse_value_from_source(source: str, key: str, vtype: str):
             return None
         return None
 
-    # 标量：优先 AST 取默认值，避免 env_str("KEY", "") 被当成普通字符串。
+    # Scalar: ưu tiên AST lấy giá trị mặc định, tránh env_str("KEY", "") bị coi là chuỗi thường.
     value_node = _find_assignment_value_node(source, key)
     if value_node is not None:
         value = _literal_default_from_expr(value_node)
         if value is not None:
             return value
 
-    # AST 失败时再回退到旧的正则解析。
+    # Khi AST thất bại thì fallback về phân tích regex cũ.
     m = re.search(
         rf"^{re.escape(key)}\s*(?::[^=\n]+)?=\s*(.+?)\s*(?:#.*)?$",
         source, re.MULTILINE,
@@ -888,7 +888,7 @@ def _parse_value_from_source(source: str, key: str, vtype: str):
 
 
 def _parse_env_typed_value(raw: str, fallback, vtype: str):
-    """把 .env 字符串按字段类型转换；失败时回退 fallback。"""
+    """Chuyển chuỗi .env theo kiểu trường; khi thất bại thì fallback."""
     from config.env_loader import env_value
     return env_value("__NO_SUCH_ENV_KEY__", fallback, vtype) if raw is None else _coerce_raw_value(raw, fallback, vtype)
 
@@ -918,9 +918,9 @@ def _coerce_raw_value(raw: str, fallback, vtype: str):
 
 
 def get_config() -> list[dict]:
-    """返回所有可编辑项的当前值 + 元信息，供前端渲染表单。
+    """Trả về giá trị hiện tại + siêu thông tin của tất cả mục có thể chỉnh sửa, để frontend render form.
 
-    优先读取 `.env` / 环境变量；没有配置时回退到 `config/*.py` 默认值。
+    Ưu tiên đọc `.env` / biến môi trường; khi chưa cấu hình thì fallback về giá trị mặc định `config/*.py`.
     """
     from config.env_loader import load_env, read_env_file
     load_env(override=True)
@@ -954,7 +954,7 @@ def get_config() -> list[dict]:
 
 
 # ============================================================
-# 写：统一写 .env，不修改 config/*.py
+# Ghi: thống nhất ghi .env, không sửa config/*.py
 # ============================================================
 
 
@@ -964,7 +964,7 @@ _PLACEHOLDER_EMPTY = {
 
 
 def _normalize_config_value(value, vtype: str):
-    """把前端/历史占位空值规范化，避免 '-' 被当成真实配置。"""
+    """Chuẩn hóa giá trị trống placeholder của frontend/lịch sử, tránh coi '-' là cấu hình thật."""
     if vtype == "str":
         s = "" if value is None else str(value).strip()
         if s.lower() in {x.lower() for x in _PLACEHOLDER_EMPTY}:
@@ -990,7 +990,7 @@ def _normalize_config_value(value, vtype: str):
 
 
 def _format_literal(value, vtype: str) -> str:
-    """把前端传来的值格式化成 Python 字面量字符串。"""
+    """Định dạng giá trị từ frontend thành chuỗi literal Python."""
     if vtype == "bool":
         if isinstance(value, str):
             value = value.strip().lower() in ("true", "1", "yes", "on")
@@ -1001,13 +1001,13 @@ def _format_literal(value, vtype: str) -> str:
         return repr(float(value))
     if vtype == "str":
         s = str(value)
-        # 用 repr 保证转义安全，但统一成双引号风格
+        # Dùng repr đảm bảo an toàn escape, nhưng thống nhất theo kiểu dấu ngoặc kép
         return '"' + s.replace("\\", "\\\\").replace('"', '\\"') + '"'
     raise ValueError(f"_format_literal không hỗ trợ kiểu: {vtype}")
 
 
 def _replace_scalar(source: str, key: str, literal: str) -> str:
-    """替换 `KEY[: 类型] = 旧值` 行的右值，保留行内注释和类型标注。"""
+    """Thay thế vế phải của dòng `KEY[: loại] = giá trị cũ`, giữ nguyên chú thích trong dòng và chú thích kiểu."""
     pattern = re.compile(
         rf"^(?P<head>{re.escape(key)}\s*(?::[^=\n]+)?=\s*)"
         rf"(?P<val>.+?)"
@@ -1020,7 +1020,7 @@ def _replace_scalar(source: str, key: str, literal: str) -> str:
 
 
 def _replace_proxy_pool(source: str, lines: list[str]) -> str:
-    """整块替换 PROXY_POOL = [ ... ] 列表字面量（保留前面的赋值头）。"""
+    """Thay thế toàn bộ literal danh sách PROXY_POOL = [ ... ] (giữ nguyên phần đầu gán phía trước)."""
     items = [ln.strip() for ln in lines if ln.strip()]
     if items:
         body = "\n".join(
@@ -1031,7 +1031,7 @@ def _replace_proxy_pool(source: str, lines: list[str]) -> str:
     else:
         literal = "[]"
 
-    # 匹配 PROXY_POOL = [ ... ]（含跨行），用 AST 定位起止偏移最稳
+    # Khớp PROXY_POOL = [ ... ] (bao gồm nhiều dòng), dùng AST định vị offset bắt đầu/kết thúc là ổn định nhất
     tree = ast.parse(source)
     for node in tree.body:
         targets = node.targets if isinstance(node, ast.Assign) else (
@@ -1040,12 +1040,12 @@ def _replace_proxy_pool(source: str, lines: list[str]) -> str:
         for t in targets:
             if isinstance(t, ast.Name) and t.id == "PROXY_POOL":
                 src_lines = source.splitlines(keepends=True)
-                start = node.value.lineno          # 值（[）所在行，1-based
-                end = node.value.end_lineno        # 值（]）所在行，1-based
-                col = node.value.col_offset         # [ 在起始行的列偏移
-                # 保留起始行 [ 之前的内容（即 "PROXY_POOL = " 或 "PROXY_POOL: list = "）
+                start = node.value.lineno          # Dòng chứa giá trị ([), 1-based
+                end = node.value.end_lineno        # Dòng chứa giá trị (]), 1-based
+                col = node.value.col_offset         # Offset cột của [ trên dòng bắt đầu
+                # Giữ nội dung trước [ trên dòng bắt đầu (tức "PROXY_POOL = " hoặc "PROXY_POOL: list = ")
                 prefix = src_lines[start - 1][:col]
-                # 保留结束行 ] 之后的内容（行内注释 / 换行）
+                # Giữ nội dung sau ] trên dòng kết thúc (chú thích trong dòng / xuống dòng)
                 end_line = src_lines[end - 1]
                 suffix = end_line[node.value.end_col_offset:]
                 new_lines = (
@@ -1064,7 +1064,7 @@ def _atomic_write(path: Path, text: str) -> None:
 
 
 def _format_env_value(value, vtype: str, fallback=None) -> str:
-    """把前端值格式化成适合写入 .env 的字符串。"""
+    """Định dạng giá trị frontend thành chuỗi phù hợp để ghi vào .env."""
     if value is None:
         value = fallback
     if vtype == "bool":
@@ -1090,7 +1090,7 @@ def _format_env_value(value, vtype: str, fallback=None) -> str:
 
 
 def update_config(updates: dict) -> dict:
-    """批量更新配置。所有 WebUI 可编辑项只写项目根 `.env`。"""
+    """Cập nhật cấu hình hàng loạt. Mọi mục WebUI chỉnh được chỉ ghi vào `.env` gốc dự án."""
     from config.env_loader import write_env_values, load_env
 
     updated, ignored = [], []

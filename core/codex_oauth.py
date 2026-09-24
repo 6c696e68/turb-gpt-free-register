@@ -1,20 +1,20 @@
 # -*- coding: utf-8 -*-
 """
-注册成功后的 Codex OAuth 授权模块（2026-06-15 改造：全新 session + 接码）。
+Module ủy quyền Codex OAuth sau khi đăng ký thành công (cải tạo 2026-06-15: session hoàn toàn mới + nhận mã SMS).
 
-旧方案"复用注册的已登录 session"会撞 /choose-an-account 卡死（React SPA 解析不出
-可提交字段）。新方案改为用**全新干净 session**从头登录，走 OpenAI 标准风控路径，
-手机号验证靠接码平台自动收码，当前通过 core.sms_provider 支持 GrizzlySMS 和 L_API.md
-定义的本地 L 取号服务。
+Phương án cũ "tái sử dụng session đã đăng nhập lúc đăng ký" sẽ kẹt ở /choose-an-account (React SPA không parse được
+trường có thể submit). Phương án mới đổi sang dùng **session sạch hoàn toàn mới** đăng nhập từ đầu, đi theo đường chống gian lận chuẩn của OpenAI,
+xác minh số điện thoại nhờ nền tảng nhận mã tự động nhận SMS; hiện qua core.sms_provider hỗ trợ GrizzlySMS và dịch vụ lấy số L cục bộ
+định nghĩa trong L_API.md.
 
-完整接口链由 Auth 返回的 page/type/continue_url 动态决定：
-    - 提交邮箱后可能进入密码、邮箱 OTP 或其他验证页
-    - 密码后可能进入 MFA/TOTP、邮箱 OTP、手机号验证或直接授权
-    - 邮箱 OTP/MFA 后同样只在服务端明确要求时执行手机号验证
-    - 最后选 workspace / 跟随重定向到 localhost:1455/auth/callback
+Chuỗi API đầy đủ do page/type/continue_url mà Auth trả về quyết định động:
+    - Sau khi gửi email có thể vào trang mật khẩu, OTP email hoặc trang xác minh khác
+    - Sau mật khẩu có thể vào MFA/TOTP, OTP email, xác minh số điện thoại hoặc ủy quyền trực tiếp
+    - Sau OTP email/MFA cũng chỉ thực hiện xác minh số điện thoại khi server yêu cầu rõ ràng
+    - Cuối cùng chọn workspace / theo redirect tới localhost:1455/auth/callback
 
-拿到 code 后换 token / 保存到 SQLite 的逻辑（exchange_codex_token /
-build_codex_storage / save_codex_credential）沿用原流程。
+Logic đổi code lấy token / lưu vào SQLite sau khi có code (exchange_codex_token /
+build_codex_storage / save_codex_credential) vẫn giữ quy trình cũ.
 """
 import base64
 import hashlib
@@ -29,9 +29,9 @@ from urllib.parse import urlencode, urlparse, parse_qs, quote
 
 import pyotp
 
-# 用模块属性方式访问 config，支持 WebUI 热加载（config.reload_all()）。
-# 协议级常量（CLIENT_ID/URL/SCOPE/OUTPUT_DIRNAME）虽然不会改，统一从 _cfg 读，
-# 这样 reload 后立即生效，不用再分两套导入。
+# Truy cập config theo thuộc tính module, hỗ trợ WebUI hot-reload (config.reload_all()).
+# Hằng số cấp giao thức (CLIENT_ID/URL/SCOPE/OUTPUT_DIRNAME) dù không đổi, vẫn đọc thống nhất từ _cfg,
+# Như vậy sau reload có hiệu lực ngay, không cần tách hai bộ import.
 from config import codex as _cfg
 from core.session import BrowserSession
 from core.humanize import delay as human_delay
@@ -51,22 +51,22 @@ from curl_cffi import requests as curl_requests
 
 logger = logging.getLogger(__name__)
 
-# 跟重定向链时的最大跳数，防死循环
+# Số lần nhảy tối đa khi theo chuỗi chuyển hướng, chống vòng lặp vô hạn
 _MAX_REDIRECTS = 15
 
-# 网络层临时性错误（代理抖动 / TLS 握手失败 / 重置）重试参数，对齐 openai_auth.follow_authorize
+# Tham số retry lỗi tạm thời tầng mạng (proxy rung / TLS handshake thất bại / reset), căn chỉnh với openai_auth.follow_authorize
 _NET_MAX_ATTEMPTS = 3
 _NET_BACKOFF_BASE = 2.0
 
-# Auth 响应设置 cookie 与后续 workspace/select 之间偶尔存在短暂竞态。
+# Đôi khi tồn tại race condition ngắn giữa việc Auth response thiết lập cookie và workspace/select tiếp theo.
 _WORKSPACE_COOKIE_WAIT_SECONDS = 4.0
 _WORKSPACE_POLL_INTERVAL_SECONDS = 0.2
 
 
 def _with_net_retry(label: str, fn):
     """
-    对临时性网络错误（TLS/代理/超时/重置）做重试包装。
-    非临时错误（业务 4xx 等）直接抛。最多 _NET_MAX_ATTEMPTS 次。
+    Bọc thử lại cho các lỗi mạng tạm thời (TLS/proxy/timeout/reset).
+    Lỗi không tạm thời (4xx nghiệp vụ v.v.) ném trực tiếp. Tối đa _NET_MAX_ATTEMPTS lần.
     """
     last_exc = None
     for attempt in range(1, _NET_MAX_ATTEMPTS + 1):
@@ -88,7 +88,7 @@ def _with_net_retry(label: str, fn):
 
 
 def _with_auth_navigation_retry(session: BrowserSession, label: str, fn):
-    """对 Auth document 的 403/429/5xx 重试，并保留当前 Cookie/设备上下文。"""
+    """Thử lại khi Auth document trả 403/429/5xx, và giữ nguyên Cookie/ngữ cảnh thiết bị hiện tại."""
     last_exc = None
     for attempt in range(1, _NET_MAX_ATTEMPTS + 1):
         try:
@@ -105,8 +105,8 @@ def _with_auth_navigation_retry(session: BrowserSession, label: str, fn):
             last_exc = exc
             if not _is_retryable_authorize_error(exc) or attempt >= _NET_MAX_ATTEMPTS:
                 raise
-            # Cloudflare 的 403 经常同时更新 __cf_bm。只清理本地熔断，绝不能
-            # 新建 Session，否则刚得到的 Cookie 和统一 device/session ID 会丢失。
+            # 403 của Cloudflare thường cập nhật __cf_bm cùng lúc. Chỉ dọn cầu chì cục bộ, tuyệt đối không
+            # Tạo Session mới, nếu không Cookie vừa nhận và device/session ID thống nhất sẽ bị mất.
             _reset_retryable_circuit(session)
             backoff = _NET_BACKOFF_BASE ** (attempt - 1)
             logger.warning(
@@ -120,7 +120,7 @@ def _with_auth_navigation_retry(session: BrowserSession, label: str, fn):
 
 
 def _codex_auth_preflight(session: BrowserSession) -> None:
-    """仅预热 Codex 真正依赖的 Auth 域名，不再用 ChatGPT 首页作为硬门槛。"""
+    """Chỉ làm nóng trước các miền Auth mà Codex thực sự phụ thuộc, không còn dùng trang chủ ChatGPT làm ngưỡng cứng."""
     headers = session.get_auth_navigate_headers(
         referer="", user_initiated=False, target_origin="https://auth.openai.com",
     )
@@ -146,7 +146,7 @@ def _codex_result(
     callback_url: str | None = None,
     message: str = "",
 ) -> dict:
-    """构造与 flow_trigger._flow_result 同形态的结构化结果。"""
+    """Tạo kết quả có cấu trúc cùng dạng với flow_trigger._flow_result."""
     return {
         "status": status,
         "ok": ok,
@@ -159,7 +159,7 @@ def _codex_result(
 
 
 def _account_registration_password(email: str) -> str:
-    """读取账号的注册密码；不存在则返回空字符串。"""
+    """Đọc mật khẩu đăng ký của tài khoản; nếu không tồn tại thì trả về chuỗi rỗng."""
     try:
         acc = db.get_account_by_email(email)
         if not acc:
@@ -179,7 +179,7 @@ def _account_registration_password(email: str) -> str:
 
 
 def _account_totp_secret(email: str) -> str:
-    """读取账号已开启的 2FA 密钥；不存在则返回空字符串。"""
+    """Đọc khóa 2FA đã bật của tài khoản; nếu không tồn tại thì trả về chuỗi rỗng."""
     try:
         acc = db.get_account_by_email(email)
         if not acc:
@@ -195,11 +195,11 @@ def _account_totp_code(email: str) -> str:
 
 
 # ============================================================
-# PKCE / state（对照 CLIProxyAPI pkce.go）
+# PKCE / state (đối chiếu CLIProxyAPI pkce.go)
 # ============================================================
 
 def _generate_pkce() -> tuple[str, str]:
-    """生成 PKCE 代码对：verifier=base64url(96字节)，challenge=base64url(sha256(verifier))。"""
+    """Sinh cặp mã PKCE: verifier=base64url(96 byte), challenge=base64url(sha256(verifier))."""
     verifier_bytes = secrets.token_bytes(96)
     code_verifier = base64.urlsafe_b64encode(verifier_bytes).rstrip(b"=").decode("ascii")
     digest = hashlib.sha256(code_verifier.encode("ascii")).digest()
@@ -208,12 +208,12 @@ def _generate_pkce() -> tuple[str, str]:
 
 
 def _generate_state() -> str:
-    """生成 OAuth state 随机串，防 CSRF。"""
+    """Tạo chuỗi ngẫu nhiên OAuth state, chống CSRF."""
     return secrets.token_urlsafe(32)
 
 
 def _build_authorize_url(state: str, code_challenge: str, prompt: str = "login") -> str:
-    """按 CLIProxyAPI openai_auth.go 的参数集拼 Codex 授权 URL。"""
+    """Ghép URL ủy quyền Codex theo bộ tham số của CLIProxyAPI openai_auth.go."""
     params = {
         "client_id": _cfg.CODEX_CLIENT_ID,
         "response_type": "code",
@@ -230,7 +230,7 @@ def _build_authorize_url(state: str, code_challenge: str, prompt: str = "login")
 
 
 def _ensure_oai_context_url(auth_url: str, session: BrowserSession) -> str:
-    """在 Codex OAuth 授权 URL 上补齐前端同源上下文参数，保持 oai-did 连续。"""
+    """Bổ sung tham số ngữ cảnh cùng nguồn phía frontend trên URL ủy quyền OAuth Codex, giữ oai-did liên tục."""
     try:
         parsed = urlparse(auth_url)
         params = parse_qs(parsed.query, keep_blank_values=True)
@@ -253,7 +253,7 @@ def _ensure_oai_context_url(auth_url: str, session: BrowserSession) -> str:
 
 
 # ============================================================
-# CPA 管理接口：授权地址由 CPA 生成，成功回调提交给 CPA
+# Giao diện quản lý CPA: địa chỉ ủy quyền do CPA tạo, callback thành công gửi cho CPA
 # ============================================================
 
 def _codex_auth_url_source() -> str:
@@ -281,7 +281,7 @@ def _cpa_management_key() -> str:
 
 
 def _cpa_request_json(method: str, path: str, body: dict | None = None) -> dict:
-    """调用 CPA 管理接口，兼容 FlowPilot 的 /v0/management/* 协议。"""
+    """Gọi API quản lý CPA, tương thích giao thức /v0/management/* của FlowPilot."""
     origin = _cpa_management_origin()
     key = _cpa_management_key()
     timeout = int(getattr(_cfg, "CPA_REQUEST_TIMEOUT", 30) or 30)
@@ -387,7 +387,7 @@ def _sub2_codex_request_json(method: str, path: str, body: dict | None = None) -
 
 
 def _request_sub2_authorize_url() -> dict:
-    """从 sub2 生成 Codex OAuth 授权地址；本地不生成 PKCE。"""
+    """Tạo địa chỉ ủy quyền OAuth Codex từ sub2; không tạo PKCE ở local."""
     from config import sub2api as _sub2_cfg
     path = str(getattr(_sub2_cfg, "SUB2_CODEX_AUTH_URL_PATH", "/api/v1/admin/openai/generate-auth-url") or "/api/v1/admin/openai/generate-auth-url")
     logger.info("[Codex][sub2] đang thông qua sub2 API tạo địa chỉ uỷ quyền...")
@@ -418,7 +418,7 @@ def _request_sub2_authorize_url() -> dict:
 
 
 def _summarize_sub2_response(payload: dict) -> str:
-    """压缩 sub2api 响应日志，避免整包刷屏，同时保留账号创建关键信息。"""
+    """Nén nhật ký phản hồi sub2api, tránh in tràn toàn bộ gói, đồng thời giữ thông tin quan trọng về tạo tài khoản."""
     try:
         data = payload.get("data") if isinstance(payload.get("data"), dict) else payload
         parts = []
@@ -438,7 +438,7 @@ def _summarize_sub2_response(payload: dict) -> str:
 
 
 def _submit_sub2_callback(callback_url: str, *, session_id: str = "", redirect_uri: str = "") -> dict:
-    """提交 OAuth callback 给 sub2。"""
+    """Gửi OAuth callback tới sub2."""
     from config import sub2api as _sub2_cfg
     path = str(getattr(_sub2_cfg, "SUB2_CODEX_CALLBACK_PATH", "/api/v1/admin/openai/create-from-oauth") or "/api/v1/admin/openai/create-from-oauth")
     mode = str(getattr(_sub2_cfg, "SUB2_CODEX_CALLBACK_PAYLOAD_MODE", "create_from_oauth") or "create_from_oauth").strip().lower()
@@ -487,7 +487,7 @@ def _submit_sub2_callback(callback_url: str, *, session_id: str = "", redirect_u
 
 
 def _cpa_request_raw(method: str, path: str, body: dict | None = None, *, response_type: str = "text"):
-    """调用 CPA 管理接口并返回原始响应；用于下载 auth-files 这类非 JSON 响应。"""
+    """Gọi API quản lý CPA và trả về phản hồi gốc; dùng để tải các phản hồi không phải JSON như auth-files."""
     origin = _cpa_management_origin()
     key = _cpa_management_key()
     timeout = int(getattr(_cfg, "CPA_REQUEST_TIMEOUT", 30) or 30)
@@ -530,7 +530,7 @@ def _cpa_request_raw(method: str, path: str, body: dict | None = None, *, respon
 
 
 def list_cpa_codex_auth_files() -> list[dict]:
-    """读取 CPA auth-files 列表，仅返回 type/name/email 可识别为 codex 的凭证。"""
+    """Đọc danh sách CPA auth-files, chỉ trả về các chứng chỉ type/name/email nhận diện được là codex."""
     payload = _cpa_request_json("GET", "/v0/management/auth-files")
     files = payload.get("files") if isinstance(payload.get("files"), list) else []
     out = []
@@ -549,7 +549,7 @@ def list_cpa_codex_auth_files() -> list[dict]:
 
 
 def find_cpa_codex_auth_file(*, email: str = "", local_filename: str = "") -> dict | None:
-    """按本地回执/凭证文件名或邮箱匹配 CPA 侧 codex auth 文件。"""
+    """Khớp tệp auth codex phía CPA theo tên tệp biên nhận/chứng thực cục bộ hoặc email."""
     email_l = str(email or "").strip().lower()
     local_name_l = str(local_filename or "").strip().lower()
     local_stem_l = local_name_l[:-5] if local_name_l.endswith(".json") else local_name_l
@@ -569,7 +569,7 @@ def find_cpa_codex_auth_file(*, email: str = "", local_filename: str = "") -> di
             s = max(s, 70)
         if email_l and email_l in name_l:
             s = max(s, 60)
-        # 本地 CPA 回执名一般是 codex-邮箱-cpa-callback.json，CPA 实际文件是 codex-邮箱-free.json。
+        # Tên biên nhận CPA local thường là codex-email-cpa-callback.json, file thực tế của CPA là codex-email-free.json.
         if local_stem_l.endswith("-cpa-callback"):
             base = local_stem_l[:-len("-cpa-callback")]
             if base and name_l.startswith(base + "-"):
@@ -582,14 +582,14 @@ def find_cpa_codex_auth_file(*, email: str = "", local_filename: str = "") -> di
 
 def download_cpa_codex_auth_text(*, cpa_name: str | None = None, email: str = "", local_filename: str = "") -> tuple[str, str, dict]:
     """
-    从 CPA auth-files 下载一个 Codex JSON 文本。
+    Tải một văn bản JSON Codex từ CPA auth-files.
     Returns: (content_text, download_filename, matched_file_meta)
     """
     meta = None
     name = str(cpa_name or "").strip()
     if name:
-        # 已经拿到 CPA 文件名时直接下载，不再额外拉取一次 auth-files 列表。
-        # 账号列表批量下载会先统一列一次列表；这里重复列会导致选中多账号时浏览器长时间等待下载确认。
+        # Khi đã có tên file CPA thì tải trực tiếp, không kéo thêm danh sách auth-files một lần nữa.
+        # Danh sách tài khoản tải hàng loạt sẽ liệt kê thống nhất một lần trước; liệt kê lại ở đây sẽ khiến trình duyệt chờ xác nhận tải xuống lâu khi chọn nhiều tài khoản.
         meta = {"name": name}
     else:
         meta = find_cpa_codex_auth_file(email=email, local_filename=local_filename)
@@ -598,7 +598,7 @@ def download_cpa_codex_auth_text(*, cpa_name: str | None = None, email: str = ""
         target = email or local_filename or cpa_name or "Không rõ"
         raise RuntimeError(f"[Codex][CPA] Không trong CPA auth-files Tìm thấy khớp trong Codex Thông tin xác thực: {target}")
     text = _cpa_request_raw("GET", f"/v0/management/auth-files/download?name={quote(name, safe='')}", response_type="text")
-    # 下载接口正常应返回 JSON 文本，这里做一次轻校验，避免把 HTML/错误文本当凭证导出。
+    # API tải xuống bình thường phải trả về văn bản JSON; ở đây kiểm tra nhẹ một lần, tránh xuất HTML/văn bản lỗi như chứng chỉ.
     try:
         parsed = json.loads(text)
     except Exception as exc:
@@ -623,7 +623,7 @@ def _extract_state_from_auth_url(auth_url: str) -> str:
 
 
 def _request_cpa_authorize_url() -> dict:
-    """从 CPA 生成 Codex OAuth 授权地址；本地不生成 PKCE。"""
+    """Tạo địa chỉ ủy quyền OAuth Codex từ CPA; phía cục bộ không tạo PKCE."""
     logger.info("[Codex][CPA] đang thông qua CPA API quản lý tạo địa chỉ uỷ quyền...")
     payload = _cpa_request_json("GET", "/v0/management/codex-auth-url")
     data = payload.get("data") if isinstance(payload.get("data"), dict) else {}
@@ -675,7 +675,7 @@ def _is_cpa_callback_retryable(exc: Exception) -> bool:
 
 
 def _is_cpa_callback_reauth_error(exc_or_text) -> bool:
-    """CPA 收到 callback 后仍 409 timeout，通常需要重新生成授权地址重新跑一轮 OAuth。"""
+    """CPA nhận callback rồi vẫn 409 timeout, thường cần tạo lại địa chỉ ủy quyền và chạy lại một vòng OAuth."""
     text = str(exc_or_text or "").lower()
     return (
         "oauth-callback" in text
@@ -687,11 +687,11 @@ def _is_cpa_callback_reauth_error(exc_or_text) -> bool:
 
 
 def _submit_cpa_callback(callback_url: str) -> dict:
-    """提交 OAuth callback 给 CPA。
+    """Gửi OAuth callback cho CPA.
 
-    CPA 偶发会在浏览器已拿到 localhost callback 后仍返回
-    “409 Timeout waiting for OAuth callback”，通常是管理端等待/入库的竞态；
-    这里按同一个 callback URL 做多次重试，不重新生成授权地址。
+    CPA đôi khi vẫn trả
+    “409 Timeout waiting for OAuth callback” dù trình duyệt đã nhận localhost callback, thường do race chờ/ghi DB phía quản trị;
+    ở đây thử lại nhiều lần với cùng callback URL, không tạo lại địa chỉ ủy quyền.
     """
     body = {
         "provider": "codex",
@@ -728,11 +728,11 @@ def _submit_cpa_callback(callback_url: str) -> dict:
 
 
 # ============================================================
-# 小工具：判定/解析
+# Công cụ nhỏ: phán đoán/phân tích
 # ============================================================
 
 def _is_redirect_uri(location: str) -> bool:
-    """判断 Location 是否指向注册的 redirect_uri（localhost:1455/auth/callback）。"""
+    """Xác định liệu Location có trỏ tới redirect_uri đã đăng ký (localhost:1455/auth/callback) hay không."""
     try:
         parsed = urlparse(location)
     except Exception:
@@ -744,7 +744,7 @@ def _is_redirect_uri(location: str) -> bool:
 
 
 def _extract_code(location: str, state: str) -> str:
-    """从 redirect_uri 的 Location 里提取并校验 code。"""
+    """Trích xuất và kiểm tra code từ Location của redirect_uri."""
     parsed = urlparse(location)
     qs = parse_qs(parsed.query)
     err = (qs.get("error") or [""])[0]
@@ -763,7 +763,7 @@ def _extract_code(location: str, state: str) -> str:
 
 
 def _decode_jwt_segment(seg: str) -> dict:
-    """base64url 解码一个 JWT/cookie 段为 JSON dict（失败返回 {}）。"""
+    """Giải mã base64url một đoạn JWT/cookie thành JSON dict (thất bại trả về {})."""
     try:
         padding = "=" * (-len(seg) % 4)
         return json.loads(base64.urlsafe_b64decode(seg + padding))
@@ -773,7 +773,7 @@ def _decode_jwt_segment(seg: str) -> dict:
 
 def _post_json(session: BrowserSession, url: str, payload: dict, referer: str,
                sentinel_header: str | None = None, so_header: str | None = None):
-    """统一发 /api/accounts/* 的 JSON POST。"""
+    """Gửi thống nhất JSON POST tới /api/accounts/*."""
     headers = session.get_auth_headers(referer=referer)
     if sentinel_header:
         headers["openai-sentinel-token"] = sentinel_header
@@ -811,7 +811,7 @@ def _response_text(resp) -> str:
 
 
 def _decode_auth_session_metadata(value) -> dict:
-    """把响应中的 oai-client-auth-session 转成 workspace payload。"""
+    """Chuyển oai-client-auth-session trong phản hồi thành workspace payload."""
     if isinstance(value, dict):
         return value
     if not isinstance(value, str) or not value.strip():
@@ -820,7 +820,7 @@ def _decode_auth_session_metadata(value) -> dict:
 
 
 def _cache_auth_session_metadata(session: BrowserSession, resp) -> None:
-    """缓存 Auth 响应携带的 session 元数据，供 cookie 缺失时恢复 workspace。"""
+    """Cache metadata session mang theo trong phản hồi Auth, để khôi phục workspace khi thiếu cookie."""
     try:
         payload = _resp_json(resp)
         if not isinstance(payload, dict):
@@ -862,7 +862,7 @@ def _phone_failure_reason(text: str, status_code: int | None = None) -> str:
 
 
 # ============================================================
-# 步骤 0：用全新 session 跟随 Codex authorize URL，建立 auth.openai.com 会话
+# Bước 0: dùng session hoàn toàn mới theo Codex authorize URL, thiết lập phiên auth.openai.com
 # ============================================================
 
 def _bootstrap_authorize(
@@ -872,17 +872,17 @@ def _bootstrap_authorize(
     auth_url: str | None = None,
 ) -> None:
     """
-    GET Codex authorize URL 并跟随重定向，落到登录页，建立 auth.openai.com cookies
-    （含 oai-client-auth-session：内含 Codex 目标 + 后续要用的 workspace 列表）。
+    GET Codex authorize URL và theo các chuyển hướng, đến trang đăng nhập, thiết lập cookies auth.openai.com
+    (bao gồm oai-client-auth-session: chứa mục tiêu Codex + danh sách workspace sẽ dùng sau).
     """
-    # 默认使用调用方传入的 CPA 授权地址；未传时才走保留的本地 PKCE 生成逻辑。
+    # Mặc định dùng địa chỉ ủy quyền CPA do bên gọi truyền vào; chỉ khi chưa truyền mới chạy logic sinh PKCE cục bộ đã giữ lại.
     if not auth_url:
         if not code_challenge:
             raise RuntimeError("[Codex] Tạo địa chỉ uỷ quyền cục bộ cần code_challenge")
         auth_url = _build_authorize_url(state, code_challenge, prompt="login")
     auth_url = _ensure_oai_context_url(auth_url, session)
-    # Codex CLI/CPA 授权地址是用户从外部客户端直接打开的顶层导航，不是从
-    # chatgpt.com 页面点击而来。使用 sec-fetch-site:none 且不伪造 Referer。
+    # Địa chỉ ủy quyền Codex CLI/CPA là điều hướng cấp cao do người dùng mở trực tiếp từ client bên ngoài, không phải từ
+    # Đến từ click trên trang chatgpt.com. Dùng sec-fetch-site:none và không giả mạo Referer.
     headers = session.get_auth_navigate_headers(referer="", user_initiated=True)
     logger.info("[Codex] theo Codex authorize URL thiết lập session...")
     logger.info(f"[Codex] URL uỷ quyền đầy đủ: {auth_url}")
@@ -895,11 +895,11 @@ def _bootstrap_authorize(
 
 
 # ============================================================
-# 步骤 1：提交邮箱（触发邮箱 OTP 发送）
+# Bước 1: Gửi email (kích hoạt gửi OTP email)
 # ============================================================
 
 def _submit_email(session: BrowserSession, email: str) -> dict:
-    """POST authorize/continue 提交邮箱，让 Auth 服务返回下一步（密码页/OTP 页等）。带 sentinel。"""
+    """POST authorize/continue gửi email, để dịch vụ Auth trả về bước tiếp theo (trang mật khẩu/trang OTP v.v.). Có sentinel."""
     sentinel_resp = request_sentinel_token(session, "authorize_continue")
     sentinel_header, so_header = build_sentinel_header(session, sentinel_resp, "authorize_continue")
     payload = {"username": {"kind": "email", "value": email}}
@@ -926,7 +926,7 @@ def _submit_email(session: BrowserSession, email: str) -> dict:
 
 
 def _extract_continue_url(result: dict | None) -> str:
-    """从 Auth JSON 响应中提取 continue/redirect URL。"""
+    """Trích xuất URL continue/redirect từ phản hồi Auth JSON."""
     if not isinstance(result, dict):
         return ""
     page = result.get("page") or {}
@@ -945,7 +945,7 @@ def _extract_continue_url(result: dict | None) -> str:
 
 
 def _extract_factor_id(result: dict | None, continue_url: str = "") -> str:
-    """从 MFA 响应或 /mfa-challenge/<factor_id> URL 中提取 factor_id。"""
+    """Trích xuất factor_id từ phản hồi MFA hoặc URL /mfa-challenge/<factor_id>."""
     if isinstance(result, dict):
         factor_id = str(result.get("factor_id") or result.get("id") or "").strip()
         if factor_id:
@@ -970,7 +970,7 @@ def _page_type(result: dict | None) -> str:
 
 
 def _result_text(result: dict | None) -> str:
-    """把 Auth 返回的嵌套结果压平成可匹配文本，不依赖单一字段名。"""
+    """Làm phẳng kết quả lồng nhau do Auth trả về thành văn bản có thể khớp, không phụ thuộc tên trường đơn lẻ."""
     try:
         return json.dumps(result or {}, ensure_ascii=False, separators=(",", ":")).lower()
     except Exception:
@@ -1046,7 +1046,7 @@ def _password_verify(session: BrowserSession, password: str) -> dict:
 
 
 def _mfa_issue_challenge(session: BrowserSession, factor_id: str) -> dict:
-    """发起 TOTP MFA challenge。"""
+    """Khởi tạo challenge TOTP MFA."""
     resp = _post_json(
         session,
         "https://auth.openai.com/api/accounts/mfa/issue_challenge",
@@ -1077,7 +1077,7 @@ def _mfa_verify(session: BrowserSession, factor_id: str, code: str) -> dict:
 
 
 def _complete_mfa_if_required(session: BrowserSession, email: str, result: dict | None) -> dict:
-    """仅当 Auth 当前结果明确要求 MFA 时，提交账号 TOTP 并返回下一状态。"""
+    """Chỉ khi kết quả Auth hiện tại yêu cầu rõ MFA, mới gửi TOTP tài khoản và trả về trạng thái tiếp theo."""
     continue_url = _extract_continue_url(result)
     if not _is_mfa_step(result, continue_url):
         return result or {}
@@ -1096,10 +1096,10 @@ def _complete_mfa_if_required(session: BrowserSession, email: str, result: dict 
 
 def _follow_login_continue(session: BrowserSession, continue_url: str, state: str) -> str | None:
     """
-    密码/MFA 成功后的 continue URL 可能直接跳 callback，也可能只把会话推进到
-    Codex consent/workspace 页面。这里只负责跟随重定向并保留 Cookie：
-      - 命中 localhost callback：返回 callback URL
-      - 停在 200 HTML/无 Location：返回 None，后续继续 workspace/select
+    URL continue sau mật khẩu/MFA thành công có thể nhảy thẳng callback, hoặc chỉ đưa phiên tới
+    trang Codex consent/workspace. Ở đây chỉ theo redirect và giữ Cookie:
+      - Trúng localhost callback: trả về callback URL
+      - Dừng ở 200 HTML/không Location: trả về None, sau đó tiếp tục workspace/select
     """
     if not continue_url:
         return None
@@ -1127,12 +1127,12 @@ def _try_password_mfa_login(
     initial_result: dict | None,
 ) -> tuple[str, str | None, dict]:
     """
-    有注册密码时优先走密码登录；如进入 MFA challenge，则使用账号 totp_secret 生成 TOTP。
+    Khi có mật khẩu đăng ký thì ưu tiên đăng nhập bằng mật khẩu; nếu vào MFA challenge thì dùng totp_secret của tài khoản để tạo TOTP.
 
-    返回:
-      ("logged_in", callback_url_or_None, result)  已完成密码/MFA 登录
-      ("email_otp", None, result)                  服务端要求邮箱 OTP
-      ("not_applicable", None, result)            当前实际页面不是密码页
+    Trả về:
+      ("logged_in", callback_url_or_None, result)  đã hoàn tất đăng nhập mật khẩu/MFA
+      ("email_otp", None, result)                  server yêu cầu OTP email
+      ("not_applicable", None, result)            trang hiện tại thực tế không phải trang mật khẩu
     """
     password = _account_registration_password(email)
     if not password or not _is_password_step(initial_result):
@@ -1164,7 +1164,7 @@ def _try_password_mfa_login(
 
 
 # ============================================================
-# 步骤 2：提交邮箱 OTP
+# Bước 2: Gửi OTP email
 # ============================================================
 
 def _submit_email_otp(session: BrowserSession, code: str) -> dict:
@@ -1208,16 +1208,16 @@ def _submit_email_otp(session: BrowserSession, code: str) -> dict:
 
 
 # ============================================================
-# 步骤 3-4：手机号验证（接码，失败换号重试）
+# Bước 3-4: Xác minh số điện thoại (nhận mã, thất bại thì đổi số thử lại)
 # ============================================================
 
 def _sms_provider_name() -> str:
-    """当前接码通道名，仅用于 Codex 流程日志。"""
+    """Tên kênh nhận mã hiện tại, chỉ dùng cho nhật ký quy trình Codex."""
     return str(getattr(_cfg, "SMS_PROVIDER", "grizzly") or "grizzly").strip().lower()
 
 
 def _sleep_before_phone_retry(attempt: int, max_retries: int, *, prefix: str = "[Codex]") -> None:
-    """换号前随机等待，至少 3 秒，避免连续提交号码过快。"""
+    """Chờ ngẫu nhiên trước khi đổi số, ít nhất 3 giây, tránh gửi số liên tục quá nhanh."""
     if attempt >= max_retries:
         return
     seconds = random.uniform(3.0, 8.0)
@@ -1227,12 +1227,12 @@ def _sleep_before_phone_retry(attempt: int, max_retries: int, *, prefix: str = "
 
 def _do_phone_verification(session: BrowserSession) -> dict:
     """
-    用接码平台拿号 → add-phone/send 发短信 → 收码 → phone-otp/validate。
-    一个号收不到码或被 OpenAI 拒就取消换号，最多 SMS_MAX_RETRIES 次（热加载）。
+    Dùng nền tảng nhận mã lấy số → add-phone/send gửi SMS → nhận mã → phone-otp/validate.
+    Một số không nhận được mã hoặc bị OpenAI từ chối thì hủy đổi số, tối đa SMS_MAX_RETRIES lần (hot-reload).
 
-    实际平台适配在 core.sms_provider：
-        - SMS_PROVIDER="grizzly"：GrizzlySMS handler_api.php
-        - SMS_PROVIDER="l"：L_API.md 的 /take-phone 和 /fetch-code JSON 接口
+    Adapter nền tảng thực tế nằm ở core.sms_provider:
+        - SMS_PROVIDER="grizzly": GrizzlySMS handler_api.php
+        - SMS_PROVIDER="l": giao diện JSON /take-phone và /fetch-code theo L_API.md
     """
     http = sms_provider._http()
     max_retries = _cfg.SMS_MAX_RETRIES
@@ -1248,7 +1248,7 @@ def _do_phone_verification(session: BrowserSession) -> dict:
                     f"provider={provider}, activation_id={activation_id}, số=+{phone}"
                 )
 
-                # 发短信
+                # Gửi SMS
                 send_resp = _post_json(
                     session,
                     "https://auth.openai.com/api/accounts/add-phone/send",
@@ -1258,7 +1258,7 @@ def _do_phone_verification(session: BrowserSession) -> dict:
                 send_text = _response_text(send_resp)
                 send_reason = _phone_failure_reason(send_text, send_resp.status_code)
                 if send_resp.status_code not in (200, 204) or send_reason:
-                    # 号码无效 / 无法发送 / WhatsApp 通道 / 限流等 → 释放当前号并换号。
+                    # Số không hợp lệ / không gửi được / kênh WhatsApp / rate limit v.v. → giải phóng số hiện tại và đổi số.
                     logger.warning(
                         f"[Codex] add-phone/send chưa thành công reason={send_reason or 'unknown'}, "
                         f"status={send_resp.status_code}: {send_text[:240]}, đổi số thử lại"
@@ -1267,11 +1267,11 @@ def _do_phone_verification(session: BrowserSession) -> dict:
                     _sleep_before_phone_retry(attempt, max_retries)
                     continue
 
-                # 通知平台短信已发出（status=1）
+                # Thông báo nền tảng SMS đã gửi (status=1)
                 sms_provider.set_status(activation_id, 1, http=http)
 
-                # 定时轮询接码平台获取短信。wait_for_sms_code 内部按 SMS_POLL_INTERVAL 轮询，
-                # 最长等待 SMS_CODE_WAIT；超时立即取消当前号并换号。
+                # Định kỳ poll nền tảng nhận mã để lấy SMS. wait_for_sms_code bên trong poll theo SMS_POLL_INTERVAL,
+                # Chờ tối đa SMS_CODE_WAIT; hết thời gian thì hủy ngay số hiện tại và đổi số.
                 try:
                     logger.info(
                         f"[Codex] đã gửi SMS, bắt đầu polling mã OTP activation_id={activation_id}, "
@@ -1284,7 +1284,7 @@ def _do_phone_verification(session: BrowserSession) -> dict:
                     _sleep_before_phone_retry(attempt, max_retries)
                     continue
 
-                # 验手机码
+                # Xác minh mã điện thoại
                 val_resp = _post_json(
                     session,
                     "https://auth.openai.com/api/accounts/phone-otp/validate",
@@ -1302,13 +1302,13 @@ def _do_phone_verification(session: BrowserSession) -> dict:
                     _sleep_before_phone_retry(attempt, max_retries)
                     continue
 
-                # 成功
+                # Thành công
                 sms_provider.complete(activation_id, http)
                 logger.info("[Codex] qua xác minh số điện thoại")
                 return _resp_json(val_resp)
 
             except sms_provider.SmsNoBalanceError:
-                # 余额不足，重试无意义，直接抛
+                # Số dư không đủ, thử lại vô nghĩa, ném trực tiếp
                 raise
             except sms_provider.SmsProviderError as exc:
                 last_err = exc
@@ -1327,13 +1327,13 @@ def _do_phone_verification(session: BrowserSession) -> dict:
 
 
 # ============================================================
-# 步骤 5：选 workspace → 拿 callback code
+# Bước 5: chọn workspace → lấy callback code
 # ============================================================
 
 def _get_workspace_id(session: BrowserSession) -> str:
     """
-    优先从 oai-client-auth-session cookie 解出 workspace；cookie 尚未落地时，
-    退回 Auth 响应元数据，并在有界时间内等待 cookie/响应状态完成。
+    Ưu tiên giải workspace từ cookie oai-client-auth-session; khi cookie chưa ghi xuống,
+    lùi về metadata phản hồi Auth, và trong thời gian có giới hạn chờ cookie/trạng thái phản hồi hoàn tất.
     """
     def find_workspace_id(payload: dict) -> str:
         for workspace in payload.get("workspaces") or []:
@@ -1378,8 +1378,8 @@ def _get_workspace_id(session: BrowserSession) -> str:
 
 def _select_workspace_and_get_callback(session: BrowserSession, state: str) -> str:
     """
-    POST workspace/select，然后跟随后续重定向/响应里的 URL 直到命中 localhost:1455 callback。
-    返回完整 callback URL（含 code）。
+    POST workspace/select, sau đó theo dõi URL trong các lần chuyển hướng/phản hồi tiếp theo cho đến khi gặp callback localhost:1455.
+    Trả về URL callback đầy đủ (bao gồm code).
     """
     wid = _get_workspace_id(session)
     resp = _post_json(
@@ -1389,12 +1389,12 @@ def _select_workspace_and_get_callback(session: BrowserSession, state: str) -> s
         referer="https://auth.openai.com/sign-in-with-chatgpt/codex/consent",
     )
 
-    # 1) 直接带 Location 头命中 callback
+    # 1) Trực tiếp mang header Location trúng callback
     loc = resp.headers.get("location") or resp.headers.get("Location")
     if loc and _is_redirect_uri(loc):
         return loc
 
-    # 2) 响应 JSON 里给了下一步 URL（continue_url / redirect_url / url / next）
+    # 2) Trong JSON phản hồi có URL bước tiếp theo (continue_url / redirect_url / url / next)
     data = _resp_json(resp)
     next_url = None
     for key in ("redirect_url", "continue_url", "url", "next", "location"):
@@ -1403,7 +1403,7 @@ def _select_workspace_and_get_callback(session: BrowserSession, state: str) -> s
             next_url = v
             break
 
-    # 3) 没给 URL 但有 Location（非 callback）→ 从 Location 起跟
+    # 3) Không có URL nhưng có Location (không phải callback) → theo dõi từ Location
     if not next_url and loc:
         next_url = loc
 
@@ -1413,12 +1413,12 @@ def _select_workspace_and_get_callback(session: BrowserSession, state: str) -> s
             f"body={(resp.text or '')[:300]}"
         )
 
-    # 跟随重定向链直到命中 callback
+    # Theo chuỗi chuyển hướng đến khi gặp callback
     return _follow_until_callback(session, next_url, state)
 
 
 def _follow_until_callback(session: BrowserSession, url: str, state: str) -> str:
-    """从给定 URL 起逐跳跟随，命中 localhost:1455 callback 时返回其 Location。"""
+    """Bắt đầu từ URL cho trước, theo dõi từng bước nhảy; khi trúng callback localhost:1455 thì trả về Location của nó."""
     if url.startswith("/"):
         url = "https://auth.openai.com" + url
     for hop in range(_MAX_REDIRECTS):
@@ -1440,11 +1440,11 @@ def _follow_until_callback(session: BrowserSession, url: str, state: str) -> str
 
 
 # ============================================================
-# 换 token（对照 CLIProxyAPI ExchangeCodeForTokensWithRedirect）—— 未改动
+# Đổi token (đối chiếu CLIProxyAPI ExchangeCodeForTokensWithRedirect) —— chưa chỉnh sửa
 # ============================================================
 
 def exchange_codex_token(session: BrowserSession, code: str, code_verifier: str) -> dict:
-    """用 authorization code 换 token。"""
+    """Đổi authorization code lấy token."""
     data = {
         "grant_type": "authorization_code",
         "client_id": _cfg.CODEX_CLIENT_ID,
@@ -1478,11 +1478,11 @@ def exchange_codex_token(session: BrowserSession, code: str, code_verifier: str)
 
 
 # ============================================================
-# 解析 id_token / 落盘 —— 未改动
+# Phân tích id_token / ghi đĩa —— chưa chỉnh sửa
 # ============================================================
 
 def _parse_id_token(id_token: str) -> dict:
-    """base64 解码 JWT payload（不验签），抽 email / account_id / plan_type。"""
+    """Giải mã base64 JWT payload (không xác minh chữ ký), trích email / account_id / plan_type."""
     if not id_token:
         return {}
     try:
@@ -1496,8 +1496,8 @@ def _parse_id_token(id_token: str) -> dict:
 
     auth_claim = claims.get("https://api.openai.com/auth", {}) or {}
     profile_claim = claims.get("https://api.openai.com/profile", {}) or {}
-    # OpenAI 新版 id_token 的 email 在顶层 claim；旧版/CLIProxyAPI 实现里在 profile_claim。
-    # 顶层优先，否则回退 profile_claim，避免落盘的 codex-邮箱.json 里 email 字段为空。
+    # email của id_token OpenAI bản mới nằm ở claim cấp cao nhất; bản cũ/CLIProxyAPI nằm trong profile_claim.
+    # Ưu tiên tầng trên, không thì fallback profile_claim, tránh trường email trong file codex-email.json ghi đĩa bị trống.
     email_value = claims.get("email") or profile_claim.get("email", "")
     return {
         "email": email_value,
@@ -1507,7 +1507,7 @@ def _parse_id_token(id_token: str) -> dict:
 
 
 def build_codex_storage(token_resp: dict, id_claims: dict) -> dict:
-    """组装 CLIProxyAPI CodexTokenStorage JSON 结构。"""
+    """Lắp ráp cấu trúc JSON CLIProxyAPI CodexTokenStorage."""
     expires_in = token_resp.get("expires_in", 0) or 0
     expired_dt = datetime.now(timezone.utc) + _timedelta_seconds(expires_in)
     last_refresh_dt = datetime.now(timezone.utc)
@@ -1529,7 +1529,7 @@ def _timedelta_seconds(seconds: int):
 
 
 def _credential_file_name(email: str, plan_type: str) -> str:
-    """对照 CLIProxyAPI filename.go：无 plan→codex-{email}.json，否则带 plan 后缀。"""
+    """Đối chiếu CLIProxyAPI filename.go: không có plan→codex-{email}.json, ngược lại có hậu tố plan."""
     email = (email or "").strip()
     plan = (plan_type or "").strip().lower()
     if plan == "":
@@ -1538,14 +1538,14 @@ def _credential_file_name(email: str, plan_type: str) -> str:
 
 
 def save_codex_credential(storage: dict, email: str, plan_type: str) -> str:
-    """保存 Codex 凭证到 SQLite，不创建本地文件。"""
+    """Lưu thông tin xác thực Codex vào SQLite, không tạo tệp cục bộ."""
     fname = _credential_file_name(email, plan_type)
     db.upsert_codex_credential(storage, fname)
     return f"sqlite://codex_accounts/{fname}"
 
 
 def _save_codex_credential(email: str, storage: dict) -> str:
-    """BrowserUse 兼容入口：同样只保存到 SQLite。"""
+    """Điểm vào tương thích BrowserUse: cũng chỉ lưu vào SQLite."""
     plan = ""
     if isinstance(storage, dict):
         plan = storage.get("plan_type") or storage.get("chatgpt_plan_type") or ""
@@ -1554,8 +1554,8 @@ def _save_codex_credential(email: str, storage: dict) -> str:
 
 def _extract_cpa_auth_json(payload: dict) -> dict | None:
     """
-    尝试从 CPA oauth-callback 响应里提取完整授权文件。
-    不同 CPA 版本字段名可能不同；只要看起来是 codex auth json 就落本地。
+    Thử trích xuất tệp ủy quyền đầy đủ từ phản hồi CPA oauth-callback.
+    Tên trường có thể khác giữa các phiên bản CPA; chỉ cần trông giống codex auth json thì lưu local.
     """
     if not isinstance(payload, dict):
         return None
@@ -1597,9 +1597,9 @@ def _save_cpa_local_record(
     submit_payload: dict,
 ) -> str | None:
     """
-    在 SQLite 记录 CPA 授权结果：
-      1) 如果 CPA 返回完整 auth json，保存为可用 codex-邮箱[-plan].json；
-      2) 否则按配置保存 callback 提交回执，便于追踪 CPA 侧授权结果。
+    Ghi kết quả ủy quyền CPA vào SQLite:
+      1) Nếu CPA trả về auth json đầy đủ, lưu thành codex-email[-plan].json khả dụng;
+      2) Nếu không, theo cấu hình lưu biên nhận gửi callback, để theo dõi kết quả ủy quyền phía CPA.
     """
     auth_json = _extract_cpa_auth_json(submit_payload)
     if auth_json:
@@ -1635,7 +1635,7 @@ def _save_sub2_local_record(
     state: str,
     submit_payload: dict,
 ) -> str | None:
-    """在 SQLite 记录 sub2 授权结果；若返回完整 auth json，则保存为 Codex 凭证。"""
+    """Ghi kết quả ủy quyền sub2 vào SQLite; nếu trả về auth json đầy đủ thì lưu làm thông tin xác thực Codex."""
     auth_json = _extract_cpa_auth_json(submit_payload)
     if auth_json:
         effective_email = auth_json.get("email") or email
@@ -1667,7 +1667,7 @@ def _save_sub2_local_record(
 
 
 # ============================================================
-# 入口
+# Lối vào
 # ============================================================
 
 def run_codex_oauth(
@@ -1697,8 +1697,8 @@ def run_codex_oauth(
     if not email:
         return _codex_result(status="skipped", message="email trống")
 
-    # Codex OAuth 支持多种驱动：
-    # protocol：原纯协议；roxy/cloak/browser_use：用真实浏览器跑页面并捕获 localhost callback。
+    # Codex OAuth hỗ trợ nhiều driver:
+    # protocol: giao thức thuần gốc; roxy/cloak/browser_use: dùng trình duyệt thật chạy trang và bắt localhost callback.
     try:
         from config import codex as _codex_cfg
         from config import roxybrowser as _roxy_cfg
@@ -1739,13 +1739,13 @@ def run_codex_oauth(
         if oauth_driver not in ("protocol", "api", "http"):
             raise RuntimeError(f"[Codex] Không hỗ trợ CODEX_OAUTH_DRIVER={oauth_driver!r}, tuỳ chọn protocol / roxy / cloak / browser_use / skyvern")
     except ImportError:
-        # 没装 selenium / 未提供 roxy 配置时继续走协议模式，保持旧行为。
+        # Khi chưa cài selenium / chưa cung cấp cấu hình roxy thì tiếp tục dùng chế độ protocol, giữ hành vi cũ.
         pass
 
     if otp_provider is None:
         from core.email_provider import wait_for_otp as otp_provider
 
-    # 单次 Codex 授权全程统一身份；下一任务即使是同一账号也生成全新的隔离身份。
+    # Toàn bộ một lần ủy quyền Codex dùng thống nhất một danh tính; tác vụ tiếp theo dù cùng tài khoản cũng tạo danh tính cô lập hoàn toàn mới.
     task_seed = f"codex-oauth:{email.lower()}:{uuid.uuid4()}"
     session = BrowserSession(proxy=proxy, fingerprint_seed=task_seed)
     try:
@@ -1758,8 +1758,8 @@ def run_codex_oauth(
             session.fingerprint_summary_text(),
         )
 
-        # 1. 授权地址
-        #    默认由 CPA 生成（本地不生成 PKCE/state）；local 模式保留旧代码用于兼容。
+        # 1. Địa chỉ ủy quyền
+        #    Mặc định do CPA tạo (local không tạo PKCE/state); chế độ local giữ code cũ để tương thích.
         auth_source = _codex_auth_url_source()
         cpa_auth = None
         code_verifier = None
@@ -1782,16 +1782,16 @@ def run_codex_oauth(
         else:
             raise RuntimeError(f"[Codex] Không hỗ trợ CODEX_AUTH_URL_SOURCE={auth_source!r}")
 
-        # 2. 网络预检 + 建立会话。预检不携带邮箱，不触发 OTP；
-        #    真正烧邮箱的 authorize/continue 只在预检成功后执行。
+        # 2. Kiểm tra trước mạng + thiết lập phiên. Kiểm tra trước không mang email, không kích hoạt OTP;
+        #    Việc authorize/continue thực sự đốt email chỉ chạy sau khi precheck thành công.
         _codex_auth_preflight(session)
         human_delay("navigate")
 
         _bootstrap_authorize(session, state, code_challenge, auth_url=auth_url)
         human_delay("navigate")
 
-        # 3. 提交邮箱。后续不根据“账号有没有密码”猜流程，而是以 Auth 实际返回的
-        #    page/type/continue_url 为准；账号密码只是密码页出现时的可用凭证。
+        # 3. Gửi email. Tiếp theo không đoán luồng theo “tài khoản có mật khẩu hay không”, mà dựa vào những gì Auth thực sự trả về
+        #    lấy page/type/continue_url làm chuẩn; tài khoản mật khẩu chỉ là thông tin xác thực khả dụng khi trang mật khẩu xuất hiện.
         otp_after_ts = time.time()
         auth_result = _submit_email(session, email)
         human_delay("form")
@@ -1800,7 +1800,7 @@ def run_codex_oauth(
         )
         password_login_done = login_status == "logged_in"
 
-        # 4. 只有 Auth 明确把流程推进到邮箱验证页时，才轮询邮箱 OTP。
+        # 4. Chỉ khi Auth rõ ràng đưa quy trình đến trang xác minh email thì mới poll OTP email.
         if not password_login_done and (
             login_status == "email_otp" or _is_email_otp_step(auth_result)
         ):
@@ -1838,7 +1838,7 @@ def run_codex_oauth(
                 auth_result = _submit_email_otp(session, email_otp)
                 human_delay("api")
 
-        # 邮箱验证后仍可能由 Auth 要求 MFA；只有返回 MFA 状态时才提交 TOTP。
+        # Sau xác minh email vẫn có thể bị Auth yêu cầu MFA; chỉ submit TOTP khi trả về trạng thái MFA.
         if not password_login_done and _is_mfa_step(
             auth_result, _extract_continue_url(auth_result)
         ):
@@ -1848,7 +1848,7 @@ def run_codex_oauth(
                 session, continue_url, state
             ) if continue_url else early_callback_url
 
-        # 5. 是否需要手机号也完全由 Auth 返回决定，不再因为走过 OTP/密码而固定执行。
+        # 5. Việc có cần số điện thoại cũng hoàn toàn do Auth trả về quyết định, không còn thực thi cố định vì đã qua OTP/mật khẩu.
         if _is_phone_step(auth_result):
             logger.info("[Codex] Auth yêu cầu rõ xác minh số điện thoại, bắt đầu nhận mã: %s", email)
             phone_result = _do_phone_verification(session)
@@ -1867,13 +1867,13 @@ def run_codex_oauth(
                 _extract_continue_url(auth_result) or "-",
             )
 
-        # 6. 选 workspace → 拿 callback code；若登录 continue 已经直接命中 callback，则复用。
+        # 6. Chọn workspace → lấy callback code; nếu login continue đã trúng callback trực tiếp thì tái sử dụng.
         callback_url = early_callback_url or _select_workspace_and_get_callback(session, state)
         code = _extract_code(callback_url, state)
         logger.info(f"[Codex] Đã lấy được authorization code: {code[:24]}...")
 
-        # 7A. CPA 模式：把 callback URL 交给 CPA，由 CPA 持有 verifier 并完成换 token / 写 auth。
-        #     本地不再用 code 换 token；仅保存 CPA 返回的授权文件或回调回执。
+        # 7A. Chế độ CPA: giao callback URL cho CPA, CPA giữ verifier và hoàn tất đổi token / ghi auth.
+        #     Cục bộ không còn dùng code đổi token; chỉ lưu tệp ủy quyền hoặc biên nhận callback mà CPA trả về.
         if auth_source == "cpa":
             submit_payload = _submit_cpa_callback(callback_url)
             path = _save_cpa_local_record(
@@ -1894,7 +1894,7 @@ def run_codex_oauth(
                 message=str(msg),
             )
 
-        # 7A-sub2. sub2 模式：把 callback URL 上传给 sub2。
+        # 7A-sub2. Chế độ sub2: tải URL callback lên sub2.
         if auth_source == "sub2":
             submit_payload = _submit_sub2_callback(
                 callback_url,
@@ -1919,12 +1919,12 @@ def run_codex_oauth(
                 message=str(msg),
             )
 
-        # 7B. local 模式：保留旧实现，用本地 verifier 换 token 并保存 CPA 兼容授权文件。
+        # 7B. chế độ local: giữ triển khai cũ, dùng verifier cục bộ đổi token và lưu file ủy quyền tương thích CPA.
         if not code_verifier:
             raise RuntimeError("[Codex] local Thiếu chế độ code_verifier")
         token_resp = exchange_codex_token(session, code, code_verifier)
 
-        # 8. 解析 id_token + 落盘
+        # 8. Phân tích id_token + ghi đĩa
         id_claims = _parse_id_token(token_resp.get("id_token", ""))
         effective_email = id_claims.get("email") or email
         storage = build_codex_storage(token_resp, id_claims)

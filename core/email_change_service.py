@@ -62,8 +62,8 @@ def _cost(started: float) -> str:
 
 
 def _new_session(account_id: int, proxy, *, email: str = "") -> BrowserSession:
-    # 与 2FA/查活统一使用账号级种子。同一账号做敏感操作时保持 device_id、
-    # Sentinel sid、浏览器画像稳定，而不是为“换绑”另造一套新设备指纹。
+    # Thống nhất dùng seed cấp tài khoản với 2FA/kiểm tra sống. Khi cùng tài khoản thực hiện thao tác nhạy cảm giữ device_id,
+    # Sentinel sid、hình ảnh trình duyệt ổn định, thay vì tạo bộ fingerprint thiết bị mới cho “đổi liên kết”.
     seed = f"account:{email.lower()}" if email else f"email-change:{account_id}"
     return BrowserSession(proxy=proxy, fingerprint_seed=seed)
 
@@ -129,7 +129,7 @@ def _post_with_network_retry(
                 f"HTTP request thất bại: path={path} attempt={attempt}/3 cost={_cost(attempt_started)} "
                 f"error={type(exc).__name__}: {text[:300]}",
             )
-            # 明确的业务 4xx 不重复提交；网络错误、429 和 5xx 才重试。
+            # 4xx nghiệp vụ rõ ràng không gửi lại; chỉ lỗi mạng, 429 và 5xx mới thử lại.
             if isinstance(exc, RuntimeError) and "trả về 4" in text and "trả về 429" not in text:
                 raise
             if attempt >= 3:
@@ -143,7 +143,7 @@ def _post_with_network_retry(
             )
             logger.warning("[đổi email] %s attempt=%s failed: %s", path, attempt, text[:300])
             time.sleep(delay)
-            # 第二次从代理池重新选择出口；第三次明确直连，避免坏代理持续 reset。
+            # Lần hai chọn lại cổng ra từ pool proxy; lần ba rõ ràng kết nối trực tiếp, tránh proxy hỏng liên tục reset.
             current = _new_session(
                 account_id, None if attempt == 1 else "", email=fingerprint_email,
             )
@@ -179,7 +179,7 @@ def _refresh_recent_login(
     email_source: str,
 ) -> tuple[BrowserSession, str]:
     "theo kiểm tra sống đầy đủ đăng nhập chuỗi lại đăng nhập, thiết lập máy chủ nhận có thể  Recent Login. \n\n  change_email  reauth chuỗi sẽ không mục mục tới email gốc gửi OTP, tức để tài khoản đã qua lưu \n  đăng ký mật khẩu. này trong đổi là tái dùng kiểm tra sống dự phòng đăng nhập chuỗi: ưu tiên mật khẩu(và TOTP), chỉ ở\n  trang đăng nhập thật sự yêu cầu email xác minh khi mới đọc email gốc OTP. \n  "
-    # 延迟导入，避免 account_liveness 初始化时形成模块循环。
+    # Import trì hoãn, tránh vòng lặp module khi khởi tạo account_liveness.
     from core.account_liveness import (
         _login_via_password_or_otp,
         _network_preflight_with_retry,
@@ -195,8 +195,8 @@ def _refresh_recent_login(
         "Recent Login bắt đầu: tái dùng logic đăng nhập lại của kiểm tra sống(CSRF → signin → authorize → mật khẩu/OTP/MFA → OAuth callback → session/AT)",
     )
 
-    # 保留本次换绑已经生成的账号级设备身份和浏览器画像，同时让查活预检
-    # 创建干净的登录 Cookie Jar，并获得其网络重试能力。
+    # Giữ danh tính thiết bị cấp tài khoản và hồ sơ trình duyệt đã tạo trong lần đổi liên kết này, đồng thời để kiểm tra trước trạng thái hoạt động
+    # Tạo Cookie Jar đăng nhập sạch và có được khả năng thử lại mạng của nó.
     fingerprint_state = {
         "fingerprint_seed": f"account:{email.lower()}",
     }
@@ -212,10 +212,10 @@ def _refresh_recent_login(
 
     login_started = time.monotonic()
     selected_proxy = getattr(session, "proxy", None)
-    # 与后台查活一致：代理路线的完整认证链只要收到 403，就用一套完全
-    # 独立的直连会话重跑。OAuth callback 的 403 会让当前 BrowserSession
-    # 进入 15 分钟熔断；仅清除熔断后继续请求既不能修复出口，也容易复用
-    # 已污染的 CF Cookie，因此必须从 CSRF 开始重新登录。
+    # Nhất quán với kiểm tra sống backend: chuỗi xác thực đầy đủ của tuyến proxy chỉ cần nhận 403, dùng một bộ hoàn toàn
+    # Chạy lại phiên kết nối trực tiếp độc lập. 403 của OAuth callback sẽ khiến BrowserSession hiện tại
+    # Vào cầu chì 15 phút; chỉ xóa cầu chì rồi tiếp tục request vừa không sửa được cổng ra, vừa dễ tái dùng
+    # CF Cookie đã bị nhiễm, vì vậy phải đăng nhập lại từ CSRF.
     routes = [(selected_proxy, fingerprint_state, "tuyến proxy hiện tại")]
     if selected_proxy:
         routes.append(("", {}, "dự phòng kết nối trực tiếp độc lập"))
@@ -307,7 +307,7 @@ def _begin_change_with_optional_reauth(
         email=current_email,
         email_source=current_source,
     )
-    # 新邮箱 OTP 的时间基准必须放在第二次 begin 之前，不能沿用重认证前时间。
+    # Mốc thời gian OTP email mới phải đặt trước lần begin thứ hai, không được dùng lại thời gian trước tái xác thực.
     otp_after_ts = time.time()
     _, session = _post_with_network_retry(
         session,
@@ -401,7 +401,7 @@ def _run(account_id: int, source: str) -> dict:
 
         stage = "tạo phiên mạng"
         saved_proxy = _proxy(account.get("proxy_used"))
-        # 账号没有可复用的真实代理 URL 时，先按全局代理池选路，而不是直接裸连。
+        # Khi tài khoản không có URL proxy thật có thể tái sử dụng, chọn đường theo pool proxy toàn cục trước, thay vì kết nối trần trực tiếp.
         current_email = str(account.get("email") or "").strip()
         current_source = str(account.get("email_source") or "").strip().lower()
         session = _new_session(account_id, saved_proxy or None, email=current_email)
@@ -447,9 +447,9 @@ def _run(account_id: int, source: str) -> dict:
             material_line=email_material_line(new_email, source),
         )
         _append_log(account_id, f"cập nhật tài khoản cục bộ thành công: current_email={new_email}, cũ AT đã xoá trống, cost={_cost(db_started)}")
-        # 抓包显示 verify 后旧 AT 会立刻 401，但当前会话中的 __cf_bm、OAuth
-        # Cookie 和出口连续性仍然有效。优先在该会话内重新登录，避免另建会话后
-        # `/api/auth/csrf` 被 CF 403；原会话失败时再退回后台查活队列。
+        # Bắt gói cho thấy sau verify AT cũ sẽ ngay lập tức 401, nhưng __cf_bm, OAuth trong phiên hiện tại
+        # Cookie và tính liên tục đầu ra vẫn còn hiệu lực. Ưu tiên đăng nhập lại trong phiên đó, tránh sau khi tạo phiên khác
+        # `/api/auth/csrf` bị CF 403; khi phiên gốc thất bại thì quay lại hàng đợi kiểm tra sống ở backend.
         stage = "tự kiểm tra sống sau đổi email"
         try:
             live_result = _check_live_in_current_session(

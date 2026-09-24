@@ -14,7 +14,7 @@ from urllib.request import Request, urlopen
 
 try:
     from curl_cffi import requests as curl_requests
-except Exception:  # WebUI 环境未装 curl_cffi 时使用标准库兜底
+except Exception:  # Môi trường WebUI chưa cài curl_cffi thì fallback stdlib
     curl_requests = None
 
 from config import extract_link as cfg

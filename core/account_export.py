@@ -25,7 +25,7 @@ def _clear_twofa_session_circuit(
     if callable(reset):
         reset()
     elif getattr(session, "blocked_until", 0.0):
-        # 兼容测试桩或旧版 BrowserSession。
+        # Tương thích stub kiểm thử hoặc BrowserSession phiên bản cũ.
         session.blocked_until = 0.0
         session.blocked_reason = ""
     if blocked_reason:
@@ -80,7 +80,7 @@ def _trigger_reauth_with_retry(session: BrowserSession, email: str) -> str:
                 )
                 raise
 
-            # 403/429 已开启 BrowserSession 熔断；不清理会导致下一轮在本地直接失败。
+            # 403/429 đã bật cầu chì BrowserSession; không dọn sẽ khiến vòng sau thất bại ngay tại local.
             _clear_twofa_session_circuit(session, source="request xác thực lại")
             delay = min(120.0, base_delay * (2 ** (attempt - 1)))
             logger.warning(
@@ -105,9 +105,9 @@ def _follow_reauth_with_retry(session: BrowserSession, auth_url: str) -> str:
         getattr(_twofa_cfg, "TWOFA_REAUTH_RETRY_DELAY", 3.0) or 0.0
     )))
 
-    # 新建协议会话此前会从 ChatGPT 直接命中复杂 authorize URL，auth 域没有
-    # document/locale/CF Cookie 上下文。先用简单页面做 best-effort 预热；预热
-    # 和正式 authorize 仍严格复用同一个 BrowserSession/deviceId/Cookie Jar。
+    # Phiên giao thức mới trước đây sẽ hit trực tiếp URL authorize phức tạp từ ChatGPT, domain auth không có
+    # Ngữ cảnh document/locale/CF Cookie. Trước tiên dùng trang đơn giản để warmup best-effort; warmup
+    # Và authorize chính thức vẫn nghiêm ngặt tái sử dụng cùng một BrowserSession/deviceId/Cookie Jar.
     _warm_auth_document_for_reauth(session)
 
     for attempt in range(1, max_attempts + 1):
@@ -125,8 +125,8 @@ def _follow_reauth_with_retry(session: BrowserSession, auth_url: str) -> str:
                 )
                 raise
 
-            # 403 响应通常会刷新 __cf_bm。清理本地熔断但保留 Cookie Jar，
-            # 下一轮继续使用同一 OAuth state 和新 Cookie 导航。
+            # Phản hồi 403 thường sẽ làm mới __cf_bm. Dọn cầu chì cục bộ nhưng giữ Cookie Jar,
+            # Vòng tiếp theo tiếp tục dùng cùng OAuth state và Cookie mới để điều hướng.
             _clear_twofa_session_circuit(session, source="authorize điều hướng")
             delay = min(120.0, base_delay * (2 ** (attempt - 1)))
             logger.warning(
@@ -276,7 +276,7 @@ def _append_batch_archive(
 ) -> None:
     "tương thích cũ gọi bên; đăng ký tài khoản đã qua bởi db.insert_account lưu đến SQLite. "
     from core import db
-    # 参数保留是为了兼容注册驱动；不再读取 batch_dir 或写入任何归档文件。
+    # Tham số được giữ lại để tương thích driver đăng ký; không còn đọc batch_dir hoặc ghi bất kỳ file lưu trữ nào.
     _ = (db, row_id, email, access_token, totp_secret, email_source, proxy_used, extra, batch_dir)
     return None
 
@@ -286,9 +286,9 @@ def follow_oauth_callback(session: BrowserSession, continue_url: str, referer: s
     if not continue_url:
         raise ValueError("continue_url trống, không cách hoàn tất OAuth callback")
 
-    # continue_url 通常是 auth.openai.com/authorize/continue；
-    # OTP 后 external_url 分支也可能直接给 chatgpt.com 回调地址。
-    # 按目标域名选择导航头，避免 auth step 正确但请求头语义不一致。
+    # continue_url thường là auth.openai.com/authorize/continue;
+    # Sau OTP, nhánh external_url cũng có thể trực tiếp cho địa chỉ callback chatgpt.com.
+    # Chọn header điều hướng theo tên miền đích, tránh auth step đúng nhưng ngữ nghĩa header yêu cầu không nhất quán.
     if str(continue_url).startswith("https://chatgpt.com"):
         headers = session.get_chatgpt_navigate_headers(referer=referer)
     else:
@@ -296,8 +296,8 @@ def follow_oauth_callback(session: BrowserSession, continue_url: str, referer: s
 
     logger.info(f"[OAuth callback] theo continue_url hoàn tất OAuth callback...")
     resp = session.get(continue_url, headers=headers, allow_redirects=True)
-    # 必须在本阶段暴露 callback 的 403/429；否则 BrowserSession 虽已熔断，
-    # 错误却会延迟到 fetch_session，查活无法针对 callback 原请求重试。
+    # Phải để lộ 403/429 của callback ở giai đoạn này; nếu không BrowserSession dù đã circuit break,
+    # Lỗi lại bị trì hoãn đến fetch_session, kiểm tra sống không thể thử lại theo yêu cầu callback gốc.
     resp.raise_for_status()
     observe = getattr(session, "observe_chatgpt_document", None)
     if callable(observe):
@@ -334,14 +334,14 @@ def fetch_session(session: BrowserSession) -> dict:
 
 def _trigger_reauth(session: BrowserSession, email: str) -> str:
     "\n  bước bước 2-3: khởi tạo mật khẩu xác thực lại, trả về OpenAI authorize URL. \n  chuyển hướng tới chuỗi sẽ tự động kích hoạt email gửi một bản mới  OTP(dùng để 2FA xác thực lại). \n  "
-    # 重新拿一次 csrf（旧的可能已过期）
+    # Lấy lại csrf một lần (cái cũ có thể đã hết hạn)
     csrf_url = "https://chatgpt.com/api/auth/csrf"
     csrf_resp = session.get(csrf_url, headers=session.get_nextauth_headers(referer="https://chatgpt.com/"))
     csrf_resp.raise_for_status()
     csrf_token = csrf_resp.json()["csrfToken"]
     logger.info(f"[2FA] xác thực lại CSRF: {csrf_token[:20]}...")
 
-    # POST /api/auth/signin/openai 带 reauth 参数
+    # POST /api/auth/signin/openai kèm tham số reauth
     query = {
         "connection": "password",
         "login_hint": email,
@@ -402,7 +402,7 @@ def _exchange_new_token(session: BrowserSession, continue_url: str) -> str:
     logger.info("[2FA] theo continue_url, làm mới session-token cookie...")
     session.get(continue_url, headers=headers, allow_redirects=True)
 
-    # 拿新的 accessToken
+    # Lấy accessToken mới
     new_session = fetch_session(session)
     new_token = new_session["accessToken"]
     logger.info(f"[2FA] mới accessToken(có mới pwd_auth_time): {new_token[:40]}...")
@@ -471,7 +471,7 @@ def setup_2fa(
     access_token: str | None = None,
 ) -> str:
     "\n  đầy đủ  2FA thiết lập quy trình. \n  sẽ kích hoạt lại gửi một bản email mã OTP: \n  - USE_EMAIL_SERVICE=True khi tự động từ Outlook tài khoản kho kéo\n  - nếu không cần người dùng thủ công nhập\n\n  Args:\n  session: đã hoàn tất đăng ký phiên\n  email: tài khoản email(dùng làm login_hint)\n  otp_code: email mã OTP(None thì theo trên chiến lược đã nêu lấy)\n\n  Returns:\n  TOTP secret(Base32 chuỗi), có thể trực tiếp dùng để pyotp.TOTP() tạo 6 chữ số động mã\n  "
-    # 用模块属性读，支持 WebUI 热加载
+    # Đọc bằng thuộc tính module, hỗ trợ hot-load WebUI
     from config import email as _email_cfg
     from core.chatgpt_bootstrap import authenticated_bootstrap
 
@@ -488,11 +488,11 @@ def setup_2fa(
         except Exception as exc:
             logger.warning("[2FA] accessToken làm nóng thất bại, tiếp tục theo quy trình xác thực lại: %s: %s", type(exc).__name__, str(exc)[:180])
         finally:
-            # authenticated_bootstrap(strict=False) 是可选预热。其非关键接口返回
-            # 403 时会开启会话级熔断，若不清理，下一步 CSRF 请求甚至不会发出。
+            # authenticated_bootstrap(strict=False) là preheat tuỳ chọn. API không critical trả
+            # Khi 403 sẽ bật cầu chì cấp phiên, nếu không dọn, request CSRF bước tiếp theo thậm chí sẽ không được gửi.
             _clear_twofa_session_circuit(session, source="làm nóng tuỳ chọn")
 
-    # 阶段一：重认证
+    # Giai đoạn một: xác thực lại
     logger.info("[2FA] giai đoạn 1: khởi tạo xác thực lại")
     reauth_otp_after_ts = time.time()
     auth_url = _trigger_reauth_with_retry(session, email)
@@ -500,10 +500,10 @@ def setup_2fa(
     human_delay("api")
     _follow_reauth_with_retry(session, auth_url)
     logger.info("[2FA] đã theo xác thực lại authorize URL")
-    # 浏览器登录页在落到 email-verification 后还会显式 GET
-    # /api/accounts/email-otp/send；仅跟随 authorize URL 有时只打开页面而不真正
-    # 投递邮件，尤其是复用 accessToken 的 reauth 场景。与查活/网页登录保持一致，
-    # 显式触发一次发送。
+    # Trang đăng nhập trình duyệt sau khi vào email-verification còn GET tường minh
+    # /api/accounts/email-otp/send; chỉ theo authorize URL đôi khi chỉ mở trang mà không thực sự
+    # Gửi email, đặc biệt trong kịch bản reauth tái sử dụng accessToken. Giữ nhất quán với kiểm tra sống/đăng nhập web,
+    # Kích hoạt gửi một lần một cách tường minh.
     from core.openai_auth import send_email_otp
     send_email_otp(session)
     logger.info("[2FA] đã kích hoạt xác thực lại email một cách tường minh OTP gửi")
@@ -516,9 +516,9 @@ def setup_2fa(
             try:
                 otp_code = wait_for_otp(email, after_ts=reauth_otp_after_ts)
             except Exception as first_wait_exc:
-                # 重认证页本身没有可靠的 resend API；重新发起一次 authorize
-                # 流程会让 auth.openai.com 再发送一封新的 OTP。只自动重发一次，
-                # 避免邮箱服务异常时无限重复触发验证码。
+                # Trang xác thực lại bản thân không có resend API đáng tin cậy; khởi tạo lại một lần authorize
+                # Luồng sẽ khiến auth.openai.com gửi thêm một OTP mới. Chỉ tự động gửi lại một lần,
+                # Tránh kích hoạt mã xác minh lặp vô hạn khi dịch vụ email bất thường.
                 logger.warning(
                     "[2FA] lần chờ xác thực lại đầu tiên OTP timeout, thử gửi lại mã OTP: %s: %s",
                     type(first_wait_exc).__name__, str(first_wait_exc)[:180],
@@ -529,9 +529,9 @@ def setup_2fa(
                 _follow_reauth_with_retry(session, resend_auth_url)
                 send_email_otp(session)
                 logger.info("[2FA] đã kích hoạt lại xác thực lại OTP, bắt đầu vòng chờ thứ hai")
-                # Remail 的 receivedAt 可能比本地发送时间早几十秒（网关缓存/时钟
-                # 偏差），重发后的第二轮放宽时间下界，避免已到邮箱却被 after_ts
-                # 过滤掉；若拿到旧码，后面的 401 重试逻辑仍会校验。
+                # receivedAt của Remail có thể sớm hơn thời gian gửi cục bộ vài chục giây (bộ nhớ đệm gateway/đồng hồ
+                # lệch), vòng hai sau khi gửi lại nới lỏng cận dưới thời gian, tránh đã tới email nhưng bị after_ts
+                # Lọc bỏ; nếu lấy được mã cũ, logic thử lại 401 phía sau vẫn sẽ kiểm tra.
                 broad_after_ts = max(0.0, reauth_otp_after_ts - 120.0)
                 logger.info("[2FA] vòng lấy mã thứ hai bật dung sai lệch thời gian: after_ts=%.0f", broad_after_ts)
                 otp_code = wait_for_otp(email, after_ts=broad_after_ts)
@@ -547,8 +547,8 @@ def setup_2fa(
     try:
         continue_url = _validate_reauth_otp(session, otp_code)
     except Exception as first_exc:
-        # 部分取码接口会短暂返回缓存中的上一封邮件。若服务端拒绝验证码，
-        # 重新轮询一次并提交最新候选，避免第一次旧码直接终止整个 2FA 流程。
+        # Một số API lấy mã sẽ tạm thời trả về email trước trong bộ đệm. Nếu máy chủ từ chối mã xác minh,
+        # Poll lại một lần và gửi ứng viên mới nhất, tránh mã cũ lần đầu kết thúc toàn bộ quy trình 2FA.
         status_code = getattr(getattr(first_exc, "response", None), "status_code", None)
         if status_code != 401 or not bool(getattr(_email_cfg, "USE_EMAIL_SERVICE", False)):
             raise
@@ -573,7 +573,7 @@ def setup_2fa(
     logger.info("[2FA] đã lấy được mới token")
     human_delay("api")
 
-    # 阶段二：enroll + activate
+    # Giai đoạn hai: enroll + activate
     logger.info("[2FA] giai đoạn 2: bắt đầu enroll TOTP")
     secret, session_id = _enroll_totp(session, new_token)
     logger.info("[2FA] enroll thành công, session_id=%s", session_id)
@@ -593,7 +593,7 @@ def save_account_data(
     access_token: str,
     totp_secret: str | None = None,
     extra: dict | None = None,
-    output_path: Path | None = None,  # 兼容老接口，已废弃
+    output_path: Path | None = None,  # Tương thích API cũ, đã deprecated
     email_source: str | None = None,
     proxy_used: str | None = None,
     batch_dir: Path | None = None,
@@ -602,9 +602,9 @@ def save_account_data(
     "\n  sẽ tài khoản thông tin lưu đến SQLite; output_path chỉ là tương thích cũ gọi bên giữ. \n  trả về mới chèn/cập nhật  row id. \n  "
     from core.db import insert_account
     extra = dict(extra or {})
-    # Remail 的 service token 只存在进程内上下文中。注册成功后把订单上下文
-    # 一并保存到账号 extra_json，服务重启时查活即可恢复，不再依赖“同一进程
-    # 中先领取邮箱”。普通账号列表不会返回 extra_json。
+    # service token của Remail chỉ tồn tại trong ngữ cảnh trong tiến trình. Sau đăng ký thành công đưa ngữ cảnh đơn hàng
+    # Lưu kèm vào extra_json của tài khoản, khi dịch vụ khởi động lại chỉ cần kiểm tra sống là khôi phục được, không còn phụ thuộc “cùng một tiến trình
+    # trong đó nhận email trước". Danh sách tài khoản thường sẽ không trả về extra_json.
     if str(email_source or "").strip().lower() == "remail":
         try:
             from core.remail_client import get_account_context_metadata
@@ -616,8 +616,8 @@ def save_account_data(
                 merged_service.update(remail_metadata)
                 extra["email_service"] = merged_service
         except Exception as exc:
-            # 订单上下文保存失败不应让已经完成的注册失败；后续查活仍会
-            # 尝试用 API Key 按邮箱搜索 Remail 订单恢复凭证。
+            # Lưu ngữ cảnh đơn hàng thất bại không nên làm đăng ký đã hoàn thành thất bại; tra cứu sống phía sau vẫn sẽ
+            # Thử dùng API Key tìm đơn hàng Remail theo email để khôi phục chứng chỉ.
             logger.warning(
                 "[Save] lưu Remail ngữ cảnh đơn hàng thất bại, sau đó sẽ thử khôi phục theo email: %s: %s",
                 type(exc).__name__,
@@ -625,7 +625,7 @@ def save_account_data(
             )
     user = extra.get("user") or {}
     account = extra.get("account") or {}
-    # 从 extra.codex 抽出顶层 codex 状态/错误，方便 WebUI 直接读账号字段
+    # Trích xuất trạng thái/lỗi codex cấp cao từ extra.codex, để WebUI đọc trực tiếp các trường tài khoản
     codex = extra.get("codex") or {}
     codex_status = codex.get("status")  # success / failed / skipped
     codex_error = None
@@ -698,8 +698,8 @@ def save_account_data(
     if not auto_plan_check:
         logger.info(f"[Plan] đã bỏ qua tự tra gói sau đăng ký: id={row_id}, email={email}")
         return row_id
-    # session 中的 account.planType 不能说明 Plus 试用资格。账号落库后只负责
-    # 入队，由专用线程池异步查询并回写，避免占用注册工作线程。
+    # account.planType trong session không chứng minh được tư cách dùng thử Plus. Sau khi account vào DB chỉ phụ trách
+    # Vào hàng đợi, do pool luồng chuyên dụng truy vấn bất đồng bộ và ghi lại, tránh chiếm luồng làm việc đăng ký.
     try:
         from core.plan_check_service import enqueue_account_plan_check
 

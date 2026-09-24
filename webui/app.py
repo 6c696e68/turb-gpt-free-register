@@ -1,14 +1,14 @@
 # -*- coding: utf-8 -*-
 """
-Flask 本地控制台。
+Bảng điều khiển Flask cục bộ.
 
-复用现有后端：
-    core.db                     —— 账号 / 邮箱池 / 任务的 SQLite 持久化与查询
-    core.registration_service   —— 线程池批量注册 + 任务日志
-    webui.config_editor         —— 安全读写 config/*.py
+Tái sử dụng backend hiện có:
+    core.db                     —— persistence SQLite và truy vấn tài khoản / pool email / task
+    core.registration_service   —— đăng ký hàng loạt bằng thread pool + nhật ký task
+    webui.config_editor         —— đọc/ghi an toàn config/*.py
 
-所有接口返回 JSON；前端是单文件 templates/index.html（原生 JS + fetch）。
-默认绑定 127.0.0.1，仅本地访问。
+Mọi API trả JSON; frontend là file đơn templates/index.html (JS thuần + fetch).
+Mặc định bind 127.0.0.1, chỉ truy cập local.
 """
 import logging
 import gzip
@@ -79,12 +79,12 @@ def _paginate_items(items: list[dict], *, page: int, page_size: int) -> dict:
 
 
 def _compact_account_for_list(row: dict) -> dict:
-    """账号列表轻量对象：只返回当前表格渲染和按钮判断必需字段。
+    """Đối tượng nhẹ danh sách tài khoản: chỉ trả các trường cần thiết cho render bảng hiện tại và phán đoán nút.
 
-    原则：
-    - 不返回完整 Token / Token 预览 / TOTP Secret / Agent Token。
-    - 时间戳、错误原因、提链详情等只在前端确实要展示时返回；空值不返回。
-    - 复制/下载敏感内容时再通过 /secret 接口按需读取。
+    Nguyên tắc:
+    - Không trả Token đầy đủ / xem trước Token / TOTP Secret / Agent Token.
+    - Timestamp, lý do lỗi, chi tiết liên kết nâng cấp, v.v. chỉ trả khi frontend thực sự cần hiển thị; giá trị rỗng không trả.
+    - Khi sao chép/tải nội dung nhạy cảm mới đọc theo nhu cầu qua API /secret.
     """
     out = {
         "id": row.get("id"),
@@ -111,7 +111,7 @@ def _compact_account_for_list(row: dict) -> dict:
     if password:
         out["password"] = password
 
-    # 这些是列表固定列直接展示字段。
+    # Đây là các trường cột cố định của danh sách hiển thị trực tiếp.
     for key in (
         "user_name", "email_source", "original_email", "note", "archived", "created_at",
         "plan_type", "current_plan_type", "plus_trial_eligible",
@@ -125,21 +125,21 @@ def _compact_account_for_list(row: dict) -> dict:
     if row.get("plan_check_status") in ("queued", "running") or row.get("plan_check_ok") is False:
         out["plan_check_ok"] = row.get("plan_check_ok")
 
-    # 下面字段仅在有值时返回，避免每行堆满 null/空字符串/内部状态。
+    # Các trường bên dưới chỉ trả về khi có giá trị, tránh mỗi dòng đầy null/chuỗi rỗng/trạng thái nội bộ.
     optional_keys = (
-        # 套餐展示补充：付费到期/折扣/失败原因。
+        # Bổ sung hiển thị gói: hết hạn thanh toán/giảm giá/lý do thất bại.
         "plan_check_error", "plan_expires_at", "plan_renews_at", "renews_at",
         "billing_period", "billing_currency", "discount_amount", "discount_type",
         "discount_expires_at", "discount_promo_campaign_id",
         "token_expired", "token_expires_at",
-        # 查活状态。
+        # Trạng thái kiểm tra hoạt động.
         "live_check_status", "live_check_error", "live_checked_at",
         "live_check_proxy_used", "live_check_fingerprint_text",
-        # 提链成功/失败时才需要。
+        # Chỉ cần khi trích liên kết thành công/thất bại.
         "extract_link_status", "extract_link_type", "extract_link_message", "extract_link_error",
         "extract_link_long_url", "extract_link_copy_paste", "extract_link_image_url_png",
         "extract_link_image_url_svg", "extract_link_expires_at",
-        # Codex / Agent 状态提示。
+        # Gợi ý trạng thái Codex / Agent.
         "codex_error", "codex_agent_message", "codex_agent_runtime_id",
         "codex_agent_sub2api_url", "codex_agent_sub2api_mode", "codex_agent_sub2api_total",
         "totp_setup_error", "totp_setup_message", "totp_setup_started_at", "totp_setup_completed_at",
@@ -205,7 +205,7 @@ def _account_secret_value(row: dict, field: str) -> str:
 
 
 def _compact_job_for_list(row: dict) -> dict:
-    """注册任务列表轻量对象：只返回表格展示和按钮判断需要的字段。"""
+    """Đối tượng nhẹ danh sách tác vụ đăng ký: chỉ trả về các trường cần cho hiển thị bảng và quyết định nút."""
     out = {
         "id": row.get("id"),
         "status": row.get("status"),
@@ -220,11 +220,11 @@ def _compact_job_for_list(row: dict) -> dict:
             out[key] = value
     err = str(row.get("error_message") or "").strip()
     if err:
-        # 列表只需要摘要；完整错误和堆栈看“任务日志”。
+        # Danh sách chỉ cần tóm tắt; lỗi đầy đủ và stack xem “nhật ký nhiệm vụ”.
         out["error_message"] = err[:240] + ("…" if len(err) > 240 else "")
     traffic = row.get("network_traffic")
     if isinstance(traffic, dict) and traffic.get("available"):
-        # 流量统计只包含字节计数，不带 URL/Header/请求体，可直接随任务列表返回。
+        # Thống kê lưu lượng chỉ gồm đếm byte, không kèm URL/Header/body request, có thể trả về trực tiếp cùng danh sách nhiệm vụ.
         out["network_traffic"] = traffic
     return out
 
@@ -260,10 +260,10 @@ def create_app(auth_code: str | None = None) -> Flask:
 
     @app.after_request
     def _compress_json_response(response: Response):
-        """默认对 JSON API 响应启用 gzip，减少本地前端拉取大列表的传输体积。"""
+        """Mặc định bật gzip cho phản hồi JSON API, giảm dung lượng truyền khi frontend cục bộ kéo danh sách lớn."""
         accept_encoding = (request.headers.get("Accept-Encoding") or "").lower()
-        # 默认开启 gzip：浏览器会自动带 gzip；本地脚本未带 Accept-Encoding 时也压缩。
-        # 只有客户端明确声明 identity 且没有 gzip 时，才按明文返回。
+        # Mặc định bật gzip: trình duyệt tự động gửi gzip; script local không có Accept-Encoding cũng nén.
+        # Chỉ khi client khai báo rõ identity và không có gzip thì mới trả về dạng plain text.
         gzip_allowed = ("gzip" in accept_encoding) or (not accept_encoding)
         if (
             response.direct_passthrough
@@ -289,7 +289,7 @@ def create_app(auth_code: str | None = None) -> Flask:
 
     def _put_prepared_download(content: bytes, filename: str, mimetype: str = "application/zip") -> str:
         now = time.time()
-        # 顺手清理 10 分钟前的临时下载，避免内存堆积。
+        # Tiện tay dọn các tải tạm từ 10 phút trước, tránh tích tụ bộ nhớ.
         for k, v in list(_prepared_downloads.items()):
             if now - float(v.get("created_at") or 0) > 600:
                 _prepared_downloads.pop(k, None)
@@ -345,7 +345,7 @@ def create_app(auth_code: str | None = None) -> Flask:
         logger.warning("Đã khôi phục %s trạng thái đổi email bị gián đoạn do WebUI khởi động lại", recovered_email_changes)
 
     # ----------------------------------------------------------
-    # 页面
+    # Trang
     # ----------------------------------------------------------
     @app.get("/")
     def index():
@@ -364,7 +364,7 @@ def create_app(auth_code: str | None = None) -> Flask:
         return resp
 
     # ----------------------------------------------------------
-    # 统计概览
+    # Tổng quan thống kê
     # ----------------------------------------------------------
     @app.get("/api/summary")
     def api_summary():
@@ -372,7 +372,7 @@ def create_app(auth_code: str | None = None) -> Flask:
         from core.email_provider import parse_email_sources
         pool = {"total": 0, "available": 0, "used": 0, "failed": 0}
         for src in parse_email_sources(_email_cfg.EMAIL_SOURCE):
-            # GPTMail/MailNest/CloudMail 地址按需生成，不属于本地邮箱池。
+            # Địa chỉ GPTMail/MailNest/CloudMail được tạo theo nhu cầu, không thuộc pool email local.
             if src in ("gptmail", "mailnest", "cloudmail", "cloudflare"):
                 continue
             one = (
@@ -397,7 +397,7 @@ def create_app(auth_code: str | None = None) -> Flask:
         })
 
     # ----------------------------------------------------------
-    # 已注册账号
+    # Tài khoản đã đăng ký
     # ----------------------------------------------------------
     @app.get("/api/accounts")
     def api_accounts():
@@ -414,7 +414,7 @@ def create_app(auth_code: str | None = None) -> Flask:
         q = str(request.args.get("q", default="") or "").strip()
         date_from = str(request.args.get("date_from", default="") or "").strip() or None
         date_to = str(request.args.get("date_to", default="") or "").strip() or None
-        # 新分页接口：传 page/page_size 或 paged=1 时返回 {items,total,page,page_size,...}
+        # API phân trang mới: truyền page/page_size hoặc paged=1 thì trả về {items,total,page,page_size,...}
         paged = str(request.args.get("paged", default="") or "").lower() in {"1", "true", "yes"}
         page_arg = request.args.get("page", default=None, type=int)
         page_size_arg = request.args.get("page_size", default=None, type=int)
@@ -430,7 +430,7 @@ def create_app(auth_code: str | None = None) -> Flask:
 
     @app.get("/api/accounts/plan-check-status")
     def api_account_plan_check_status():
-        """套餐查询轻量状态，不返回 Token、邮箱密码等敏感字段。"""
+        """Trạng thái nhẹ truy vấn gói, không trả về Token, mật khẩu email và các trường nhạy cảm khác."""
         limit = request.args.get("limit", default=5000, type=int)
         archived = str(request.args.get("archived", default="0") or "0").lower()
         plan_filter = str(request.args.get("plan", default="") or "").lower()
@@ -460,7 +460,7 @@ def create_app(auth_code: str | None = None) -> Flask:
 
     @app.get("/api/accounts/<int:acc_id>/secret")
     def api_account_secret(acc_id: int):
-        """按需读取单账号敏感值，避免账号列表一次性下发完整 Token/整行。"""
+        """Đọc giá trị nhạy cảm từng tài khoản theo nhu cầu, tránh gửi đủ Token/cả dòng một lần trong danh sách tài khoản."""
         field = str(request.args.get("field") or "").strip()
         acc = db.get_account(acc_id)
         if not acc:
@@ -473,7 +473,7 @@ def create_app(auth_code: str | None = None) -> Flask:
 
     @app.post("/api/accounts/secret-bulk")
     def api_accounts_secret_bulk():
-        """按需批量读取账号敏感值。Body {account_ids:[...], field}."""
+        """Đọc hàng loạt giá trị nhạy cảm của tài khoản theo nhu cầu. Body {account_ids:[...], field}."""
         data = request.get_json(silent=True) or {}
         ids = data.get("account_ids") or data.get("ids") or []
         field = str(data.get("field") or "").strip()
@@ -509,7 +509,7 @@ def create_app(auth_code: str | None = None) -> Flask:
 
     @app.post("/api/accounts/<int:acc_id>/archive")
     def api_account_archive(acc_id: int):
-        """归档/取消归档一个账号。Body {archived: true|false}。"""
+        """Lưu trữ/hủy lưu trữ một tài khoản. Body {archived: true|false}."""
         data = request.get_json(silent=True) or {}
         archived = bool(data.get("archived", True))
         updated = db.archive_account(acc_id=acc_id, archived=archived)
@@ -519,7 +519,7 @@ def create_app(auth_code: str | None = None) -> Flask:
 
     @app.post("/api/accounts/archive-bulk")
     def api_accounts_archive_bulk():
-        """批量归档/取消归档账号。Body {account_ids:[...], archived:true|false}。"""
+        """Lưu trữ/hủy lưu trữ hàng loạt tài khoản. Body {account_ids:[...], archived:true|false}."""
         data = request.get_json(silent=True) or {}
         ids = data.get("account_ids") or data.get("ids") or []
         archived = bool(data.get("archived", True))
@@ -546,7 +546,7 @@ def create_app(auth_code: str | None = None) -> Flask:
 
     @app.post("/api/accounts/<int:acc_id>/delete")
     def api_account_delete(acc_id: int):
-        """删除一个已注册账号记录。只删除本地保存的账号/token记录，不改邮箱池状态。"""
+        """Xóa một bản ghi tài khoản đã đăng ký. Chỉ xóa bản ghi tài khoản/token lưu cục bộ, không đổi trạng thái pool email."""
         deleted = db.delete_account(acc_id=acc_id)
         if not deleted:
             return jsonify({"ok": False, "error": "Tài khoản không tồn tại"}), 404
@@ -554,7 +554,7 @@ def create_app(auth_code: str | None = None) -> Flask:
 
     @app.post("/api/accounts/delete-bulk")
     def api_accounts_delete_bulk():
-        """批量删除已注册账号记录。Body {account_ids: [...]} 或 {ids: [...]}。"""
+        """Xóa hàng loạt bản ghi tài khoản đã đăng ký. Body {account_ids: [...]} hoặc {ids: [...]}."""
         data = request.get_json(silent=True) or {}
         ids = data.get("account_ids") or data.get("ids") or []
         if not isinstance(ids, list) or not ids:
@@ -585,7 +585,7 @@ def create_app(auth_code: str | None = None) -> Flask:
 
     @app.post("/api/accounts/<int:acc_id>/note")
     def api_account_note(acc_id: int):
-        """更新单个已注册账号备注。Body {note: "..."}，空字符串表示清空。"""
+        """Cập nhật ghi chú cho một tài khoản đã đăng ký. Body {note: "..."}, chuỗi rỗng nghĩa là xóa trống."""
         data = request.get_json(silent=True) or {}
         note = str(data.get("note") or "")
         if len(note) > 2000:
@@ -597,7 +597,7 @@ def create_app(auth_code: str | None = None) -> Flask:
 
     @app.post("/api/accounts/<int:acc_id>/totp-setup")
     def api_account_totp_setup(acc_id: int):
-        """为单个账号开启 2FA/TOTP，成功后自动把 secret 写回账号记录。"""
+        """Bật 2FA/TOTP cho một tài khoản; sau khi thành công tự động ghi secret lại vào bản ghi tài khoản."""
         acc = db.get_account(acc_id)
         if not acc:
             return jsonify({"ok": False, "error": "Tài khoản không tồn tại"}), 404
@@ -633,7 +633,7 @@ def create_app(auth_code: str | None = None) -> Flask:
 
     @app.post("/api/accounts/<int:acc_id>/change-email")
     def api_account_change_email(acc_id: int):
-        """给单个账号排队换绑邮箱。Body {source}."""
+        """Xếp hàng đổi liên kết email cho một tài khoản. Body {source}."""
         data = request.get_json(silent=True) or {}
         source = str(data.get("source") or "").strip().lower()
         allowed = {"outlook", "generic_api", "imap", "cloudflare_domain", "cloudflare", "gptmail", "mailnest", "cloudmail", "remail"}
@@ -651,7 +651,7 @@ def create_app(auth_code: str | None = None) -> Flask:
 
     @app.post("/api/accounts/change-email-bulk")
     def api_accounts_change_email_bulk():
-        """批量换绑邮箱。Body {account_ids:[...], source}."""
+        """Đổi liên kết email hàng loạt. Body {account_ids:[...], source}."""
         data = request.get_json(silent=True) or {}
         ids = data.get("account_ids") or data.get("ids") or []
         source = str(data.get("source") or "").strip().lower()
@@ -690,7 +690,7 @@ def create_app(auth_code: str | None = None) -> Flask:
 
     @app.post("/api/accounts/totp-setup-bulk")
     def api_accounts_totp_setup_bulk():
-        """批量把账号 2FA/TOTP 设置任务加入后台队列。Body {account_ids:[...]}。"""
+        """Thêm hàng loạt tác vụ thiết lập 2FA/TOTP tài khoản vào hàng đợi nền. Body {account_ids:[...]}."""
         data = request.get_json(silent=True) or {}
         ids = data.get("account_ids") or data.get("ids") or []
         if not isinstance(ids, list) or not ids:
@@ -758,7 +758,7 @@ def create_app(auth_code: str | None = None) -> Flask:
                 })
                 continue
 
-            # Future 对象不可 JSON 序列化；批量接口只返回队列结果摘要。
+            # Đối tượng Future không thể serialize JSON; API hàng loạt chỉ trả về tóm tắt kết quả hàng đợi.
             public_result = {k: v for k, v in queued.items() if k != "future"}
             item = {"id": acc_id, "email": email, **public_result}
             if queued.get("accepted"):
@@ -785,7 +785,7 @@ def create_app(auth_code: str | None = None) -> Flask:
 
     @app.post("/api/accounts/note-bulk")
     def api_accounts_note_bulk():
-        """批量更新已注册账号备注。Body {account_ids: [...], note: "..."}，空字符串表示清空。"""
+        """Cập nhật hàng loạt ghi chú tài khoản đã đăng ký. Body {account_ids: [...], note: "..."}, chuỗi rỗng nghĩa là xóa."""
         data = request.get_json(silent=True) or {}
         ids = data.get("account_ids") or data.get("ids") or []
         note = str(data.get("note") or "")
@@ -821,7 +821,7 @@ def create_app(auth_code: str | None = None) -> Flask:
 
     @app.post("/api/accounts/check-live-bulk")
     def api_accounts_check_live_bulk():
-        """批量查活：加入后台队列；协议 BrowserSession 指纹环境重新登录并刷新最新 AT。"""
+        """Kiểm tra sống hàng loạt: thêm vào hàng đợi nền; giao thức BrowserSession môi trường vân tay đăng nhập lại và làm mới AT mới nhất."""
         data = request.get_json(silent=True) or {}
         ids = data.get("account_ids") or data.get("ids") or []
         if not isinstance(ids, list) or not ids:
@@ -865,9 +865,9 @@ def create_app(auth_code: str | None = None) -> Flask:
                 account_id=acc_id,
                 email=email,
                 trigger="manual",
-                # 查活按“查套餐”同一套网络选路：
+                # Kiểm tra hoạt động dùng cùng bộ chọn đường mạng như “tra gói”:
                 # PLAN_CHECK_PROXY_MODE / PLAN_CHECK_PROXY / PROXY_POOL。
-                # 不复用账号注册时的 proxy_used，避免旧注册出口被 CF 403 后一直失败。
+                # Không tái sử dụng proxy_used lúc đăng ký tài khoản, tránh cổng đăng ký cũ bị CF 403 rồi mãi thất bại.
                 proxy=None,
             )
             if queued.get("accepted"):
@@ -893,7 +893,7 @@ def create_app(auth_code: str | None = None) -> Flask:
 
     @app.post("/api/accounts/check-plan")
     def api_account_check_plan():
-        """把单账号套餐查询加入后台队列。Body {account_id|email, proxy?, timezone_offset_min?}"""
+        """Thêm truy vấn gói cước một tài khoản vào hàng đợi nền. Body {account_id|email, proxy?, timezone_offset_min?}"""
         data = request.get_json(silent=True) or {}
         acc_id = data.get("account_id") or data.get("id")
         email = (data.get("email") or "").strip()
@@ -927,14 +927,14 @@ def create_app(auth_code: str | None = None) -> Flask:
 
     @app.post("/api/accounts/check-plan-bulk")
     def api_accounts_check_plan_bulk():
-        """批量把套餐查询加入统一后台队列。Body {account_ids:[...], proxy?, timezone_offset_min?}"""
+        """Thêm hàng loạt truy vấn gói cước vào hàng đợi nền thống nhất. Body {account_ids:[...], proxy?, timezone_offset_min?}"""
         data = request.get_json(silent=True) or {}
         ids = data.get("account_ids") or data.get("ids") or []
         if not isinstance(ids, list) or not ids:
             return jsonify({"ok": False, "error": "account_ids phải là mảng không rỗng"}), 400
         if len(ids) > 500:
             return jsonify({"ok": False, "error": "Mỗi lần tra cứu tối đa 500 tài khoản"}), 400
-        # 与单账号查询保持一致：未传时使用独立网络策略。
+        # Giữ nhất quán với truy vấn đơn tài khoản: khi không truyền thì dùng chiến lược mạng độc lập.
         proxy = data.get("proxy") if "proxy" in data else None
         timezone_offset_min = str(data.get("timezone_offset_min") or "-")
 
@@ -992,7 +992,7 @@ def create_app(auth_code: str | None = None) -> Flask:
 
     @app.get("/api/extract-link/cdk")
     def api_extract_link_cdk():
-        """查询当前配置或传入 CDK 的剩余次数。"""
+        """Truy vấn số lần còn lại của cấu hình hiện tại hoặc CDK được truyền vào."""
         code = (request.args.get("code") or "").strip() or None
         try:
             return jsonify({"ok": True, **extract_link_service.query_cdk(cdk=code)})
@@ -1005,7 +1005,7 @@ def create_app(auth_code: str | None = None) -> Flask:
 
     @app.post("/api/accounts/extract-link")
     def api_account_extract_link():
-        """单账号提链。Body {account_id|id, link_type?, cdk?}。"""
+        """Rút link cho một tài khoản. Body {account_id|id, link_type?, cdk?}."""
         data = request.get_json(silent=True) or {}
         acc_id = data.get("account_id") or data.get("id")
         try:
@@ -1038,7 +1038,7 @@ def create_app(auth_code: str | None = None) -> Flask:
 
     @app.post("/api/accounts/extract-link-bulk")
     def api_accounts_extract_link_bulk():
-        """批量提链。Body {account_ids:[...], link_type?, cdk?}。"""
+        """Trích xuất liên kết hàng loạt. Body {account_ids:[...], link_type?, cdk?}."""
         data = request.get_json(silent=True) or {}
         ids = data.get("account_ids") or data.get("ids") or []
         if not isinstance(ids, list) or not ids:
@@ -1105,7 +1105,7 @@ def create_app(auth_code: str | None = None) -> Flask:
 
     @app.post("/api/accounts/codex-agent")
     def api_account_codex_agent():
-        """单账号生成 Codex Agent Token。Body {account_id|id, verify_task?}。"""
+        """Tạo Codex Agent Token cho một tài khoản. Body {account_id|id, verify_task?}."""
         data = request.get_json(silent=True) or {}
         acc_id = data.get("account_id") or data.get("id")
         try:
@@ -1135,7 +1135,7 @@ def create_app(auth_code: str | None = None) -> Flask:
 
     @app.post("/api/accounts/codex-agent-bulk")
     def api_accounts_codex_agent_bulk():
-        """批量生成 Codex Agent Token。Body {account_ids:[...], verify_task?}。"""
+        """Tạo hàng loạt Codex Agent Token. Body {account_ids:[...], verify_task?}."""
         data = request.get_json(silent=True) or {}
         ids = data.get("account_ids") or data.get("ids") or []
         if not isinstance(ids, list) or not ids:
@@ -1197,7 +1197,7 @@ def create_app(auth_code: str | None = None) -> Flask:
         }), 202
 
     def _codex_agent_auth_for_account(acc: dict) -> tuple[str, str]:
-        """从 SQLite 返回账号已生成的 Codex Agent auth.json 文本与下载文件名。"""
+        """Trả về từ SQLite văn bản auth.json Codex Agent đã tạo của tài khoản cùng tên file tải xuống."""
         import json as _json
 
         email = str(acc.get("email") or "").strip()
@@ -1233,11 +1233,11 @@ def create_app(auth_code: str | None = None) -> Flask:
         api_base = str(getattr(sub2api_cfg, "SUB2API_API_BASE", "") or "").strip()
         if api_base:
             return _join_sub2_url(api_base, "/api/v1/admin/accounts/import/codex-session")
-        # 兼容旧配置：之前 SUB2API_API_URL 是完整上传接口 URL。
+        # Tương thích cấu hình cũ: trước đây SUB2API_API_URL là URL đầy đủ của API upload.
         return str(getattr(sub2api_cfg, "SUB2API_API_URL", "") or "").strip()
 
     def _upload_account_codex_agent_to_sub2(acc: dict) -> dict:
-        """把账号已生成的 Codex Agent auth.json 上传到 sub2api。"""
+        """Tải auth.json của Codex Agent đã tạo cho tài khoản lên sub2api."""
         import json as _json
         from config import sub2api as sub2api_cfg
         from core.codex_agent import upload_sub2api_account
@@ -1281,7 +1281,7 @@ def create_app(auth_code: str | None = None) -> Flask:
 
     @app.post("/api/accounts/<int:acc_id>/codex-agent/upload-sub2")
     def api_account_codex_agent_upload_sub2(acc_id: int):
-        """单账号把已生成的 Codex Agent Token 上传到 sub2api。"""
+        """Tải Codex Agent Token đã tạo của một tài khoản lên sub2api."""
         acc = db.get_account(acc_id)
         if not acc:
             return jsonify({"ok": False, "error": "Tài khoản không tồn tại"}), 404
@@ -1293,7 +1293,7 @@ def create_app(auth_code: str | None = None) -> Flask:
 
     @app.post("/api/accounts/codex-agent/upload-sub2-bulk")
     def api_accounts_codex_agent_upload_sub2_bulk():
-        """批量把已生成的 Codex Agent Token 上传到 sub2api。Body {account_ids:[...]}。"""
+        """Tải hàng loạt Codex Agent Token đã tạo lên sub2api. Body {account_ids:[...]}."""
         data = request.get_json(silent=True) or {}
         ids = data.get("account_ids") or data.get("ids") or []
         if not isinstance(ids, list) or not ids:
@@ -1337,7 +1337,7 @@ def create_app(auth_code: str | None = None) -> Flask:
 
     @app.get("/api/accounts/<int:acc_id>/codex-agent/download")
     def api_account_codex_agent_download(acc_id: int):
-        """下载单个账号的 Codex Agent auth.json。"""
+        """Tải auth.json của Codex Agent cho một tài khoản."""
         acc = db.get_account(acc_id)
         if not acc:
             return jsonify({"ok": False, "error": "Tài khoản không tồn tại"}), 404
@@ -1359,7 +1359,7 @@ def create_app(auth_code: str | None = None) -> Flask:
 
     @app.post("/api/accounts/codex-agent/download-bulk")
     def api_accounts_codex_agent_download_bulk():
-        """下载选中账号已生成的 Codex Agent Token，打包 ZIP。"""
+        """Tải xuống Codex Agent Token đã tạo của tài khoản đã chọn, đóng gói ZIP."""
         import io
         import json as _json
         import zipfile
@@ -1438,8 +1438,8 @@ def create_app(auth_code: str | None = None) -> Flask:
     @app.post("/api/accounts/download-cpa-bulk")
     def api_accounts_download_cpa_bulk():
         """
-        从账号列表选中的账号直接到 CPA auth-files 下载 Codex CPA JSON，并打包为 ZIP。
-        Body: {"account_ids": [1,2,...]} 或 {"ids": [...]}
+        Từ các tài khoản được chọn trong danh sách tài khoản, tải trực tiếp Codex CPA JSON từ CPA auth-files và đóng gói thành ZIP.
+        Body: {"account_ids": [1,2,...]} hoặc {"ids": [...]}
         """
         import io
         import json as _json
@@ -1467,7 +1467,7 @@ def create_app(auth_code: str | None = None) -> Flask:
             return jsonify({"ok": False, "error": f"Không đọc được CPA auth-files: {type(exc).__name__}: {exc}"}), 502
 
         def _match_cpa_file(email: str, local_filename: str = "") -> dict | None:
-            """在已缓存的 CPA 文件列表中匹配，避免每个账号都重新请求 auth-files。"""
+            """Khớp trong danh sách tệp CPA đã cache, tránh mỗi tài khoản đều yêu cầu lại auth-files."""
             email_l = str(email or "").strip().lower()
             local_name_l = str(local_filename or "").strip().lower()
             local_stem_l = local_name_l[:-5] if local_name_l.endswith(".json") else local_name_l
@@ -1493,7 +1493,7 @@ def create_app(auth_code: str | None = None) -> Flask:
             ranked = sorted(((score(item), item) for item in cpa_files), key=lambda x: x[0], reverse=True)
             return ranked[0][1] if ranked and ranked[0][0] > 0 else None
 
-        # 建立 email -> 本地 codex 文件名索引；有本地文件名时传给 CPA 匹配逻辑可提升命中率。
+        # Xây dựng chỉ mục email -> tên file codex cục bộ; khi có tên file cục bộ, truyền cho logic khớp CPA có thể tăng tỷ lệ trúng.
         local_by_email: dict[str, str] = {}
         try:
             for item in db.list_codex_accounts():
@@ -1599,7 +1599,7 @@ def create_app(auth_code: str | None = None) -> Flask:
         )
 
     # ----------------------------------------------------------
-    # 邮箱池
+    # Pool email
     # ----------------------------------------------------------
     @app.get("/api/outlook")
     def api_outlook():
@@ -1619,7 +1619,7 @@ def create_app(auth_code: str | None = None) -> Flask:
             )
             result.update({"ok": True, "page": page, "page_size": page_size})
             return jsonify(result)
-        # 兼容旧接口仍返回数组，但查询本身也只从 SQLite 读取 limit 条。
+        # Tương thích API cũ vẫn trả về mảng, nhưng bản thân truy vấn cũng chỉ đọc limit bản ghi từ SQLite.
         result = db.list_email_pool_page(
             source=source, status=status, q=q, limit=max(1, int(limit or 1)), offset=0
         )
@@ -1628,11 +1628,11 @@ def create_app(auth_code: str | None = None) -> Flask:
     @app.post("/api/outlook/import")
     def api_outlook_import():
         """
-        粘贴文本导入邮箱素材。
-        Outlook：email----password----clientId----refreshToken
-        通用 API：email----code_url
-        通用 IMAP：email----password 或 email:password；服务器/端口/SSL 单独传入
-        分隔符兼容 ---- 与 ====。
+        Dán văn bản để nhập liệu email.
+        Outlook: email----password----clientId----refreshToken
+        API chung: email----code_url
+        IMAP chung: email----password hoặc email:password; server/cổng/SSL truyền riêng
+        Dấu phân cách tương thích ---- và ====.
         """
         data = request.get_json(silent=True) or {}
         source = (data.get("source") or data.get("type") or "").strip()
@@ -1718,7 +1718,7 @@ def create_app(auth_code: str | None = None) -> Flask:
 
     @app.post("/api/outlook/status")
     def api_outlook_status():
-        """手动改邮箱状态：body {email, status, note?, source?}。status ∈ available/used/failed/disabled。"""
+        """Đổi trạng thái email thủ công: body {email, status, note?, source?}. status ∈ available/used/failed/disabled."""
         data = request.get_json(silent=True) or {}
         email = (data.get("email") or "").strip()
         status = (data.get("status") or "").strip()
@@ -1739,7 +1739,7 @@ def create_app(auth_code: str | None = None) -> Flask:
 
     @app.post("/api/outlook/status-bulk")
     def api_outlook_status_bulk():
-        """批量修改邮箱状态。Body {items:[{email,source}], status, note?}。"""
+        """Sửa hàng loạt trạng thái email. Body {items:[{email,source}], status, note?}."""
         data = request.get_json(silent=True) or {}
         items = data.get("items") or data.get("emails") or []
         status = (data.get("status") or "").strip()
@@ -1792,7 +1792,7 @@ def create_app(auth_code: str | None = None) -> Flask:
 
     @app.post("/api/outlook/delete")
     def api_outlook_delete():
-        """从邮箱池彻底删除一个邮箱：body {email, source?}。"""
+        """Xóa hoàn toàn một email khỏi pool email: body {email, source?}."""
         data = request.get_json(silent=True) or {}
         email = str(data.get("email") or "").strip()
         if not email:
@@ -1810,7 +1810,7 @@ def create_app(auth_code: str | None = None) -> Flask:
 
     @app.post("/api/outlook/delete-bulk")
     def api_outlook_delete_bulk():
-        """从邮箱池批量彻底删除邮箱：body {items/emails: [...], source?}。"""
+        """Xóa hàng loạt triệt để email khỏi pool email: body {items/emails: [...], source?}."""
         data = request.get_json(silent=True) or {}
         raw_source = data.get("source") or data.get("type")
         source = (
@@ -1873,7 +1873,7 @@ def create_app(auth_code: str | None = None) -> Flask:
         })
 
     # ----------------------------------------------------------
-    # 域名邮箱池（Cloudflare 域名邮箱模式）
+    # Pool email domain (chế độ email domain Cloudflare)
     # ----------------------------------------------------------
     @app.get("/api/domain-pool")
     def api_domain_pool():
@@ -1901,7 +1901,7 @@ def create_app(auth_code: str | None = None) -> Flask:
         return jsonify({"ok": True, "deleted": deleted})
 
     # ----------------------------------------------------------
-    # Codex 授权账号（CPA 兼容凭证）
+    # Tài khoản ủy quyền Codex (credential tương thích CPA)
     # ----------------------------------------------------------
     @app.get("/api/codex")
     def api_codex_list():
@@ -1943,7 +1943,7 @@ def create_app(auth_code: str | None = None) -> Flask:
 
     @app.post("/api/codex/archive")
     def api_codex_archive():
-        """归档/取消归档一条 Codex 授权凭证。Body {filename, archived}。"""
+        """Lưu trữ/hủy lưu trữ một chứng chỉ ủy quyền Codex. Body {filename, archived}."""
         data = request.get_json(silent=True) or {}
         filename = str(data.get("filename") or "").strip()
         archived = bool(data.get("archived", True))
@@ -1959,7 +1959,7 @@ def create_app(auth_code: str | None = None) -> Flask:
 
     @app.post("/api/codex/archive-bulk")
     def api_codex_archive_bulk():
-        """批量归档/取消归档 Codex 授权凭证。Body {filenames:[...], archived}。"""
+        """Lưu trữ/hủy lưu trữ hàng loạt chứng chỉ ủy quyền Codex. Body {filenames:[...], archived}."""
         data = request.get_json(silent=True) or {}
         filenames = data.get("filenames") or []
         archived = bool(data.get("archived", True))
@@ -1991,8 +1991,8 @@ def create_app(auth_code: str | None = None) -> Flask:
     @app.get("/api/codex/download/<path:filename>")
     def api_codex_download(filename: str):
         """
-        下载一个 CPA 兼容的 codex-*.json 文件，下载即标记为已导出（计数+1）。
-        前端通过浏览器原生下载触发（a 标签 / window.location）。
+        Tải một tệp codex-*.json tương thích CPA; đánh dấu đã xuất ngay khi tải (bộ đếm +1).
+        Frontend kích hoạt tải xuống gốc của trình duyệt (thẻ a / window.location).
         """
         try:
             content, fname = db.read_codex_credential(filename)
@@ -2007,7 +2007,7 @@ def create_app(auth_code: str | None = None) -> Flask:
 
     @app.get("/api/codex/download-from-cpa/<path:filename>")
     def api_codex_download_from_cpa(filename: str):
-        """按本地 codex 文件/回执匹配 CPA auth-files，并从 CPA 下载实际 Codex JSON。"""
+        """Khớp CPA auth-files theo tệp/biên nhận codex cục bộ, và tải JSON Codex thực tế từ CPA."""
         try:
             content, fname = db.read_codex_credential(filename)
             import json as _json
@@ -2032,7 +2032,7 @@ def create_app(auth_code: str | None = None) -> Flask:
     @app.post("/api/codex/download-bulk-from-cpa")
     def api_codex_download_bulk_from_cpa():
         """
-        批量从 CPA 下载选中的 Codex 凭证，打包成 zip；zip 内每个文件都是 CPA 原始 JSON。
+        Tải hàng loạt các chứng chỉ Codex đã chọn từ CPA, đóng gói thành zip; mỗi file trong zip đều là JSON gốc của CPA.
         Body: {"filenames": ["codex-xxx-cpa-callback.json", ...]}
         """
         import io
@@ -2098,19 +2098,19 @@ def create_app(auth_code: str | None = None) -> Flask:
     @app.post("/api/codex/download-bulk")
     def api_codex_download_bulk():
         """
-        批量下载选中的 codex 凭证，打包到一个 JSON 文件里。
+        Tải hàng loạt các chứng chỉ codex đã chọn, đóng gói vào một file JSON.
 
         Body: {"filenames": ["codex-xxx.json", ...]}
-        响应：聚合 JSON（attachment 触发浏览器下载），结构：
+        Phản hồi: JSON tổng hợp (attachment kích hoạt tải xuống trình duyệt), cấu trúc:
             {
               "exported_at": "...",
               "count": N,
-              "credentials": [{"filename": "...", "data": {...原始凭证内容...}}, ...],
-              "errors": [...]   // 仅当部分失败时出现
+              "credentials": [{"filename": "...", "data": {...nội dung chứng chỉ gốc...}}, ...],
+              "errors": [...]   // chỉ xuất hiện khi một phần thất bại
             }
-        注意：聚合格式**不能直接被 CPA 读**，CPA 是按单文件加载 auths/ 目录的。
-              本接口主要用途是备份 / 跨机迁移 / 二次处理。
-        每个成功的凭证会自动标记 mark_exported（计数+1）。
+        Lưu ý: định dạng tổng hợp **không thể được CPA đọc trực tiếp**; CPA tải theo từng file trong thư mục auths/.
+              API này chủ yếu dùng để sao lưu / di chuyển cross-machine / xử lý lại.
+        Mỗi chứng chỉ thành công sẽ tự động đánh dấu mark_exported (đếm +1).
         """
         import json as _json
         from datetime import datetime as _dt
@@ -2154,7 +2154,7 @@ def create_app(auth_code: str | None = None) -> Flask:
 
     @app.post("/api/codex/reset-export")
     def api_codex_reset_export():
-        """清掉某个 codex 凭证的导出状态（重新标为未导出）。body {filename}。"""
+        """Xóa trạng thái xuất của một chứng chỉ codex (đánh dấu lại là chưa xuất). body {filename}."""
         data = request.get_json(silent=True) or {}
         fname = (data.get("filename") or "").strip()
         if not fname:
@@ -2167,7 +2167,7 @@ def create_app(auth_code: str | None = None) -> Flask:
 
     @app.post("/api/codex/delete")
     def api_codex_delete():
-        """删除一个 codex 凭证文件。body {filename}。"""
+        """Xóa một tệp chứng chỉ codex. body {filename}."""
         data = request.get_json(silent=True) or {}
         fname = (data.get("filename") or "").strip()
         if not fname:
@@ -2182,7 +2182,7 @@ def create_app(auth_code: str | None = None) -> Flask:
 
     @app.post("/api/codex/delete-bulk")
     def api_codex_delete_bulk():
-        """批量删除 codex 凭证文件。body {filenames:[...]}。"""
+        """Xóa hàng loạt tệp chứng chỉ codex. body {filenames:[...]}."""
         data = request.get_json(silent=True) or {}
         filenames = data.get("filenames") or []
         if not isinstance(filenames, list) or not filenames:
@@ -2208,20 +2208,20 @@ def create_app(auth_code: str | None = None) -> Flask:
         return jsonify({"ok": True, "deleted": deleted, "deleted_count": len(deleted), "skipped": skipped})
 
     def _reserve_codex_retry(email: str) -> bool:
-        """进程内防重复占位；成功返回 True。"""
+        """Chống chiếm chỗ trùng lặp trong tiến trình; thành công trả về True."""
         return codex_retry_service.reserve(email)
 
     def _release_codex_retry(email: str) -> None:
         codex_retry_service.release(email)
 
     def _run_codex_retry_worker(email: str, *, batch_label: str | None = None, clear_log: bool = True) -> None:
-        """执行一个账号的 Codex 补跑。调用前必须已经 reserve。"""
+        """Thực hiện chạy bù Codex cho một tài khoản. Trước khi gọi phải đã reserve."""
         codex_retry_service.run_worker(email, batch_label=batch_label, clear_log=clear_log)
 
 
     @app.post("/api/codex/stop")
     def api_codex_stop():
-        """停止单个 Codex 补跑。Body {email}。"""
+        """Dừng chạy bù một Codex đơn lẻ. Body {email}."""
         data = request.get_json(silent=True) or {}
         email = (data.get("email") or "").strip()
         if not email:
@@ -2235,7 +2235,7 @@ def create_app(auth_code: str | None = None) -> Flask:
 
     @app.post("/api/codex/stop-bulk")
     def api_codex_stop_bulk():
-        """批量停止 Codex 补跑。Body {emails:[...]} 或 {account_ids:[...]}。"""
+        """Dừng hàng loạt lần chạy bù Codex. Body {emails:[...]} hoặc {account_ids:[...]}."""
         data = request.get_json(silent=True) or {}
         emails = data.get("emails") or []
         ids = data.get("account_ids") or data.get("ids") or []
@@ -2278,7 +2278,7 @@ def create_app(auth_code: str | None = None) -> Flask:
 
     @app.post("/api/codex/reset-retrying")
     def api_codex_reset_retrying():
-        """手动重置某账号的 Codex 补跑中状态。Body {email, status?}。"""
+        """Thủ công đặt lại trạng thái đang bù chạy Codex của một tài khoản. Body {email, status?}."""
         from datetime import datetime as _dt
 
         data = request.get_json(silent=True) or {}
@@ -2317,7 +2317,7 @@ def create_app(auth_code: str | None = None) -> Flask:
 
     @app.post("/api/codex/retry")
     def api_codex_retry():
-        """手动补跑某账号的 Codex 授权。Body {email}。"""
+        """Chạy bổ sung thủ công ủy quyền Codex cho một tài khoản. Body {email}."""
         data = request.get_json(silent=True) or {}
         email = (data.get("email") or "").strip()
         if not email:
@@ -2341,7 +2341,7 @@ def create_app(auth_code: str | None = None) -> Flask:
 
     @app.post("/api/codex/retry-bulk")
     def api_codex_retry_bulk():
-        """批量补跑 Codex。Body {account_ids:[...], workers: 1-16}。"""
+        """Chạy bù hàng loạt Codex. Body {account_ids:[...], workers: 1-16}."""
         from concurrent.futures import ThreadPoolExecutor, as_completed
         from datetime import datetime as _dt
 
@@ -2427,7 +2427,7 @@ def create_app(auth_code: str | None = None) -> Flask:
 
     @app.get("/api/codex/retry-log")
     def api_codex_retry_log():
-        """读取某邮箱最近一次补跑的日志。?email=xxx"""
+        """Đọc log lần chạy bù gần nhất của một email. ?email=xxx"""
         email = (request.args.get("email") or "").strip()
         if not email:
             return jsonify({"ok": False, "error": "email trống"}), 400
@@ -2448,7 +2448,7 @@ def create_app(auth_code: str | None = None) -> Flask:
 
     @app.get("/api/accounts/live-check-log")
     def api_account_live_check_log():
-        """读取某邮箱最近一次查活日志。?email=xxx"""
+        """Đọc nhật ký kiểm tra hoạt động gần nhất của một email.?email=xxx"""
         from core import account_liveness
         email = (request.args.get("email") or "").strip()
         if not email:
@@ -2459,7 +2459,7 @@ def create_app(auth_code: str | None = None) -> Flask:
 
     @app.get("/api/accounts/totp-setup-log")
     def api_account_totp_setup_log():
-        """读取某邮箱最近一次 2FA 设置日志。?email=xxx"""
+        """Đọc log thiết lập 2FA gần nhất của một email.?email=xxx"""
         from core import twofa_service
         email = (request.args.get("email") or "").strip()
         if not email:
@@ -2475,7 +2475,7 @@ def create_app(auth_code: str | None = None) -> Flask:
 
     @app.get("/api/accounts/<int:acc_id>/change-email-log")
     def api_account_change_email_log(acc_id: int):
-        """读取账号最近一次邮箱换绑日志。"""
+        """Đọc nhật ký đổi liên kết email gần nhất của tài khoản."""
         from core import email_change_service
         acc = db.get_account(acc_id)
         if not acc:
@@ -2490,7 +2490,7 @@ def create_app(auth_code: str | None = None) -> Flask:
         return jsonify(data)
 
     # ----------------------------------------------------------
-    # 注册任务
+    # Task đăng ký
     # ----------------------------------------------------------
     @app.get("/api/jobs")
     def api_jobs():
@@ -2523,7 +2523,7 @@ def create_app(auth_code: str | None = None) -> Flask:
 
     @app.post("/api/jobs")
     def api_jobs_create():
-        """启动批量注册：body {count, workers}。"""
+        """Khởi động đăng ký hàng loạt: body {count, workers}."""
         data = request.get_json(silent=True) or {}
         try:
             count = int(data.get("count", 1))
@@ -2532,13 +2532,13 @@ def create_app(auth_code: str | None = None) -> Flask:
         if count < 1 or count > 200:
             return jsonify({"ok": False, "error": "count phải trong khoảng 1~200"}), 400
 
-        # workers 控制本次新提交任务使用的线程池；若和上次不同，服务层会为新任务切换到新池。
+        # workers điều khiển thread pool dùng cho các task mới submit lần này; nếu khác lần trước, service layer sẽ chuyển sang pool mới cho task mới.
         try:
             workers = max(1, min(16, int(data.get("workers", 3))))
         except (TypeError, ValueError):
             return jsonify({"ok": False, "error": "workers không hợp lệ"}), 400
 
-        # 提交前先确认池里有足够可用邮箱，给前端一个温和提示（不阻断）
+        # Trước khi submit, xác nhận pool còn đủ email khả dụng, đưa frontend một gợi ý nhẹ (không chặn)
         from config import email as _email_cfg
         from config import register as _register_cfg
         from core.email_provider import parse_email_sources
@@ -2647,7 +2647,7 @@ def create_app(auth_code: str | None = None) -> Flask:
                     "error": "Chế độ dịch vụ Remail chỉ được điền code hoặc purchase (Cấu hình → Email / OTP).",
                 }), 400
         if "gptmail" in sources or "mailnest" in sources or "cloudmail" in sources or "remail" in sources or "cloudflare" in sources:
-            # 临时邮箱在任务开始时动态生成，不需要本地邮箱池容量提示。
+            # Email tạm được tạo động khi task bắt đầu, không cần gợi ý dung lượng pool email cục bộ.
             warning = ""
         elif "cloudflare_domain" in sources:
             pool = db.domain_email_pool_summary()
@@ -2685,13 +2685,13 @@ def create_app(auth_code: str | None = None) -> Flask:
 
     @app.get("/api/manual-otp/waiting")
     def api_manual_otp_waiting():
-        """列出当前正在等待手动验证码的邮箱。"""
+        """Liệt kê các email hiện đang chờ mã xác minh thủ công."""
         from core.manual_otp import list_waiting
         return jsonify({"ok": True, "waiting": list_waiting()})
 
     @app.post("/api/manual-otp")
     def api_manual_otp_submit():
-        """提交手动邮箱验证码。Body: {email, code} 或 {job_id, code}。"""
+        """Gửi mã xác minh email thủ công. Body: {email, code} hoặc {job_id, code}."""
         from core.manual_otp import submit_manual_otp
         data = request.get_json(silent=True) or {}
         code = (data.get("code") or data.get("otp") or "").strip()
@@ -2710,13 +2710,13 @@ def create_app(auth_code: str | None = None) -> Flask:
 
     @app.post("/api/jobs/cancel-pending")
     def api_jobs_cancel_pending():
-        """取消所有还在排队（status=pending）的任务。已在 running 的不动。"""
+        """Hủy tất cả nhiệm vụ còn đang xếp hàng (status=pending). Những cái đang running thì không đụng."""
         cancelled = svc.cancel_pending_jobs()
         return jsonify({"ok": True, "cancelled": cancelled})
 
     @app.post("/api/jobs/<int:job_id>/stop")
     def api_job_stop(job_id: int):
-        """手动停止单个注册任务。pending 取消；running 发送停止信号。"""
+        """Dừng thủ công một task đăng ký. pending thì hủy; running thì gửi tín hiệu dừng."""
         result = svc.request_stop_job(job_id)
         if not result.get("ok"):
             return jsonify({"ok": False, "error": result.get("error") or "Dừng thất bại"}), int(result.get("status") or 400)
@@ -2724,7 +2724,7 @@ def create_app(auth_code: str | None = None) -> Flask:
 
     @app.post("/api/jobs/<int:job_id>/retry")
     def api_job_retry(job_id: int):
-        """重试失败/停止/取消任务；服务端自动判断完整注册或 Codex 补跑。"""
+        """Thử lại task thất bại/dừng/hủy; server tự phán đoán đăng ký đầy đủ hoặc chạy bù Codex."""
         data = request.get_json(silent=True) or {}
         try:
             workers = max(1, min(16, int(data.get("workers", svc.get_executor_workers()))))
@@ -2737,7 +2737,7 @@ def create_app(auth_code: str | None = None) -> Flask:
 
     @app.post("/api/jobs/retry-bulk")
     def api_jobs_retry_bulk():
-        """批量重试任务；不支持项逐条跳过并返回原因。"""
+        """Thử lại hàng loạt các tác vụ; các mục không hỗ trợ sẽ bỏ qua từng cái và trả về lý do."""
         data = request.get_json(silent=True) or {}
         job_ids = data.get("job_ids") or data.get("ids") or []
         if not isinstance(job_ids, list) or not job_ids:
@@ -2782,7 +2782,7 @@ def create_app(auth_code: str | None = None) -> Flask:
 
     @app.post("/api/jobs/<int:job_id>/delete")
     def api_job_delete(job_id: int):
-        """删除一个任务记录。运行中的任务不允许删除；排队任务删除后执行前会自动跳过。"""
+        """Xóa một bản ghi tác vụ. Không cho phép xóa tác vụ đang chạy; tác vụ trong hàng đợi sau khi xóa sẽ tự động bỏ qua trước khi thực thi."""
         job = db.get_job(job_id)
         if not job:
             return jsonify({"ok": False, "error": "Tác vụ không tồn tại"}), 404
@@ -2795,7 +2795,7 @@ def create_app(auth_code: str | None = None) -> Flask:
 
     @app.post("/api/jobs/delete-bulk")
     def api_jobs_delete_bulk():
-        """批量删除任务记录。running 任务跳过，其它任务删除记录和日志。"""
+        """Xóa hàng loạt bản ghi nhiệm vụ. Bỏ qua nhiệm vụ running; các nhiệm vụ khác xóa bản ghi và nhật ký."""
         data = request.get_json(silent=True) or {}
         job_ids = data.get("job_ids") or data.get("ids") or []
         if not isinstance(job_ids, list) or not job_ids:
@@ -2842,7 +2842,7 @@ def create_app(auth_code: str | None = None) -> Flask:
         })
 
     # ----------------------------------------------------------
-    # RoxyBrowser 辅助接口
+    # API phụ trợ RoxyBrowser
     # ----------------------------------------------------------
     @app.get("/api/roxy/workspaces")
     def api_roxy_workspaces():
@@ -2855,7 +2855,7 @@ def create_app(auth_code: str | None = None) -> Flask:
             return jsonify({"ok": False, "error": f"{type(exc).__name__}: {exc}"}), 500
 
     # ----------------------------------------------------------
-    # 配置读写
+    # Đọc ghi cấu hình
     # ----------------------------------------------------------
     @app.get("/api/config")
     def api_config_get():
@@ -2863,7 +2863,7 @@ def create_app(auth_code: str | None = None) -> Flask:
 
     @app.post("/api/cloudmail/gen-token")
     def api_cloudmail_gen_token():
-        """手动生成 CloudMail Authorization Token，并把本次填写的 CloudMail 配置一并写入 .env。"""
+        """Tạo thủ công CloudMail Authorization Token, và ghi cấu hình CloudMail đã điền lần này vào .env."""
         data = request.get_json(silent=True) or {}
         try:
             from core.cloudmail_client import gen_token
@@ -2880,8 +2880,8 @@ def create_app(auth_code: str | None = None) -> Flask:
                 base_url=api_base,
             )
             updates = {"CLOUDMAIL_AUTH_TOKEN": token}
-            # 生成 Token 时用户通常尚未点“保存配置”；这里同步保存本次填写的字段，
-            # 避免 loadConfig() 后 API 地址/账号/密码被旧 .env 值覆盖。
+            # Khi tạo Token, người dùng thường chưa bấm “Lưu cấu hình”; ở đây đồng bộ lưu các trường đã điền lần này,
+            # tránh sau loadConfig() địa chỉ API/tài khoản/mật khẩu bị ghi đè bởi giá trị .env cũ.
             if api_base:
                 updates["CLOUDMAIL_API_BASE"] = api_base
             if admin_email:
@@ -2908,7 +2908,7 @@ def create_app(auth_code: str | None = None) -> Flask:
 
     @app.post("/api/cloudmail/domains")
     def api_cloudmail_domains():
-        """从 CloudMail 平台获取域名列表，并可写入 .env 作为本地缓存。"""
+        """Lấy danh sách tên miền từ nền tảng CloudMail, và có thể ghi vào .env làm bộ nhớ đệm cục bộ."""
         data = request.get_json(silent=True) or {}
         try:
             from core.cloudmail_client import fetch_domains
@@ -2962,7 +2962,7 @@ def create_app(auth_code: str | None = None) -> Flask:
             logger.exception("Ghi cấu hình thất bại")
             return jsonify({"ok": False, "error": f"{type(exc).__name__}: {exc}"}), 500
 
-        # 写盘成功后立即热加载所有 config 子模块，让运行时代码看到新值。
+        # Sau khi ghi đĩa thành công, hot-load ngay tất cả submodule config, để code runtime thấy giá trị mới.
         reload_ok = True
         reload_err = ""
         try:

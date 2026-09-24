@@ -8,7 +8,7 @@ from datetime import date, timedelta
 
 
 def _shift_year_safe(day: date, years: int) -> date:
-    """按年偏移日期；遇到 2 月 29 日且目标年非闰年时回退到 2 月 28 日。"""
+    """Dịch ngày theo năm; nếu gặp 29 tháng 2 và năm đích không phải năm nhuận thì lùi về 28 tháng 2."""
     try:
         return day.replace(year=day.year + years)
     except ValueError:
@@ -17,12 +17,12 @@ def _shift_year_safe(day: date, years: int) -> date:
 
 def generate_random_birthday(min_age: int = 18, max_age: int = 65) -> str:
     """
-    生成年龄在 [min_age, max_age] 闭区间内的随机生日，格式 YYYY-MM-DD。
+    Tạo ngày sinh ngẫu nhiên với tuổi trong đoạn đóng [min_age, max_age], định dạng YYYY-MM-DD.
 
-    例如默认会在“今天满 65 岁”到“今天满 18 岁”之间随机取一天。
+    Ví dụ mặc định sẽ chọn ngẫu nhiên một ngày giữa “hôm nay đủ 65 tuổi” và “hôm nay đủ 18 tuổi”.
     """
     if min_age < 0 or max_age < min_age:
-        raise ValueError(f"年龄范围无效: min_age={min_age}, max_age={max_age}")
+        raise ValueError(f"Khoảng tuổi không hợp lệ: min_age={min_age}, max_age={max_age}")
 
     today = date.today()
     oldest = _shift_year_safe(today, -max_age)

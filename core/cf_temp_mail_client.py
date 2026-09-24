@@ -271,7 +271,7 @@ def create_address(domain: str | None = None) -> CFTempMailAccount:
         if selected_domain:
             payload["domain"] = selected_domain
     else:
-        # 匿名 /api/new_address：仅 domain；鉴权头仍按 AUTH_MODE 注入（若配置了 Key）
+        # /api/new_address ẩn danh: chỉ domain; header xác thực vẫn inject theo AUTH_MODE (nếu đã cấu hình Key)
         payload = {}
         if selected_domain:
             payload["domain"] = selected_domain
@@ -340,10 +340,10 @@ def _message_timestamp(item: dict) -> float | None:
                 if value > 1e12:
                     value /= 1000.0
                 return value
-            # 兼容 "2026-07-19 12:57:38" / ISO
+            # Tương thích "2026-07-19 12:57:38" / ISO
             normalized = text.replace("Z", "+00:00")
             if "T" not in normalized and " " in normalized and "+" not in normalized[10:]:
-                # 无时区的空格分隔时间：按 UTC 处理（cloudflare_temp_email 常见）
+                # Thời gian phân tách bằng khoảng trắng không múi giờ: xử lý theo UTC (cloudflare_temp_email thường gặp)
                 dt = datetime.fromisoformat(normalized).replace(tzinfo=timezone.utc)
             else:
                 dt = datetime.fromisoformat(normalized)
@@ -420,7 +420,7 @@ def _parse_raw_email(raw: str) -> dict[str, str]:
     try:
         msg = BytesParser(policy=policy.default).parsebytes(raw.encode("utf-8", errors="replace"))
     except Exception:
-        # 回退：至少从头部抠 Subject/From
+        # Dự phòng: ít nhất trích Subject/From từ header
         for line in raw.splitlines():
             low = line.lower()
             if low.startswith("subject:") and not result["subject"]:
@@ -461,14 +461,14 @@ def _standalone_otp_from_html(html: str) -> str | None:
     """Thư OpenAI thường gặp: mã OTP đứng một dòng/ô, ví dụ >449759<."""
     if not html:
         return None
-    # 去 style，减少 #353740 这类颜色误伤
+    # Bỏ style, giảm nhầm màu kiểu #353740
     cleaned = re.sub(r"<style[^>]*>.*?</style>", " ", html, flags=re.I | re.S)
     for pattern in (
         r">\s*(\d{6})\s*<",
         r"(?m)^\s*(\d{6})\s*$",
     ):
         matches = re.findall(pattern, cleaned)
-        # 过滤明显颜色/追踪号语境在上层做；这里取最后一个独立码更接近正文 OTP
+        # Lọc ngữ cảnh màu sắc/mã theo dõi rõ ràng ở tầng trên; ở đây lấy mã độc lập cuối cùng gần OTP trong nội dung hơn
         if matches:
             return matches[-1]
     return None
@@ -482,7 +482,7 @@ def _otp_item(item: dict) -> dict:
         item.get("from")
         or item.get("from_address")
         or item.get("sender")
-        or item.get("source")  # cloudflare_temp_email 列表字段
+        or item.get("source")  # Field list cloudflare_temp_email
         or parsed.get("from")
         or ""
     )
@@ -492,11 +492,11 @@ def _otp_item(item: dict) -> dict:
     if not html:
         html = parsed.get("html") or ""
 
-    # 若只有 raw 且 MIME 解析失败，保留非 header 的文本兜底
+    # Nếu chỉ có raw và parse MIME thất bại, giữ văn bản không phải header làm dự phòng
     if not text and not html and raw:
         text = raw
 
-    # 独立 6 位码优先塞进 text 开头，帮助 extract_otp 命中正文 OTP 而非邮件头噪声
+    # Ưu tiên nhét mã 6 số độc lập vào đầu text, giúp extract_otp trúng OTP trong nội dung chứ không phải nhiễu header email
     standalone = _standalone_otp_from_html(html) or _standalone_otp_from_html(text)
     if standalone:
         text = f"verification code {standalone}\n{text}"
@@ -521,7 +521,7 @@ def list_messages(jwt: str, *, limit: int = 20, offset: int = 0) -> list[dict]:
         _cfg_str("CLOUDFLARE_PATH_MESSAGES", "/api/mails"),
         "/api/mails",
     )
-    # 与 grokRegister-cpa 对齐：limit/offset 为必填查询参数
+    # Căn chỉnh với grokRegister-cpa: limit/offset là query param bắt buộc
     safe_limit = max(1, min(100, int(limit or 20)))
     safe_offset = max(0, int(offset or 0))
     payload = _request(
@@ -613,7 +613,7 @@ def fetch_latest_otp(
             detail = item
             msg_id = _message_id(item)
             otp_probe = _otp_item(detail)
-            # 列表字段不足时尝试详情
+            # Khi trường danh sách không đủ thì thử chi tiết
             if (not otp_probe.get("text") and not otp_probe.get("html")) or not looks_like_openai_email(otp_probe):
                 if msg_id:
                     fetched = get_message_detail(account.jwt, msg_id)
@@ -667,7 +667,7 @@ def fetch_latest_otp(
                 best_message_key = message_key
                 settle_until = time.monotonic() + settle
             elif message_key == best_message_key and best_otp == otp:
-                # 同一封邮件不重置 settle
+                # Cùng một email không reset settle
                 pass
 
         now = time.monotonic()

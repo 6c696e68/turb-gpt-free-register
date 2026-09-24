@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-"""通过 CloakBrowser + Playwright 适配层执行 ChatGPT 注册。"""
+"""Thực hiện đăng ký ChatGPT qua lớp thích ứng CloakBrowser + Playwright."""
 from __future__ import annotations
 
 import logging
@@ -16,7 +16,7 @@ from core.cloakbrowser_driver import build_cloak_driver
 from core.email_provider import acquire_email_after_input, wait_for_otp, resolve_email_source
 from core.humanize import delay as human_delay
 
-# 复用 Roxy 注册流程里已维护好的页面操作函数。
+# Tái sử dụng các hàm thao tác trang đã được duy trì trong quy trình đăng ký Roxy.
 from core.roxy_registration import (  # noqa: F401
     _maybe_accept, _submit_email_and_wait_next, _fill_password_page_if_present,
     _clear_otp_inputs, _type_otp, _click_continue, _wait_after_email_otp_submit,
@@ -35,7 +35,7 @@ def run_cloak_registration(
     batch_dir: Path | None = None,
     on_email_acquired: Callable[[str], None] | None = None,
 ) -> dict:
-    """CloakBrowser 自动化注册入口。"""
+    """Điểm vào đăng ký tự động CloakBrowser."""
     driver = None
     opened = None
     create_acknowledged = False
@@ -48,7 +48,7 @@ def run_cloak_registration(
         try:
             traffic_tracker = PlaywrightTrafficTracker(driver.context, label="Cloak")
         except Exception as exc:
-            # 统计失败不应影响注册主流程。
+            # Thất bại thống kê không nên ảnh hưởng quy trình đăng ký chính.
             logger.warning("[Cloakđăng ký] Khởi tạo thống kê lưu lượng trình duyệt thất bại, Tiếp tục đăng ký: %s: %s", type(exc).__name__, str(exc)[:180])
         data_saver = BrowserDataSaver(label="Cloak")
         if traffic_tracker is not None:
@@ -79,8 +79,8 @@ def run_cloak_registration(
         )
         _check_manual_stop()
 
-        # 如果邮箱提交后直接进入验证码页，也尝试点击“使用密码继续”进入密码创建页；
-        # _fill_password_page_if_present 会在设置成功后返回本次 OpenAI 注册密码。
+        # Nếu sau khi gửi email trực tiếp vào trang mã xác minh, cũng thử bấm “tiếp tục bằng mật khẩu” để vào trang tạo mật khẩu;
+        # _fill_password_page_if_present sẽ trả về mật khẩu đăng ký OpenAI lần này sau khi thiết lập thành công.
         openai_password = _fill_password_page_if_present(driver, email, timeout=25)
         _check_manual_stop()
 
@@ -162,7 +162,7 @@ def run_cloak_registration(
         except Exception as exc:
             codex_result = {"status": "failed", "ok": False, "message": f"{type(exc).__name__}: {str(exc)[:180]}"}
 
-        # 统计注册浏览器关闭前的完整会话；注册后停留期间的网络请求也计入。
+        # Thống kê phiên đầy đủ trước khi đóng trình duyệt đăng ký; request mạng trong thời gian ở lại sau đăng ký cũng tính.
         post_register_dwell(email, label="Cloak đăng ký")
         if traffic_tracker is not None:
             network_traffic = traffic_tracker.stop()

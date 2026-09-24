@@ -1,12 +1,12 @@
 # -*- coding: utf-8 -*-
 """
-Browser Use Cloud + Playwright 注册驱动。
+Driver đăng ký Browser Use Cloud + Playwright.
 
-目标：
-  - 不依赖本机 RoxyBrowser
-  - 通过 Browser Use stealth Chromium + 可选 residential proxy 完成 ChatGPT 注册
-  - 复用本仓库邮箱 OTP / 账号落盘逻辑
-  - 默认不做 Codex（需要时可后续再接）
+Mục tiêu:
+  - Không phụ thuộc RoxyBrowser trên máy local
+  - Hoàn tất đăng ký ChatGPT qua Browser Use stealth Chromium + proxy residential tùy chọn
+  - Tái sử dụng logic OTP email / ghi đĩa tài khoản của repo này
+  - Mặc định không làm Codex (có thể nối sau khi cần)
 """
 from __future__ import annotations
 
@@ -80,7 +80,7 @@ def _log_timing_enabled() -> bool:
 
 
 def _cloud_typing_delay(kind: str = "normal") -> tuple[int, int]:
-    """统一控制人工输入速度：可见逐字，但不慢到一分钟一页。"""
+    """Thống nhất tốc độ nhập thủ công: hiện từng ký tự, nhưng không chậm tới một phút một trang."""
     if kind == "email":
         return (45, 115) if _fast_mode() else (75, 180)
     if kind == "otp":
@@ -91,10 +91,10 @@ def _cloud_typing_delay(kind: str = "normal") -> tuple[int, int]:
 
 
 def _close_browser_use_session(browser, *, reason: str = "") -> None:
-    """关闭 Browser Use 注册阶段 CDP 会话。
+    """Đóng phiên CDP giai đoạn đăng ký Browser Use.
 
-    Codex OAuth 会重新打开自己的干净 session；注册成功后若直接跑 Codex，
-    必须先断开注册阶段的 Browser Use 会话，避免两个远端浏览器 session 同时占用资源。
+    Codex OAuth sẽ mở lại session sạch của riêng nó; nếu sau khi đăng ký thành công chạy thẳng Codex,
+    phải ngắt trước phiên Browser Use giai đoạn đăng ký, tránh hai session trình duyệt từ xa chiếm tài nguyên cùng lúc.
     """
     if browser is None:
         return
@@ -123,7 +123,7 @@ def _bu_delay(kind: str, seconds: float | None = None) -> None:
 
 
 def _human_pause(min_s: float = 0.08, max_s: float = 0.28) -> None:
-    """Browser Use / Skyvern 始终保留随机停顿，避免毫秒级连贯操作。"""
+    """Browser Use / Skyvern luôn giữ tạm dừng ngẫu nhiên, tránh thao tác liên tục ở mức mili giây."""
     try:
         time.sleep(random.uniform(float(min_s), float(max_s)))
     except Exception:
@@ -131,7 +131,7 @@ def _human_pause(min_s: float = 0.08, max_s: float = 0.28) -> None:
 
 
 def _safe_scroll_locator(loc, *, timeout: int = 1800) -> None:
-    """Skyvern/远端 CDP 上元素常有动画，scroll 等 stable 超时不能直接中断流程。"""
+    """Trên Skyvern/CDP từ xa, phần tử thường có animation; timeout stable của scroll v.v. không được trực tiếp làm gián đoạn quy trình."""
     try:
         loc.scroll_into_view_if_needed(timeout=timeout)
         return
@@ -144,7 +144,7 @@ def _safe_scroll_locator(loc, *, timeout: int = 1800) -> None:
 
 
 def _human_click_locator(loc, *, timeout: int = 3000) -> None:
-    """Playwright locator 人工化点击：滚动到可见区域、hover、停顿后再点击。"""
+    """Click nhân hóa Playwright locator: cuộn tới vùng visible, hover, dừng rồi mới click."""
     _safe_scroll_locator(loc, timeout=min(1800, max(700, timeout)))
     _human_pause(0.25, 0.75)
     try:
@@ -155,14 +155,14 @@ def _human_click_locator(loc, *, timeout: int = 3000) -> None:
     try:
         loc.click(timeout=timeout, delay=random.randint(80, 260))
     except Exception as exc:
-        # Skyvern 远端页面偶发一直等待 stable；这里退一步用 force click，但仍保留前置滚动/hover/停顿。
+        # Trang Skyvern từ xa đôi khi cứ chờ stable mãi; ở đây lùi một bước dùng force click, nhưng vẫn giữ cuộn/hover/tạm dừng trước đó.
         logger.debug("[BrowserUse] click thường thất bại, Dùng force click dự phòng: %s", str(exc)[:160])
         loc.click(timeout=timeout, delay=random.randint(80, 220), force=True)
     _human_pause(0.18, 0.5)
 
 
 def _human_focus_for_typing(loc, *, timeout: int = 2500) -> None:
-    """输入框聚焦：优先像真人点击；Skyvern click 卡住时退回 focus，不做瞬时填值。"""
+    """Focus ô nhập: ưu tiên click như người thật; khi Skyvern click bị kẹt thì fallback sang focus, không điền giá trị tức thì."""
     try:
         _human_click_locator(loc, timeout=timeout)
         return
@@ -193,7 +193,7 @@ def _human_fill_locator(
     typing_delay_range: tuple[int, int] | None = None,
     per_char: bool = True,
 ) -> None:
-    """模拟人工键盘输入；不使用瞬时 fill/evaluate 写入表单。"""
+    """Mô phỏng nhập bàn phím như người thật; không dùng fill/evaluate tức thời để ghi vào biểu mẫu."""
     text = str(value)
     delay_min, delay_max = typing_delay_range or _cloud_typing_delay("normal")
 
@@ -209,7 +209,7 @@ def _human_fill_locator(
             page.keyboard.press("Backspace")
 
     def _type_slowly() -> None:
-        # 始终逐字符发送，并在 Python 侧 sleep，避免云端 CDP 把整串 type 压缩成秒填。
+        # Luôn gửi từng ký tự, và sleep phía Python, tránh cloud CDP nén cả chuỗi type thành điền trong giây.
         for idx, ch in enumerate(text):
             page.keyboard.type(ch, delay=random.randint(delay_min, delay_max))
             if ch in "@._-+ /":
@@ -297,11 +297,11 @@ def _timeout_ms(seconds: int | None = None) -> int:
 
 
 def _build_playwright_stealth(provider_prefix: str, *, label: str):
-    """构建默认增强版 playwright-stealth。
+    """Xây dựng playwright-stealth bản tăng cường mặc định.
 
-    Browser Use / Skyvern 云端浏览器通常已有基础 stealth 指纹；这里默认叠加
-    playwright-stealth init scripts，并保持不覆盖 UA / Client Hints / WebGL，避免把
-    云端原生画像改乱。
+    Trình duyệt đám mây Browser Use / Skyvern thường đã có fingerprint stealth cơ bản; ở đây mặc định chồng
+    init scripts playwright-stealth, và giữ không ghi đè UA / Client Hints / WebGL, tránh làm loạn
+    chân dung gốc trên cloud.
     """
     try:
         from playwright_stealth import Stealth
@@ -310,13 +310,13 @@ def _build_playwright_stealth(provider_prefix: str, *, label: str):
         return None
 
     return Stealth(
-        # 默认增强但不重写云端原生画像。
+        # Mặc định tăng cường nhưng không ghi đè hồ sơ gốc đám mây.
         navigator_user_agent=False,
         navigator_user_agent_data=False,
         navigator_platform=False,
         sec_ch_ua=False,
         webgl_vendor=False,
-        # 增强自动化特征修正。
+        # Tăng cường hiệu chỉnh đặc trưng tự động hóa.
         chrome_runtime=True,
         chrome_app=True,
         chrome_csi=True,
@@ -337,7 +337,7 @@ def _build_playwright_stealth(provider_prefix: str, *, label: str):
 
 
 def _apply_cloud_browser_automation_mask(context, page, *, label: str, provider_prefix: str = "browser_use", proxy_country_code: str | None = None) -> dict:
-    """给 Browser Use / Skyvern 应用 playwright-stealth。"""
+    """Áp dụng playwright-stealth cho Browser Use / Skyvern."""
     result: dict[str, Any] = {"playwright_stealth": False}
     stealth = _build_playwright_stealth(provider_prefix, label=label)
     if stealth is None:
@@ -358,12 +358,12 @@ def _apply_cloud_browser_automation_mask(context, page, *, label: str, provider_
 
 
 def _should_apply_cloud_automation_mask(provider_prefix: str) -> bool:
-    # Browser Use / Skyvern 全部默认增强处理，不再暴露额外开关。
+    # Browser Use / Skyvern đều xử lý tăng cường mặc định, không còn lộ công tắc bổ sung.
     return True
 
 
 def _post_register_dwell(page, context, *, provider_prefix: str, email: str) -> None:
-    """注册成功后随机停留再断开，模拟手动注册后短暂观察。"""
+    """Sau đăng ký thành công, dừng ngẫu nhiên rồi ngắt kết nối, mô phỏng quan sát ngắn sau đăng ký thủ công."""
     seconds = _post_register_dwell_seconds()
     if seconds <= 0:
         return
@@ -405,7 +405,7 @@ def _visible_locator(page, selectors: list[str], timeout_ms: int = 1500):
 
 
 def _visible_textbox_locator(page, timeout_ms: int = 1500):
-    """更宽松的可见输入框定位：兼容 textbox / contenteditable / 普通 input/textarea。"""
+    """Định vị ô nhập hiển thị linh hoạt hơn: tương thích textbox / contenteditable / input/textarea thông thường."""
     candidates = [
         "input:not([type='hidden'])",
         "textarea",
@@ -484,7 +484,7 @@ def _maybe_accept_cookies(page) -> None:
 
 
 def _maybe_dismiss_chatgpt_onboarding(page) -> None:
-    """登录后 ChatGPT 欢迎/介绍弹窗兜底点击，避免 Skyvern 停在弹窗层。"""
+    """Sau đăng nhập, click dự phòng popup chào mừng/giới thiệu ChatGPT, tránh Skyvern dừng ở lớp popup."""
     selectors = [
         "button:has-text('Get started')",
         "button:has-text('Start using ChatGPT')",
@@ -527,7 +527,7 @@ def _assert_not_external_idp(page, stage: str) -> None:
 
 
 def _quick_auth_state(page) -> dict:
-    """一次 JS 查询判断当前 auth 页面状态，避免多组 locator 逐个等待导致几十秒卡顿。"""
+    """Một lần truy vấn JS để xác định trạng thái trang auth hiện tại, tránh chờ lần lượt nhiều nhóm locator gây đơ hàng chục giây."""
     try:
         return page.evaluate(
             """() => {
@@ -586,7 +586,7 @@ def _quick_auth_state(page) -> dict:
 
 
 def _email_entry_state_pw(page) -> dict:
-    """Playwright 版 Roxy 邮箱入口诊断：只采集技术属性，不依赖页面文案。"""
+    """Chẩn đoán cổng vào email Roxy bản Playwright: chỉ thu thập thuộc tính kỹ thuật, không phụ thuộc văn bản trang."""
     try:
         return page.evaluate(r"""
         () => {
@@ -634,7 +634,7 @@ def _is_oauth_consent_like_pw(page) -> bool:
 
 
 def _click_email_entry_option_pw(page) -> bool:
-    """Roxy 同款：按 DOM 技术属性点击邮箱入口，排除第三方登录，不依赖可见文字。"""
+    """Giống Roxy: click cổng vào email theo thuộc tính kỹ thuật DOM, loại trừ đăng nhập bên thứ ba, không phụ thuộc chữ hiển thị."""
     if _is_oauth_consent_like_pw(page):
         logger.info("[BrowserUse] Hiện nghi OAuth Trang uỷ quyền, Bỏ qua bấm dự phòng lối vào email")
         return False
@@ -681,7 +681,7 @@ def _click_email_entry_option_pw(page) -> bool:
 
 
 def _find_email_input_locator_pw(page, timeout_ms: int = 1000):
-    """Roxy 同款邮箱输入框选择器，先严格 email/username，再宽松 textbox。"""
+    """Bộ chọn ô nhập email giống Roxy, trước nghiêm ngặt email/username, sau nới lỏng textbox."""
     strict = [
         "input[type='email']",
         "input[name='email']",
@@ -697,8 +697,8 @@ def _find_email_input_locator_pw(page, timeout_ms: int = 1000):
         "input[aria-label*='メール']",
         "input[placeholder*='メール']",
         "input[aria-label*='邮箱']",
-        "input[placeholder*='邮箱']",
-        "input[placeholder*='電子郵件']",
+        "input[placeholder*='email']",
+        "input[placeholder*='email']",
     ]
     loc = _visible_locator(page, strict, timeout_ms=timeout_ms)
     if loc is not None:
@@ -707,7 +707,7 @@ def _find_email_input_locator_pw(page, timeout_ms: int = 1000):
 
 
 def _submit_email_step_pw(page, email: str) -> bool:
-    """Playwright 版 Roxy 安全提交：只提交邮箱输入框所在 form 附近的非第三方按钮。"""
+    """Submit an toàn Roxy bản Playwright: chỉ submit các nút không phải bên thứ ba gần form chứa ô nhập email."""
     try:
         result = page.evaluate(r"""
         (email) => {
@@ -812,7 +812,7 @@ def _submit_email_step_pw(page, email: str) -> bool:
 
 
 def _wait_for_email_input_pw(page, timeout_ms: int | None = None):
-    """进入邮箱登录/注册方式并返回已找到的可见邮箱输入框。"""
+    """Vào cách đăng nhập/đăng ký email và trả về ô nhập email hiển thị đã tìm thấy."""
     fill_timeout_ms = timeout_ms if timeout_ms is not None else min(_timeout_ms(), 24000)
     end = time.time() + (fill_timeout_ms / 1000.0)
     clicked_email_option = False
@@ -825,7 +825,7 @@ def _wait_for_email_input_pw(page, timeout_ms: int | None = None):
 
         last_state = _email_entry_state_pw(page)
         if not clicked_email_option:
-            # 先尝试原来的多语言显式 selector，再用 Roxy DOM 属性兜底。
+            # Thử selector tường minh đa ngôn ngữ cũ trước, rồi fallback bằng thuộc tính Roxy DOM.
             clicked_email_option = _click_first(
                 page,
                 [
@@ -860,7 +860,7 @@ def _wait_for_email_input_pw(page, timeout_ms: int | None = None):
 
 
 def _type_email(page, email: str, timeout_ms: int | None = None) -> None:
-    """找到邮箱输入框后人工逐字输入并提交邮箱。"""
+    """Sau khi tìm thấy ô nhập email, nhập từng ký tự thủ công và gửi email."""
     loc = _wait_for_email_input_pw(page, timeout_ms=timeout_ms)
     _human_fill_locator(
         page,
@@ -876,7 +876,7 @@ def _type_email(page, email: str, timeout_ms: int | None = None) -> None:
 
 
 def _wait_after_email_submit_transition(page, context=None, timeout: int = 14) -> str:
-    """提交邮箱后确认页面真的离开邮箱输入页，避免直接空等 OTP。"""
+    """Sau khi gửi email, xác nhận trang đã thực sự rời khỏi trang nhập email, tránh chờ OTP vô ích."""
     end = time.time() + timeout
     last_state = "other"
     last_url = ""
@@ -929,7 +929,7 @@ def _submit_email_until_transition(
         if current_email:
             _type_email(page, current_email, timeout_ms=timeout_ms)
         else:
-            # 先确认页面已有可用输入框，再领取邮箱；不能把领取动作放在页面导航之前。
+            # Trước tiên xác nhận trang đã có ô nhập khả dụng, rồi nhận email; không đặt thao tác nhận trước khi điều hướng trang.
             email_input = _wait_for_email_input_pw(page, timeout_ms=timeout_ms)
             if email_supplier is None:
                 raise RuntimeError("Đã tìm thấy ô nhập email, Nhưng chưa cung cấp bộ phân bổ email")
@@ -982,7 +982,7 @@ def _is_password_page(page) -> bool:
 
 
 def _is_signup_password_page(page) -> bool:
-    """更稳妥地识别注册密码页：优先看 URL，其次看密码输入框。"""
+    """Nhận diện trang mật khẩu đăng ký ổn định hơn: ưu tiên xem URL, sau đó ô nhập mật khẩu."""
     try:
         url = str(_page_url(page) or "").lower()
     except Exception:
@@ -1190,7 +1190,7 @@ def _fill_password_if_present(page, email: str, timeout: int = 25, context=None)
     last_heartbeat = 0.0
     last_log = 0.0
     while time.time() < end:
-        # 邮箱提交后若已经在验证码页，优先点击“使用密码继续”切到密码创建页。
+        # Sau khi gửi email nếu đã ở trang mã xác minh, ưu tiên bấm “Tiếp tục bằng mật khẩu” sang trang tạo mật khẩu.
         try:
             if not _is_signup_password_page(page):
                 quick = _quick_auth_state(page)
@@ -1231,15 +1231,15 @@ def _fill_password_if_present(page, email: str, timeout: int = 25, context=None)
                 continue
             except Exception as exc:
                 logger.info("[BrowserUse] Chuyển dự phòng từ trang mã OTP email sang trang mật khẩu thất bại: %s", str(exc)[:180])
-                # 不要直接退出，继续等页面自己切到密码页
+                # Đừng thoát trực tiếp, tiếp tục đợi trang tự chuyển sang trang mật khẩu
                 time.sleep(0.8 if _fast_mode() else 1.5)
                 continue
         if state not in ("password", "login_password"):
-            # 提交邮箱后如果仍显示 /auth/login 但页面其实已经渲染验证码输入框，
-            # 某些 Browser Use target 上 DOM 状态会短暂滞后。不要在“密码页检测”里长等，
-            # 直接交给后面的 OTP 阶段处理，避免云端会话被拖到关闭。
-            # fast 模式也不要 3 秒就放弃：提交邮箱后常仍停在 /auth/login，
-            # 需等跳到 auth.openai.com 或出现密码/OTP 控件。
+            # Sau khi gửi email nếu vẫn hiện /auth/login nhưng trang thực ra đã render ô nhập mã xác minh,
+            # Trên một số target Browser Use, trạng thái DOM có thể trễ tạm thời. Đừng chờ lâu trong “phát hiện trang mật khẩu”,
+            # Trực tiếp giao cho giai đoạn OTP phía sau xử lý, tránh phiên đám mây bị kéo tới lúc đóng.
+            # Chế độ fast cũng đừng bỏ cuộc sau 3 giây: sau khi gửi email thường vẫn dừng ở /auth/login,
+            # Cần đợi chuyển tới auth.openai.com hoặc xuất hiện control mật khẩu/OTP.
             if _fast_mode() and time.time() - started >= 8:
                 logger.info("[BrowserUse] chưa phát hiện trang mật khẩu, vào trước OTP Giai đoạn: state=%s url=%s", state, state_info.get("url") or "-")
                 return None
@@ -1381,7 +1381,7 @@ def _type_otp(page, code: str) -> None:
     if not code:
         raise RuntimeError("OTP Rỗng")
 
-    # 单框
+    # Khung đơn
     if _fill_first(
         page,
         [
@@ -1399,7 +1399,7 @@ def _type_otp(page, code: str) -> None:
     ):
         return
 
-    # 多分框 6 位
+    # Nhiều ô nhập 6 chữ số
     boxes = page.locator("input[maxlength='1'], input[data-index], input[aria-label*='digit' i]")
     try:
         count = boxes.count()
@@ -1579,7 +1579,7 @@ def _click_resend_otp(page) -> bool:
 
 
 def _wait_after_otp(page, timeout: int = 12) -> str:
-    """返回 accepted / invalid / unknown。"""
+    """Trả về accepted / invalid / unknown."""
     end = time.time() + timeout
     while time.time() < end:
         url = _page_url(page).lower()
@@ -1605,7 +1605,7 @@ def _fill_birthday_fields(page, birthday: str) -> None:
     except Exception as exc:
         raise RuntimeError(f"định dạng ngày sinh phải là YYYY-MM-DD: {birthday}") from exc
 
-    # 年龄数字页
+    # Trang số tuổi
     age = max(18, min(60, 2026 - year))
     if _fill_first(
         page,
@@ -1621,7 +1621,7 @@ def _fill_birthday_fields(page, birthday: str) -> None:
     ):
         return
 
-    # 年月日 select / spinbutton 尽量覆盖
+    # select / spinbutton năm tháng ngày cố gắng bao phủ
     y, m, d = str(year), str(month), str(day)
     # year/month/day inputs
     for selectors, value in (
@@ -1716,7 +1716,7 @@ def _has_chatgpt_access_token(page) -> bool:
 
 
 def _fill_spinbutton_birthday(page, birthday: str) -> bool:
-    """Playwright 兜底填写 React Aria spinbutton 年/月/日。"""
+    """Playwright điền dự phòng spinbutton năm/tháng/ngày của React Aria."""
     try:
         y, m, d = birthday.split("-")
     except Exception:
@@ -1768,7 +1768,7 @@ def _fill_spinbutton_birthday(page, birthday: str) -> bool:
 
 
 def _human_complete_profile(page, name: str, birthday: str) -> dict:
-    """资料页人工化填写：滚动、点击、逐字输入、选择/输入生日、点击 checkbox 和提交。"""
+    """Điền nhân hóa trang hồ sơ: cuộn, click, gõ từng ký tự, chọn/nhập ngày sinh, click checkbox và submit."""
     info: dict[str, Any] = {"ok": False, "submitted": False, "method": "human_playwright", "filled": {}}
 
     name_ok = _fill_first(
@@ -1780,9 +1780,9 @@ def _human_complete_profile(page, name: str, birthday: str) -> dict:
             "input[aria-label*='name' i]",
             "input[placeholder*='name' i]",
             "input[aria-label*='名前']",
-            "input[placeholder*='名前']",
+            "input[placeholder*='tên']",
             "input[aria-label*='姓名']",
-            "input[placeholder*='姓名']",
+            "input[placeholder*='họ tên']",
             "input[type='text']",
         ],
         name,
@@ -1808,7 +1808,7 @@ def _human_complete_profile(page, name: str, birthday: str) -> dict:
     if spin_ok:
         info["filled"]["spinbutton"] = True
 
-    # 勾选可见 checkbox，使用真实 locator click，不用 JS 改 checked。
+    # Tick checkbox hiển thị, dùng click locator thật, không dùng JS sửa checked.
     checkbox_count = 0
     try:
         boxes = page.locator("input[type='checkbox'], [role='checkbox']")
@@ -1871,7 +1871,7 @@ def _human_complete_profile(page, name: str, birthday: str) -> dict:
 
 
 def _js_complete_profile(page, name: str, birthday: str) -> dict:
-    """JS 兜底处理 about-you/profile：填 name/age/生日/checkbox 并提交。"""
+    """Xử lý dự phòng JS cho about-you/profile: điền name/age/ngày sinh/checkbox và gửi."""
     try:
         year, month, day = [int(x) for x in birthday.split("-")]
     except Exception:
@@ -2035,7 +2035,7 @@ def _js_complete_profile(page, name: str, birthday: str) -> dict:
 
 
 def _force_exit_profile_page(page, deadline: float) -> bool:
-    """资料页提交后如果仍卡在 about-you/profile，强制跳出，避免 Skyvern 远端页面无限等待。"""
+    """Sau khi gửi trang hồ sơ nếu vẫn kẹt ở about-you/profile, buộc thoát ra, tránh trang từ xa Skyvern chờ vô hạn."""
     targets = [
         "https://chatgpt.com/",
         "https://chatgpt.com/auth/login",
@@ -2072,7 +2072,7 @@ def _force_exit_profile_page(page, deadline: float) -> bool:
 
 
 def _complete_profile_page(page, name: str, birthday: str, timeout: int = 60) -> bool:
-    """资料页填写/提交：提交后不无限等待；Skyvern 卡住时强制跳出 about-you。"""
+    """Điền/gửi trang hồ sơ: không chờ vô hạn sau khi gửi; buộc thoát about-you khi Skyvern bị kẹt."""
 
     timeout = min(timeout, 45) if _fast_mode() else timeout
     end = time.time() + timeout
@@ -2114,7 +2114,7 @@ def _complete_profile_page(page, name: str, birthday: str, timeout: int = 60) ->
                 else:
                     submitted = True
                 if submitted and post_submit_hard_exit_at is None:
-                    # 已提交后不再重复填写/点击；最多给它 10~16 秒同步登录态，然后强制跳出。
+                    # Sau khi đã submit không điền/bấm lặp lại; tối đa cho nó 10~16 giây đồng bộ trạng thái đăng nhập, rồi buộc thoát.
                     post_submit_hard_exit_at = time.time() + (10 if _fast_mode() else 16)
                 last_submit = time.time()
                 _bu_delay("form")
@@ -2236,10 +2236,10 @@ def _pick_live_page(context, preferred=None):
 
 
 def _browser_use_heartbeat(page, context=None, label: str = ""):
-    """给 Browser Use 云端页面做轻量心跳，并顺便探测 target 是否已被平台关闭。
+    """Làm heartbeat nhẹ cho trang đám mây Browser Use, đồng thời dò xem target đã bị nền tảng đóng chưa.
 
-    OpenAI 跳转时常会关掉旧 target 再开新页；这里在 closed 时短暂重试切换到存活页，
-    避免把正常导航误判成“会话已死”。
+    Khi OpenAI chuyển hướng thường đóng target cũ rồi mở trang mới; ở đây khi closed sẽ thử lại ngắn chuyển sang trang còn sống,
+    tránh nhầm điều hướng bình thường thành "phiên đã chết".
     """
     tag = f"({label})" if label else ""
 
@@ -2261,7 +2261,7 @@ def _browser_use_heartbeat(page, context=None, label: str = ""):
     def _recover_live(preferred=None):
         if context is None:
             return None
-        # 跳转瞬间 pages 可能短暂为空，稍等再取
+        # Trong lúc chuyển trang, pages có thể tạm thời rỗng, đợi một chút rồi lấy
         for delay in (0.0, 0.35, 0.8):
             if delay:
                 time.sleep(delay)
@@ -2303,10 +2303,10 @@ def _browser_use_heartbeat(page, context=None, label: str = ""):
             raise
 
     try:
-        # 读 location/visibilityState 足够轻量，不会改变页面状态；比 context.request 更能保持远端 page target 活跃。
+        # Đọc location/visibilityState đủ nhẹ, không thay đổi trạng thái trang; giữ remote page target sống tốt hơn context.request.
         page.evaluate("() => ({href: location.href, visibility: document.visibilityState, t: Date.now()})", timeout=2500)
     except TypeError:
-        # 兼容旧 Playwright：evaluate 不支持 timeout 参数。
+        # Tương thích Playwright cũ: evaluate không hỗ trợ tham số timeout.
         try:
             page.evaluate("() => ({href: location.href, visibility: document.visibilityState, t: Date.now()})")
         except Exception as exc:
@@ -2332,7 +2332,7 @@ def _browser_use_heartbeat(page, context=None, label: str = ""):
 
 
 def _wait_for_otp_with_browser_heartbeat(page, context, email: str, after_ts: float) -> str:
-    """短轮询邮箱 OTP；每轮之间触碰页面，避免 Browser Use Cloud 长时间无页面活动被回收。"""
+    """Poll ngắn OTP email; chạm trang giữa mỗi vòng để tránh Browser Use Cloud thu hồi do lâu không có hoạt động trang."""
     try:
         from config import email as _email_cfg
         total_wait = int(getattr(_email_cfg, "OTP_MAX_WAIT", 90) or 90)
@@ -2341,9 +2341,9 @@ def _wait_for_otp_with_browser_heartbeat(page, context, email: str, after_ts: fl
     except Exception:
         total_wait, poll_interval, settle = 90, 3, 5
 
-    # 单次邮箱轮询不要阻塞太久，否则云端浏览器这段时间没有任何 page activity。
-    # 但 Outlook direct/Graph 偶发 TLS/网络抖动时，12s 切片太短会导致每轮还没来得及完成
-    # Graph/REST/IMAP 兜底就被上层判超时；这里放宽到最多 30s，仍在每轮之间做页面心跳。
+    # Mỗi lần polling email đừng block quá lâu, nếu không trình duyệt đám mây sẽ không có page activity trong khoảng đó.
+    # Nhưng khi Outlook direct/Graph thỉnh thoảng rung TLS/mạng, lát cắt 12s quá ngắn khiến mỗi vòng chưa kịp hoàn thành
+    # Fallback Graph/REST/IMAP sẽ bị tầng trên coi là timeout; ở đây nới lỏng tối đa 30s, vẫn heartbeat trang giữa các vòng.
     slice_wait = max(15, min(30, total_wait))
     slice_settle = max(0, min(settle, 5))
     deadline = time.time() + total_wait
@@ -2387,7 +2387,7 @@ def _wait_for_otp_with_browser_heartbeat(page, context, email: str, after_ts: fl
 
 
 def _read_chatgpt_session_via_context(context, timeout_ms: int = 5000) -> dict | None:
-    """用 BrowserContext.request 读取 session；共享 context cookie，不依赖页面 evaluate。"""
+    """Dùng BrowserContext.request để đọc session; chia sẻ cookie của context, không phụ thuộc evaluate trang."""
     try:
         resp = context.request.get(
             "https://chatgpt.com/api/auth/session",
@@ -2410,7 +2410,7 @@ def _read_chatgpt_session_via_context(context, timeout_ms: int = 5000) -> dict |
 
 
 def _read_chatgpt_session_via_page(page, timeout_ms: int = 5000) -> dict | None:
-    """页面内读取 session，加 JS AbortController，避免 page.evaluate 无限挂住。"""
+    """Đọc session trong trang, thêm JS AbortController, tránh page.evaluate bị treo vô hạn."""
     try:
         page.set_default_timeout(max(2000, timeout_ms + 1000))
     except Exception:
@@ -2440,7 +2440,7 @@ def _read_chatgpt_session_via_page(page, timeout_ms: int = 5000) -> dict | None:
         return {"_error": f"{type(exc).__name__}: {exc}"}
 
 def _fetch_chatgpt_session(page, context=None, timeout: int = 120) -> dict:
-    # 优先用 BrowserContext.request 读取 cookies/session，避免 page.evaluate 在 Browser Use 远端 target 上挂死。
+    # Ưu tiên dùng BrowserContext.request để đọc cookies/session, tránh page.evaluate bị treo trên Browser Use remote target.
     timeout = min(timeout, 28) if _fast_mode() else timeout
     end = time.time() + timeout
     last = None
@@ -2467,7 +2467,7 @@ def _fetch_chatgpt_session(page, context=None, timeout: int = 120) -> dict:
         url = _page_url(page).lower() if page is not None else ""
         on_chatgpt = "chatgpt.com" in url
 
-        # 1) context.request 先读：快、不依赖页面 JS；即使页面 target 被关闭，只要 context 活着还能读。
+        # 1) Đọc trước bằng context.request: nhanh, không phụ thuộc JS trang; dù page target bị đóng, miễn context còn sống vẫn đọc được.
         if context is not None:
             data = _read_chatgpt_session_via_context(context, timeout_ms=1800 if _fast_mode() else 5000)
             last = data
@@ -2484,7 +2484,7 @@ def _fetch_chatgpt_session(page, context=None, timeout: int = 120) -> dict:
                 logger.info("[BrowserUse] chờ accessToken via=context, url=%s keys=%s", _page_url(page) or "-", keys)
                 last_log = time.time()
 
-        # 2) 如果已经在 chatgpt.com，再用页面内 fetch 兜底；但设置短超时。
+        # 2) Nếu đã ở chatgpt.com, dùng thêm fetch trong trang làm dự phòng; nhưng đặt timeout ngắn.
         if on_chatgpt and page is not None:
             _maybe_dismiss_chatgpt_onboarding(page)
             data = _read_chatgpt_session_via_page(page, timeout_ms=2200 if _fast_mode() else 5000)
@@ -2497,15 +2497,15 @@ def _fetch_chatgpt_session(page, context=None, timeout: int = 120) -> dict:
                 target_closed_count += 1
                 logger.warning("[BrowserUse] trang target Đã đóng, Thử tiếp tục dùng context Đọc session: %s", err[:180])
                 if context is None or _pick_live_page(context) is None:
-                    # 不再等到总超时；BrowserUse 远端目标没了，继续等没有意义。
+                    # Không đợi hết timeout tổng; mục tiêu từ xa BrowserUse đã mất, tiếp tục đợi vô nghĩa.
                     raise RuntimeError(f"BrowserUse trang đã đóng, Không đọc được session: {err}")
             elif time.time() - last_log > 2:
                 keys = list((data or {}).keys()) if isinstance(data, dict) else type(data)
                 logger.info("[BrowserUse] chờ accessToken via=page, url=%s keys=%s", _page_url(page) or "-", keys)
                 last_log = time.time()
         else:
-            # 资料页提交后 Skyvern 偶发不会自动跳转；到 session 阶段说明 profile 处理已经结束，
-            # 继续停留在 about-you/profile 没有意义，短暂观察后强制跳到 ChatGPT 读取登录态。
+            # Sau khi gửi trang hồ sơ, Skyvern đôi khi không tự chuyển trang; đến giai đoạn session nghĩa là xử lý profile đã kết thúc,
+            # Tiếp tục ở about-you/profile không có ý nghĩa; sau quan sát ngắn buộc nhảy sang ChatGPT để đọc trạng thái đăng nhập.
             if any(x in url for x in ("about-you", "profile", "create-account/about", "signup/profile")):
                 if first_profile_still_at is None:
                     first_profile_still_at = time.time()
@@ -2554,7 +2554,7 @@ def run_browser_use_registration(
     cloud_provider: str = "browser_use",
     on_email_acquired: Callable[[str], None] | None = None,
 ) -> dict:
-    """Browser Use / Skyvern 云端浏览器注册入口。proxy 参数保留兼容。"""
+    """Điểm vào đăng ký trình duyệt đám mây Browser Use / Skyvern. Tham số proxy giữ tương thích."""
     try:
         from playwright.sync_api import sync_playwright
     except ImportError as exc:
@@ -2602,7 +2602,7 @@ def run_browser_use_registration(
                 connect_kwargs["headers"] = client.cdp_headers()
             browser = p.chromium.connect_over_cdp(session_info_open.connect_url, **connect_kwargs)
             _t_cdp.done()
-            # Browser Use 通常已有默认 context/page
+            # Browser Use thường đã có context/page mặc định
             if browser.contexts:
                 context = browser.contexts[0]
             else:
@@ -2610,8 +2610,8 @@ def run_browser_use_registration(
             page = context.pages[0] if context.pages else context.new_page()
             page.set_default_timeout(_timeout_ms())
             page.set_default_navigation_timeout(_timeout_ms(getattr(_cfg, "BROWSER_USE_NAVIGATION_TIMEOUT", 90)))
-            # Browser Use/Skyvern 是云端浏览器，不安装本地省流量路由、网络流量
-            # 监听器或 JS 覆盖率采集，确保云端页面按原始流程运行且不增加 CDP 开销。
+            # Browser Use/Skyvern là trình duyệt đám mây, không cài định tuyến tiết kiệm traffic cục bộ, lưu lượng mạng
+            # Thu thập listener hoặc coverage JS, đảm bảo trang cloud chạy theo luồng gốc và không tăng chi phí CDP.
             logger.info("[%s] trình duyệt cloud bỏ qua tiết kiệm data, lắng nghe mạng và JS thu thập coverage", cloud_label)
             if _should_apply_cloud_automation_mask(provider_prefix):
                 _apply_cloud_browser_automation_mask(
@@ -2649,8 +2649,8 @@ def run_browser_use_registration(
                 return email
 
             _t_email = _StepTimer("điền và submit email")
-            # OpenAI 可能在点击提交后立刻发 OTP，甚至邮件 ReceivedDateTime 早于 Playwright
-            # 点击函数返回的本地时间；先记录时间戳，配合 _is_after 的时钟容忍，避免过滤掉首次验证码。
+            # OpenAI có thể gửi OTP ngay sau khi bấm gửi, thậm chí ReceivedDateTime của email sớm hơn Playwright
+            # Thời gian local do hàm click trả về; ghi timestamp trước, kết hợp dung sai đồng hồ của _is_after, tránh lọc mất captcha lần đầu.
             otp_after_ts = time.time()
             next_state = _submit_email_until_transition(
                 page,
@@ -2720,7 +2720,7 @@ def run_browser_use_registration(
             current_otp = otp_code
             max_otp_attempts = 3
             for otp_attempt in range(1, max_otp_attempts + 1):
-                # 等验证码页出现
+                # Đợi trang mã xác minh xuất hiện
                 wait_end = time.time() + (20 if _fast_mode() else 45)
                 last_verify_log = 0.0
                 while time.time() < wait_end:
@@ -2776,7 +2776,7 @@ def run_browser_use_registration(
                 outcome = _wait_after_otp(page, timeout=6 if _fast_mode() else 12)
                 _t_otp_submit.done(f"state={outcome}")
                 if outcome in ("accepted", "unknown"):
-                    # unknown 也继续尝试资料页/session
+                    # unknown cũng tiếp tục thử trang hồ sơ/session
                     break
                 if otp_attempt >= max_otp_attempts:
                     raise RuntimeError("Mã OTP email sai liên tiếp/Hết hạn")
@@ -2799,7 +2799,7 @@ def run_browser_use_registration(
                     create_acknowledged = True
                     _bu_delay("post_auth")
             except Exception as exc:
-                # 资料页是高频卡点：超时/强制跳出失败后不继续卡，直接进入取 AT；取不到则由下一步抛错失败。
+                # Trang hồ sơ là điểm kẹt tần suất cao: sau timeout/thoát cưỡng bức thất bại không kẹt tiếp, vào lấy AT ngay; không lấy được thì bước sau ném lỗi thất bại.
                 logger.warning("[BrowserUse] Xử lý trang hồ sơ quá thời gian/Thất bại, Thử lấy trực tiếp AT: %s: %s", type(exc).__name__, str(exc)[:260])
 
             try:
@@ -2832,8 +2832,8 @@ def run_browser_use_registration(
                         "[BrowserUse][Codex] ENABLE_CODEX_AUTO=True, Tự chạy sau khi đăng ký thành công Codex OAuth: driver=%s",
                         oauth_driver,
                     )
-                    # Codex OAuth 会创建自己的授权 session。先关闭注册阶段的 Browser Use
-                    # CDP 连接，避免注册浏览器继续占用远端会话/代理资源并干扰后续 OAuth。
+                    # Codex OAuth sẽ tạo session ủy quyền riêng. Đóng trước Browser Use giai đoạn đăng ký
+                    # Kết nối CDP, tránh trình duyệt đăng ký tiếp tục chiếm session/proxy từ xa và can thiệp OAuth sau.
                     _close_browser_use_session(browser, reason="Sắp thực thi Codex OAuth")
                     if provider_prefix == "skyvern" and hasattr(client, "close_browser_session") and getattr(session_info_open, "session_id", ""):
                         try:
@@ -2856,7 +2856,7 @@ def run_browser_use_registration(
                     "message": f"{type(exc).__name__}: {str(exc)[:220]}",
                 }
 
-            # 云端浏览器不采集本地流量明细；注册后停留仅用于完成页面流程。
+            # Trình duyệt đám mây không thu thập chi tiết lưu lượng cục bộ; ở lại sau đăng ký chỉ để hoàn tất quy trình trang.
             _post_register_dwell(page, context, provider_prefix=provider_prefix, email=email)
             account_id = save_account_data(
                 email=email,
@@ -2911,7 +2911,7 @@ def run_browser_use_registration(
             "error": f"{type(exc).__name__}: {str(exc)[:300]}",
         }
     finally:
-        # 任务结束统一关闭连接，避免云浏览器/CDP 残留占用。
+        # Kết thúc task thì đóng kết nối thống nhất, tránh chiếm dụng dư thừa cloud browser/CDP.
         try:
             if browser is not None:
                 browser.close()

@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-"""通过 RoxyBrowser 指纹浏览器执行 Codex OAuth 授权。"""
+"""Thực hiện ủy quyền OAuth Codex qua trình duyệt vân tay RoxyBrowser."""
 from __future__ import annotations
 
 import logging
@@ -59,7 +59,7 @@ def _detect_browser_kind(opened=None) -> str:
 
 
 class _CodexLogger:
-    """把流程内部统一占位前缀替换成当前真实浏览器类型。"""
+    """Thay tiền tố placeholder thống nhất trong quy trình bằng loại trình duyệt thực tế hiện tại."""
     def __init__(self, base):
         self._base = base
 
@@ -102,11 +102,11 @@ def _is_callback_url(url: str) -> bool:
 
 
 def _extract_callback_url_from_page(driver) -> str:
-    """从当前页面提取 OAuth callback URL。
+    """Trích xuất OAuth callback URL từ trang hiện tại.
 
-    浏览器跳转到 http://localhost:1455/auth/callback?... 时，本地没有服务监听会显示
-    chrome-error://chromewebdata/。地址栏可能变成 chrome-error，但 Chromium 的
-    performance navigation entry 仍保留原始 callback URL，可直接提取后提交 CPA。
+    Khi trình duyệt chuyển tới http://localhost:1455/auth/callback?..., nếu local không có dịch vụ lắng nghe sẽ hiển thị
+    chrome-error://chromewebdata/. Thanh địa chỉ có thể thành chrome-error, nhưng
+    performance navigation entry của Chromium vẫn giữ callback URL gốc, có thể trích xuất trực tiếp rồi gửi CPA.
     """
     try:
         current = str(driver.current_url or "")
@@ -276,7 +276,7 @@ def _is_mfa_challenge_page(driver) -> bool:
 
 
 def _fill_mfa_challenge_if_present(driver, email: str, timeout: int = 15) -> bool:
-    """如果当前进入 MFA challenge 页面，自动填入账号 TOTP 并提交。"""
+    """Nếu hiện đang vào trang MFA challenge, tự động điền TOTP của tài khoản và gửi."""
     code = _account_totp_code_for_email(email)
     if not code:
         return False
@@ -318,7 +318,7 @@ def _fill_mfa_challenge_if_present(driver, email: str, timeout: int = 15) -> boo
 
 
 def _fill_login_password_if_present(driver, email: str, timeout: int = 18) -> str | None:
-    """Codex OAuth 若账号有密码，优先在登录密码页输入密码。返回 next_step / email_otp / None。"""
+    """Codex OAuth nếu tài khoản có mật khẩu, ưu tiên nhập mật khẩu tại trang mật khẩu đăng nhập. Trả về next_step / email_otp / None."""
     password = _account_password_for_email(email)
     if not password:
         return None
@@ -382,8 +382,8 @@ def _fill_email_and_otp(driver, email: str, otp_provider, auth_url: str) -> None
     logger.info("[Codex][Browser] trang uỷ quyền tải xong, kiểm tra có cần đăng nhập email")
     _maybe_accept(driver)
 
-    # 可能已经处于账号选择/授权页；如果有邮箱输入框则完整登录。
-    # 非日本出口时按钮文案/顺序会变，不能按可见文字点“继续”，否则可能误点 Google。
+    # Có thể đã ở trang chọn tài khoản/ủy quyền; nếu có ô nhập email thì đăng nhập đầy đủ.
+    # Khi egress không phải Nhật, text/thứ tự nút đổi — đừng bấm nút Continue theo chữ hiển thị, dễ bấm nhầm Google.
     try:
         _type_email_address(driver, email, timeout=12)
         logger.info("[Codex][Browser] đã điền email: %s", email)
@@ -404,14 +404,14 @@ def _fill_email_and_otp(driver, email: str, otp_provider, auth_url: str) -> None
         logger.info("[Codex][Browser] Không phát hiện ô nhập email, Có thể đã đăng nhập hoặc sang bước tiếp: %s", str(exc)[:120])
         return
 
-    # 提交邮箱后不再执行任何全局“继续/授权/分支”兜底点击；后续只等待验证码页。
-    # 避免页面已进入 OAuth consent 时误点授权按钮。
+    # Sau submit email không còn click fallback toàn cục “tiếp tục/ủy quyền/nhánh”; sau đó chỉ chờ trang mã xác minh.
+    # Tránh nhầm nhấn nút ủy quyền khi trang đã vào OAuth consent.
 
     used_codes: set[str] = set()
     max_otp_attempts = 3
 
     def _restart_email_otp_flow(reason: str) -> None:
-        """Codex Auth 上直接点 resend 可能触发服务端 500；这里改为重新打开授权地址并提交邮箱。"""
+        """Bấm resend trực tiếp trên Codex Auth có thể gây lỗi 500 phía máy chủ; ở đây đổi thành mở lại địa chỉ ủy quyền và gửi email."""
         nonlocal otp_after_ts
         logger.info("[Codex][Browser] kích hoạt lại email OTP: %s", reason)
         otp_after_ts = time.time()
@@ -432,7 +432,7 @@ def _fill_email_and_otp(driver, email: str, otp_provider, auth_url: str) -> None
             if pw_result != "email_otp":
                 _maybe_click_passwordless_after_email(driver, email, timeout=12)
         except Exception as exc:
-            # 如果重进授权地址后已经停在验证码/下一步页面，就不要再强行提交。
+            # Nếu sau khi vào lại địa chỉ ủy quyền đã dừng ở trang captcha/bước tiếp, đừng cưỡng ép submit nữa.
             if not _is_email_verification_page(driver):
                 logger.warning("[Codex][Browser] gửi lại email thất bại, Tiếp tục poll theo trang hiện tại: %s", str(exc)[:180])
             else:
@@ -531,10 +531,10 @@ def _wait_for_fresh_email_otp(otp_provider, email: str, after_ts: float, used_co
 
 def _install_email_otp_validate_hook(driver) -> None:
     """
-    在页面内 hook fetch/XHR，捕获 email-otp/validate 的接口响应体。
+    Hook fetch/XHR trong trang để bắt body phản hồi API email-otp/validate.
 
-    指纹浏览器不能像纯协议模式一样直接拿 requests.Response，因此在提交邮箱 OTP 前
-    注入此 hook，后续只读取接口 JSON error.code，不靠页面文字判断废号。
+    Trình duyệt fingerprint không lấy trực tiếp requests.Response như chế độ thuần protocol, nên trước khi gửi OTP email
+    inject hook này, sau đó chỉ đọc JSON error.code của API, không dựa chữ trên trang để phán hỏng số.
     """
     script = r"""
     (() => {
@@ -612,9 +612,9 @@ def _read_email_otp_validate_dead_code(driver) -> str:
     return ""
 
 
-# 邮箱验证码页判断复用 roxy_registration 的强版本（URL + 输入框属性识别，
-# 且明确排除 /log-in/password），不使用本地弱化版，避免点完一次性验证码后
-# 页面已渲染 OTP 输入框却因 URL 不含 email-verification 而识别失败。
+# Nhận diện trang mã xác minh email tái sử dụng phiên bản mạnh của roxy_registration (nhận diện URL + thuộc tính ô nhập,
+# và loại trừ rõ /log-in/password), không dùng bản suy yếu cục bộ, tránh sau khi nhấn mã xác minh một lần
+# Trang đã render ô nhập OTP nhưng nhận diện thất bại vì URL không chứa email-verification.
 
 def _wait_after_email_otp_submit(driver, timeout: int = 45) -> str:
     """
@@ -640,7 +640,7 @@ def _wait_after_email_otp_submit(driver, timeout: int = 45) -> str:
                 return "accepted"
             if _has_strict_add_phone_form(driver) or _is_phone_code_page(driver):
                 return "accepted"
-            # 已经离开 email-verification，交给后续授权/手机号/consent 流程处理。
+            # Đã rời email-verification, giao cho luồng ủy quyền/số điện thoại/consent tiếp theo xử lý.
             if "email-verification" not in url.lower():
                 return "accepted"
 
@@ -694,12 +694,12 @@ def _phone_page_state(driver) -> dict:
 def _select_sms_channel_or_raise(driver) -> None:
     state = _phone_page_state(driver)
     radios = state.get('radios') or []
-    # 如果存在 WhatsApp 且没有 SMS/text 可选，当前接码平台无法读取 WhatsApp，直接换号。
+    # Nếu có WhatsApp và không có tùy chọn SMS/text, nền tảng nhận mã hiện tại không đọc được WhatsApp, đổi số ngay.
     has_whatsapp = any('whatsapp' in str(r.get('value','')).lower().replace(' ', '') for r in radios)
     has_sms = any(str(r.get('value','')).lower() in ('sms', 'text', 'text_message', 'text-message') for r in radios)
     if has_whatsapp and not has_sms:
         raise RuntimeError(f"whatsapp_channel: trang chỉ cung cấp WhatsApp kênh state={state}")
-    # 选择 SMS/text radio。无 radio 时可能默认 SMS。
+    # Chọn radio SMS/text. Khi không có radio có thể mặc định SMS.
     selected = driver.execute_script(r"""
     const radios = [...document.querySelectorAll('input[type=radio]')];
     const sms = radios.find(el => /^(sms|text|text_message|text-message)$/i.test(el.value || ''));
@@ -716,7 +716,7 @@ def _select_sms_channel_or_raise(driver) -> None:
 def _is_phone_code_state(state: dict) -> bool:
     url = str(state.get('url') or '').lower()
     if 'email-verification' in url:
-        # 邮箱 OTP 页面也会出现 autocomplete=one-time-code，不能误判成手机验证码页。
+        # Trang OTP email cũng có thể xuất hiện autocomplete=one-time-code, không được nhầm thành trang mã xác minh điện thoại.
         return False
     if 'phone-verification' in url:
         return True
@@ -786,10 +786,10 @@ def _auth_origin(driver) -> str:
 
 
 def _ensure_add_phone_input(driver, *, reason: str = ""):
-    """确保当前页面回到 add-phone，并返回手机号输入框。
+    """Đảm bảo trang hiện tại quay lại add-phone và trả về ô nhập số điện thoại.
 
-    换号时如果还停留在 phone-verification/OTP 页，必须先回到手机号页，
-    再把新号码重新写入页面并重新提交。
+    Khi đổi số, nếu vẫn đang ở trang phone-verification/OTP, phải quay lại trang số điện thoại trước,
+    rồi ghi lại số mới vào trang và gửi lại.
     """
     if _has_strict_add_phone_form(driver):
         return _find_any(driver, _PHONE_INPUT_SELECTORS, timeout=2)
@@ -812,7 +812,7 @@ def _ensure_add_phone_input(driver, *, reason: str = ""):
         human_delay("navigate")
         return _find_any(driver, _PHONE_INPUT_SELECTORS, timeout=10)
     except Exception as first_exc:
-        # 某些流程不允许直接打开 /add-phone，尝试浏览器返回到上一页。
+        # Một số quy trình không cho mở trực tiếp /add-phone, thử trình duyệt quay lại trang trước.
         logger.info("[Codex][Browser] Mở thẳng add-phone Chưa lấy được ô nhập, Thử history back: %s", str(first_exc)[:160])
         try:
             driver.back()
@@ -826,13 +826,13 @@ def _ensure_add_phone_input(driver, *, reason: str = ""):
 
 
 def _set_phone_value(driver, phone: str, *, timeout: int = 10) -> dict:
-    """按 FlowPilot 第 9 步逻辑填写 add-phone 表单。
+    """Điền form add-phone theo logic bước 9 của FlowPilot.
 
-    要点：
-    - 所有元素 scoped 到 form[action*="/add-phone"]；
-    - 可见 tel 输入框写入“页面期望显示的号码”；
-    - 如果页面存在隐藏 input[name="phoneNumber"]，同步写入完整 E.164 号码；
-    - 触发 input/change 并 blur，让 React/React-Aria 完成校验。
+    Điểm chính:
+    - Mọi phần tử scoped vào form[action*="/add-phone"];
+    - Ô nhập tel hiển thị ghi “số trang mong đợi hiển thị”;
+    - Nếu trang có input ẩn [name="phoneNumber"], đồng bộ ghi số E.164 đầy đủ;
+    - Kích hoạt input/change và blur để React/React-Aria hoàn tất kiểm tra.
     """
     if not _has_strict_add_phone_form(driver):
         raise RuntimeError(f"hiện không phải add-phone trang nhập SĐT, không điền được SĐT: state={_phone_page_state(driver)}")
@@ -931,8 +931,8 @@ def _set_phone_value(driver, phone: str, *, timeout: int = 10) -> dict:
     visible_value = str(result.get("visibleValue") or "").strip()
     hidden_value = str(result.get("hiddenValue") or "").strip()
     e164 = str(result.get("e164") or "").strip()
-    # OpenAI/React-Aria 电话框会自动格式化，例如 +84925154291 -> +84 925 154 291。
-    # 不能按界面字符串精确比较，只比较数字归一化后的值。
+    # Ô điện thoại OpenAI/React-Aria sẽ tự định dạng, ví dụ +84925154291 -> +84 925 154 291.
+    # Không thể so sánh chính xác theo chuỗi giao diện, chỉ so sánh giá trị số sau khi chuẩn hóa.
     actual_digits = ''.join(ch for ch in actual if ch.isdigit())
     visible_digits = ''.join(ch for ch in visible_value if ch.isdigit())
     e164_digits = ''.join(ch for ch in e164 if ch.isdigit())
@@ -946,7 +946,7 @@ def _set_phone_value(driver, phone: str, *, timeout: int = 10) -> dict:
 
 
 def _blur_active_input_and_wait(driver, *, label: str = "nhập xong") -> None:
-    """输入手机号后移开焦点，并给前端校验/格式化留处理时间。"""
+    """Sau khi nhập số điện thoại thì bỏ focus, và dành thời gian xử lý cho kiểm tra/định dạng phía frontend."""
     try:
         driver.execute_script(r"""
         const active = document.activeElement;
@@ -986,14 +986,14 @@ def _verify_add_phone_value_before_submit(driver, expected_e164: str) -> dict:
 
 
 def _wait_page_settle_after_submit() -> None:
-    """点击提交后先等待页面处理，再检查发送状态。"""
+    """Sau khi nhấp gửi, đợi trang xử lý trước, rồi kiểm tra trạng thái gửi."""
     seconds = random.uniform(2.0, 4.0)
     logger.info("[Codex][Browser] đã nhấp gửi, chờ trang gửi/xử lý chuyển hướng %.1f giây sau kiểm tra trạng thái", seconds)
     time.sleep(seconds)
 
 
 def _refresh_add_phone_for_retry(driver, *, reason: str = "") -> None:
-    """发送失败/换号前刷新手机号页，避免旧错误状态和旧号码残留。"""
+    """Làm mới trang số điện thoại trước khi gửi thất bại/đổi số, tránh trạng thái lỗi cũ và số cũ còn sót."""
     try:
         logger.info("[Codex][Browser] gửi thất bại/chuẩn bị đổi SĐT, tải lại trang SĐT: %s", reason or "retry")
         driver.refresh()
@@ -1003,7 +1003,7 @@ def _refresh_add_phone_for_retry(driver, *, reason: str = "") -> None:
             return
         except Exception:
             pass
-        # 如果刷新后仍不在输入页，强制回 add-phone。
+        # Nếu sau khi làm mới vẫn không ở trang nhập, buộc quay về add-phone.
         target = _auth_origin(driver).rstrip("/") + "/add-phone"
         logger.info("[Codex][Browser] sau khi tải lại không thấy ô nhập SĐT, mở lại: %s", target)
         driver.get(target)
@@ -1014,10 +1014,10 @@ def _refresh_add_phone_for_retry(driver, *, reason: str = "") -> None:
 
 
 def _click_add_phone_continue_button(driver, *, timeout: int = 10) -> dict:
-    """点击 add-phone 表单里的 Continue/続行 按钮。
+    """Nhấn nút Continue/続行 trong form add-phone.
 
-    参考 FlowPilot 的 getAddPhoneSubmitButton + simulateClick：优先在 add-phone form 内找
-    enabled submit，点击失败时用 form.requestSubmit(button) 兜底。
+    Tham khảo getAddPhoneSubmitButton + simulateClick của FlowPilot: ưu tiên tìm
+    submit đang enabled trong form add-phone, nếu nhấn thất bại thì dùng form.requestSubmit(button) làm phương án dự phòng.
     """
     end = time.time() + timeout
     last = None
@@ -1076,7 +1076,7 @@ def _click_add_phone_continue_button(driver, *, timeout: int = 10) -> dict:
 
 
 def _force_submit_add_phone_form(driver) -> dict:
-    """add-phone 页面点击按钮没生效时，直接 requestSubmit 当前 form。"""
+    """Khi nhấn nút trên trang add-phone không có hiệu lực, gọi requestSubmit trực tiếp cho form hiện tại."""
     try:
         return driver.execute_script(r"""
         const visible = el => !!(el && (el.offsetWidth || el.offsetHeight || el.getClientRects().length));
@@ -1103,20 +1103,20 @@ def _wait_after_phone_send(driver, timeout: int = 12) -> str:
     while time.time() < end:
         time.sleep(1)
         last = _phone_page_state(driver)
-        # 必须优先判断验证码页：页面文案里可能包含 send/limit/check 等词，不能把
-        # “Check your phone / Enter the verification code...” 误判成发送失败。
+        # Phải ưu tiên xác định trang mã xác minh: văn bản trang có thể chứa các từ send/limit/check, không được
+        # “Check your phone / Enter the verification code...” bị nhận nhầm thành gửi thất bại.
         if _is_phone_code_state(last):
             return 'code_page'
         body = str(last.get('bodyText') or '')
         reason = _classify_phone_page_failure(last)
         if reason:
             raise RuntimeError(f"{reason}: {body[:240]}")
-        # 仍在 add-phone 且字段有 aria-invalid，认为号码被拒。
+        # Vẫn ở add-phone và field có aria-invalid thì coi số bị từ chối.
         if _is_add_phone_page(driver):
             invalid = any(str(i.get('ariaInvalid') or '').lower() == 'true' for i in (last.get('inputs') or []))
             if invalid:
                 raise RuntimeError(f"invalid_phone: add-phone input aria-invalid state={last}")
-            # Cloak/React-Aria 场景下 btn.click 可能只聚焦没触发表单提交；补一次 requestSubmit。
+            # Trong ngữ cảnh Cloak/React-Aria, btn.click có thể chỉ focus mà không kích hoạt submit form; bổ sung một lần requestSubmit.
             if not force_submitted and time.time() > end - timeout + 3:
                 info = _force_submit_add_phone_form(driver)
                 logger.info("[Codex][Browser] add-phone sau khi bấm vẫn ở trang này, thực thi bù form.requestSubmit: %s", info)
@@ -1144,10 +1144,10 @@ def _wait_after_phone_otp_submit(driver, timeout: int = 20) -> str:
         if _is_callback_url(current):
             return "callback"
         last = _phone_page_state(driver)
-        # 已离开手机验证码/加手机号页面，说明验证码被接受，后续交给 consent/callback 流程。
+        # Đã rời trang mã xác minh điện thoại/thêm số điện thoại, nghĩa là mã đã được chấp nhận, phần sau giao cho luồng consent/callback.
         if not _is_phone_code_state(last) and not _is_add_phone_page(driver):
             return "left_phone_flow"
-        # 仍在验证码页时，只把明确错误当失败；普通 Check your phone 页面继续等。
+        # Khi vẫn ở trang mã xác minh, chỉ coi lỗi rõ ràng là thất bại; trang Check your phone thông thường tiếp tục chờ.
         if _is_phone_code_state(last):
             inputs = last.get('inputs') or []
             invalid = any(str(i.get('ariaInvalid') or '').lower() == 'true' for i in inputs)
@@ -1162,7 +1162,7 @@ def _wait_after_phone_otp_submit(driver, timeout: int = 20) -> str:
         reason = _classify_phone_page_failure(last)
         if reason:
             raise RuntimeError(f"{reason}: {(last.get('bodyText') or '')[:240]}")
-    # 超时后再看一次：如果已经离开手机号流程，视为通过；如果仍在验证码页但没明确错误，交给后续流程继续试。
+    # Sau timeout xem lại một lần: nếu đã rời luồng số điện thoại thì coi như pass; nếu vẫn ở trang mã nhưng không có lỗi rõ, giao cho luồng sau tiếp tục thử.
     current = str(getattr(driver, "current_url", "") or "")
     if _is_callback_url(current):
         return "callback"
@@ -1177,7 +1177,7 @@ def _wait_after_phone_otp_submit(driver, timeout: int = 20) -> str:
 def _classify_phone_page_failure(state: dict) -> str:
     if _is_phone_code_state(state):
         return ''
-    # WhatsApp 用 DOM radio value 判断；其它发送失败用服务端/页面错误文本兜底。
+    # WhatsApp dùng DOM radio value để phán đoán; các lỗi gửi khác dùng text lỗi server/trang làm dự phòng.
     radios = state.get('radios') or []
     if any('whatsapp' in str(r.get('value','')).lower().replace(' ', '') and r.get('checked') for r in radios):
         return 'whatsapp_channel'
@@ -1199,7 +1199,7 @@ def _classify_phone_page_failure(state: dict) -> str:
     return ''
 
 def _sleep_before_phone_retry(attempt: int, max_retries: int, *, prefix: str = "[Codex][Browser]") -> None:
-    """换号前随机等待，至少 3 秒，避免连续提交号码过快。"""
+    """Chờ ngẫu nhiên trước khi đổi số, ít nhất 3 giây, tránh gửi số liên tục quá nhanh."""
     if attempt >= max_retries:
         return
     seconds = random.uniform(3.0, 8.0)
@@ -1208,16 +1208,16 @@ def _sleep_before_phone_retry(attempt: int, max_retries: int, *, prefix: str = "
 
 
 def _do_phone_verification_if_present(driver) -> None:
-    """如果页面要求手机号验证，则用当前 sms_provider 自动完成。"""
+    """Nếu trang yêu cầu xác minh số điện thoại thì tự động hoàn thành bằng sms_provider hiện tại."""
     provider = str(getattr(sms_provider._cfg, "SMS_PROVIDER", "") or "").strip().lower() if hasattr(sms_provider, "_cfg") else ""
     http = sms_provider._http()
     max_retries = int(getattr(sms_provider._cfg, "SMS_MAX_RETRIES", 10) or 10) if hasattr(sms_provider, "_cfg") else 10
     try:
-        # 如果页面没有手机号输入框，直接返回。
+        # Nếu trang không có ô nhập số điện thoại, trả về trực tiếp.
         try:
             end_detect = time.time() + 8
             while time.time() < end_detect and not _has_strict_add_phone_form(driver):
-                # 如果已经在验证码页，说明手机步骤之前已提交过；继续处理验证码页，不应当跳过。
+                # Nếu đã ở trang mã xác minh, nghĩa là bước phone đã submit trước; tiếp tục xử lý trang mã, không được skip.
                 if _is_phone_code_page(driver):
                     break
                 time.sleep(0.5)
@@ -1251,7 +1251,7 @@ def _do_phone_verification_if_present(driver) -> None:
                 logger.info("[Codex][Browser] đã bấm số điện thoại Continue/tiếp tục Nút: %s, chờ vào trang mã OTP SMS", submit_info)
                 _wait_page_settle_after_submit()
 
-                # 等待页面进入 phone-verification；若号码无效/无法发送/WhatsApp 通道，立即换号。
+                # Chờ trang vào phone-verification; nếu số không hợp lệ/không gửi được/kênh WhatsApp, đổi số ngay.
                 _wait_after_phone_send(driver, timeout=15)
                 logger.info("[Codex][Browser] đã vào trang mã OTP điện thoại")
 
@@ -1281,8 +1281,8 @@ def _do_phone_verification_if_present(driver) -> None:
                         sms_provider.cancel(activation_id, http)
                     except Exception:
                         pass
-                # 余额不足 / 无可用号码：重试多少次都不会成功，立即失败止损，
-                # 避免白等 N 轮换号重试（每轮还要刷新页面 + 随机等待）。
+                # Số dư không đủ / không có số khả dụng: thử lại bao nhiêu lần cũng không thành công, thất bại ngay để cắt lỗ,
+                # Tránh chờ vô ích N vòng đổi số thử lại (mỗi vòng còn phải làm mới trang + chờ ngẫu nhiên).
                 if any(k in err_text for k in (
                     "NO_BALANCE", "NO_NUMBERS", "BALANCE", "余额不足",
                     "暂无可用号码", "没有可用号码", "insufficient", "not enough balance",
@@ -1295,8 +1295,8 @@ def _do_phone_verification_if_present(driver) -> None:
                         "Luồng số điện thoại vào invalid_auth_step: trạng thái uỷ quyền chưa nhảy đúng từ email-verification hoặc đã hết hiệu lực; "
                         "đã dừng đổi số để tránh tiêu hao số"
                     ) from exc
-                # 如果已经离开手机号/验证码相关页面，认为通过或不再需要；
-                # 如果仍在 phone-verification，则下一轮必须回 add-phone 重新填新号码再提交。
+                # Nếu đã rời trang liên quan số điện thoại/mã xác minh, coi như đã qua hoặc không còn cần;
+                # Nếu vẫn còn ở phone-verification, thì vòng sau phải quay lại add-phone điền lại số mới rồi submit.
                 try:
                     if _is_phone_code_page(driver):
                         logger.info("[Codex][Browser] Hiện vẫn ở trang mã OTP điện thoại, Vòng sau sẽ quay lại add-phone Đặt lại số mới")
@@ -1320,7 +1320,7 @@ def _do_phone_verification_if_present(driver) -> None:
 
 
 def _finish_consent_workspace(driver) -> str:
-    """点击 Codex consent/workspace 页面里的继续/允许按钮，直到 callback。"""
+    """Nhấp nút tiếp tục/cho phép trên trang Codex consent/workspace cho đến callback."""
     end = time.time() + int(_roxy_cfg.ROXY_CODEX_CALLBACK_TIMEOUT)
     while time.time() < end:
         callback = _extract_callback_url_from_any_window(driver)
@@ -1346,7 +1346,7 @@ def _finish_consent_workspace(driver) -> str:
 
 
 def clear_roxy_browser_auth_state(driver) -> None:
-    """清空当前 Roxy 浏览器里的 OpenAI/ChatGPT 登录态与缓存，用于注册后复用同一环境跑 Codex。"""
+    """Xóa trạng thái đăng nhập và bộ nhớ đệm OpenAI/ChatGPT trong trình duyệt Roxy hiện tại, dùng để tái sử dụng cùng môi trường chạy Codex sau khi đăng ký."""
     origins = [
         "https://auth.openai.com",
         "https://chatgpt.com",
@@ -1394,10 +1394,10 @@ def _run_roxy_codex_oauth_once(
     reuse_existing_profile: bool = False,
     clear_existing_state: bool = True,
 ) -> dict:
-    """指纹浏览器 Codex OAuth 入口。
+    """Lối vào OAuth Codex của trình duyệt fingerprint.
 
-    existing_driver/existing_opened 用于“注册成功后立刻跑 Codex”：
-    复用注册时的 Roxy 窗口，不新建环境，只清理浏览器状态后开始授权。
+    existing_driver/existing_opened dùng cho "chạy Codex ngay sau khi đăng ký thành công":
+    tái sử dụng cửa sổ Roxy lúc đăng ký, không tạo môi trường mới, chỉ dọn trạng thái trình duyệt rồi bắt đầu ủy quyền.
     """
     from core import codex_oauth as proto
 
@@ -1521,8 +1521,8 @@ def _run_roxy_codex_oauth_once(
         logger.debug("[Codex][Browser] Chi tiết thất bại", exc_info=True)
         return proto._codex_result(status="failed", email=email, message=f"{type(exc).__name__}: {str(exc)[:220]}")
     finally:
-        # 注册后复用窗口时，driver/profile 生命周期由注册流程统一清理，
-        # 这里不能 quit/delete，否则会提前销毁注册环境。
+        # Khi tái dùng cửa sổ sau đăng ký, vòng đời driver/profile do flow đăng ký dọn thống nhất,
+        # Ở đây không thể quit/delete, nếu không sẽ hủy sớm môi trường đăng ký.
         if owns_driver and driver and not bool(_roxy_cfg.ROXY_KEEP_BROWSER_OPEN):
             try:
                 driver.quit()
@@ -1546,7 +1546,7 @@ def run_roxy_codex_oauth(
     reuse_existing_profile: bool = False,
     clear_existing_state: bool = True,
 ) -> dict:
-    """指纹浏览器 Codex OAuth 入口；CPA callback 409 timeout 时重新开启一轮授权。"""
+    """Điểm vào OAuth Codex trên trình duyệt fingerprint; khi CPA callback 409 timeout thì mở lại một vòng ủy quyền."""
     from core import codex_oauth as proto
 
     max_rounds = 2

@@ -39,7 +39,7 @@ class RemailError(RuntimeError):
     """Lỗi yêu cầu Remail API, đặt đơn hoặc lấy mã."""
 
 
-# 兼容调用方可能使用的命名。
+# Tương thích các tên mà bên gọi có thể dùng.
 RemailClientError = RemailError
 
 
@@ -77,7 +77,7 @@ def _base_url(value: str | None = None) -> str:
         raise RemailError("Địa chỉ Remail API không hợp lệ, hãy điền https://remail.aishop6.com (đừng điền path API)")
 
     path = parsed.path.rstrip("/")
-    # 文档链接可直接粘贴到配置页；API 实际位于同一域名根路径。
+    # Liên kết tài liệu có thể dán trực tiếp vào trang cấu hình; API thực tế nằm ở đường dẫn gốc cùng tên miền.
     if path.lower() == "/docs":
         path = ""
     return urlunsplit((parsed.scheme, parsed.netloc, path, "", "")).rstrip("/")
@@ -259,8 +259,8 @@ def _context_from_order(order: dict, target_email: str) -> RemailAccount | None:
     try:
         project_id = int(str(raw_project_id).strip()) if raw_project_id is not None else _project_id()
     except (TypeError, ValueError, RemailError):
-        # 订单详情理论上一定有 projectId；历史接口缺失时不影响取件，保留
-        # 当前配置值作为展示/兼容字段。
+        # Chi tiết đơn hàng về lý thuyết nhất định có projectId; khi API lịch sử thiếu thì không ảnh hưởng lấy hàng, giữ lại
+        # Giá trị cấu hình hiện tại dùng làm trường hiển thị/tương thích.
         try:
             project_id = _project_id()
         except RemailError:
@@ -324,7 +324,7 @@ def _saved_context_metadata(email: str) -> dict:
     if not isinstance(extra, dict):
         return {}
 
-    # 新字段使用 email_service；同时兼容早期开发版本可能使用 remail。
+    # Trường mới dùng email_service; đồng thời tương thích bản dev sớm có thể dùng remail.
     for key in ("email_service", "remail"):
         value = extra.get(key)
         if isinstance(value, dict):
@@ -408,8 +408,8 @@ def restore_account_context(email: str) -> RemailAccount | None:
                 )
                 return _cache_context(account)
 
-    # 没有可用的持久化凭证时，通过 API Key 查询用户自己的订单。列表接口的
-    # search 是服务端过滤；仍需在客户端做完整邮箱匹配，不能接受模糊命中。
+    # Khi không có credential bền vững khả dụng, truy vấn đơn hàng của chính user qua API Key. Của list API
+    # search là lọc phía máy chủ; vẫn cần khớp email đầy đủ phía client, không chấp nhận khớp mờ.
     try:
         payload = _request(
             "GET",
@@ -434,8 +434,8 @@ def restore_account_context(email: str) -> RemailAccount | None:
         reverse=True,
     )
 
-    # 列表响应通常直接带 serviceToken；若网关出于安全策略隐藏 token，
-    # 再逐个请求订单详情（优先最新订单）。
+    # Phản hồi danh sách thường mang trực tiếp serviceToken; nếu gateway ẩn token vì chính sách bảo mật,
+    # Sau đó lần lượt yêu cầu chi tiết đơn hàng (ưu tiên đơn mới nhất).
     for order in candidates:
         account = _context_from_order(order, target)
         if account is not None:
@@ -494,7 +494,7 @@ def _wait_for_order_credentials(order: dict) -> tuple[str, str, str]:
         try:
             latest = _unwrap_order(_request("GET", f"/v1/open/orders/{order_no}"))
         except RemailError:
-            # 订单已创建，短暂的详情接口错误不应重新下单，继续等待到截止时间。
+            # Đơn hàng đã tạo, lỗi ngắn của API chi tiết không nên đặt lại đơn, tiếp tục đợi đến hạn chót.
             if time.monotonic() >= deadline:
                 raise
         else:

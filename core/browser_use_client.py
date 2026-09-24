@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-"""Browser Use Cloud 客户端：构建 CDP 连接并管理 Playwright 生命周期。"""
+"""Client Browser Use Cloud: dựng kết nối CDP và quản lý vòng đời Playwright."""
 from __future__ import annotations
 
 import logging
@@ -22,7 +22,7 @@ class BrowserUseSession:
 
 
 class BrowserUseClient:
-    """最小客户端：默认用官方 connect_over_cdp websocket。"""
+    """Client tối giản: mặc định dùng websocket connect_over_cdp chính thức."""
 
     def __init__(self, api_key: str | None = None):
         self.api_key = (api_key if api_key is not None else getattr(_cfg, "BROWSER_USE_API_KEY", "") or "").strip()
@@ -51,8 +51,8 @@ class BrowserUseClient:
 
         session_timeout = int(getattr(_cfg, "BROWSER_USE_SESSION_TIMEOUT", 240) or 240)
         if session_timeout > 0:
-            # Browser Use Cloud connect URL 的 timeout 是 keepAlive/会话存活时间，单位为分钟。
-            # 服务端会校验上限；超过会在 CDP 连接阶段返回 HTTP 422。这里统一夹到 1~240 分钟。
+            # timeout của Browser Use Cloud connect URL là keepAlive/thời gian sống phiên, đơn vị phút.
+            # Server sẽ validate giới hạn trên; vượt sẽ trả HTTP 422 ở giai đoạn kết nối CDP. Ở đây kẹp thống nhất về 1~240 phút.
             query["timeout"] = str(max(1, min(240, session_timeout)))
 
         extra = dict(getattr(_cfg, "BROWSER_USE_EXTRA_QUERY", {}) or {})
@@ -64,7 +64,7 @@ class BrowserUseClient:
                 query[str(key)] = text
 
         connect_url = f"{base}?{urlencode(query)}"
-        # 日志里不要打印完整 apiKey
+        # Không in đầy đủ apiKey trong log
         safe_query = dict(query)
         if "apiKey" in safe_query:
             safe_query["apiKey"] = safe_query["apiKey"][:6] + "***"
@@ -89,6 +89,6 @@ class BrowserUseClient:
         mode = str(getattr(_cfg, "BROWSER_USE_CONNECT_MODE", "cdp_url") or "cdp_url").strip().lower()
         if mode not in ("cdp_url", "cdp", "websocket", "ws", "sdk"):
             raise RuntimeError(f"Không hỗ trợ BROWSER_USE_CONNECT_MODE={mode!r}, Hiện hỗ trợ cdp_url")
-        # 目前 Browser Use 官方最稳的公开接入就是 CDP websocket。
-        # sdk/rest create-session 接口若以后稳定，可在此扩展。
+        # Hiện tại cách kết nối công khai ổn định nhất chính thức của Browser Use là CDP websocket.
+        # Nếu API sdk/rest create-session ổn định về sau, có thể mở rộng tại đây.
         return self.build_connect_url()

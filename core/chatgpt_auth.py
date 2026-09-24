@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 """
-ChatGPT Auth 模块
-处理 chatgpt.com 域名下的认证请求（步骤1-3）
+Mô-đun ChatGPT Auth
+Xử lý các yêu cầu xác thực trên tên miền chatgpt.com (bước 1-3)
 """
 import json
 import logging
@@ -14,22 +14,22 @@ from config import (
 
 logger = logging.getLogger(__name__)
 
-# 2026-09-14 Roxy 成功样本：signin 不再主动携带 passkey capabilities；
-# authorize 使用两个 ccaps，并明确返回 ChatGPT 首页。
+# 2026-09-14 mẫu thành công Roxy: signin không còn chủ động mang passkey capabilities;
+# authorize dùng hai ccaps, và trả rõ về trang chủ ChatGPT.
 _CC_CAPS = "login_methods chatgpt_login_finalizer_v1"
 
 
 def _ensure_authorize_context(authorize_url: str, session: BrowserSession, email: str) -> str:
     """
-    对 NextAuth 返回的 authorize URL 做最后兜底：确保当前前端默认
-    login_or_signup 链路的上下文参数没有在重定向生成阶段丢失。
+    Xử lý dự phòng cuối cho authorize URL do NextAuth trả về: đảm bảo các tham số ngữ cảnh
+    của luồng login_or_signup mặc định phía frontend không bị mất ở giai đoạn tạo chuyển hướng.
     """
     try:
         parsed = urlparse(authorize_url)
         if not parsed.netloc.endswith("auth.openai.com"):
             return authorize_url
         params = parse_qs(parsed.query, keep_blank_values=True)
-        # 旧实现主动注入该字段；当前成功浏览器 authorize 已不携带。
+        # Bản cũ chủ động inject trường này; authorize trình duyệt thành công hiện tại đã không mang theo.
         changed = bool(params.pop("ext-passkey-client-capabilities", None))
         ui_locale = session.navigator_language()
         required = {
@@ -63,13 +63,13 @@ def _ensure_authorize_context(authorize_url: str, session: BrowserSession, email
 
 def get_providers(session: BrowserSession) -> dict:
     """
-    步骤1: 获取 OAuth Providers 列表。
+    Bước 1: Lấy danh sách OAuth Providers.
     GET https://chatgpt.com/api/auth/providers
 
-    验证与 chatgpt.com 的连接是否正常，并获取可用的 OAuth 提供商。
+    Kiểm tra kết nối với chatgpt.com có bình thường không, và lấy các nhà cung cấp OAuth khả dụng.
 
     Returns:
-        providers 字典，例如:
+        dict providers, ví dụ:
         {
             "openai": {
                 "id": "openai",
@@ -95,13 +95,13 @@ def get_providers(session: BrowserSession) -> dict:
 
 def get_csrf_token(session: BrowserSession) -> str:
     """
-    步骤2: 获取 CSRF Token。
+    Bước 2: Lấy CSRF Token.
     GET https://chatgpt.com/api/auth/csrf
 
-    CSRF token 将在后续 signin 请求中使用。
+    CSRF token sẽ được dùng trong các request signin tiếp theo.
 
     Returns:
-        csrfToken 字符串
+        chuỗi csrfToken
     """
     url = "https://chatgpt.com/api/auth/csrf"
     headers = session.get_nextauth_headers(referer="https://chatgpt.com/auth/login")
@@ -117,7 +117,7 @@ def get_csrf_token(session: BrowserSession) -> str:
 
 
 def probe_auth_session(session: BrowserSession) -> dict:
-    """按 Web 登录页顺序在 providers 之后读取一次匿名 NextAuth session。"""
+    """Đọc một lần session NextAuth ẩn danh theo thứ tự trang đăng nhập Web sau providers."""
     url = "https://chatgpt.com/api/auth/session"
     headers = session.get_nextauth_headers(referer="https://chatgpt.com/auth/login")
     logger.info("[Bước1.5] đọc Auth Session ẩn danh...")
@@ -132,20 +132,20 @@ def probe_auth_session(session: BrowserSession) -> dict:
 
 def signin_openai(session: BrowserSession, csrf_token: str, email: str) -> str:
     """
-    步骤3: 发起 OAuth Signin 请求。
+    Bước 3: Gửi request OAuth Signin.
     POST https://chatgpt.com/api/auth/signin/openai
 
-    构造 OAuth 授权参数，获取 authorize URL。
+    Xây tham số ủy quyền OAuth, lấy authorize URL.
 
     Args:
-        session: 浏览器会话
-        csrf_token: 从步骤2获取的 CSRF token
-        email: 注册邮箱
+        session: phiên trình duyệt
+        csrf_token: CSRF token lấy từ bước 2
+        email: email đăng ký
 
     Returns:
-        authorize_url: auth.openai.com 的授权 URL
+        authorize_url: URL ủy quyền của auth.openai.com
     """
-    # 构造 URL 查询参数
+    # Xây dựng tham số truy vấn URL
     query_params = {
         "prompt": "login",
         "ext-oai-did": session.device_id,
@@ -155,12 +155,12 @@ def signin_openai(session: BrowserSession, csrf_token: str, email: str) -> str:
     }
     url = "https://chatgpt.com/api/auth/signin/openai?" + urlencode(query_params)
 
-    # 构造请求头
+    # Tạo header yêu cầu
     headers = session.get_nextauth_headers(referer="https://chatgpt.com/auth/login")
     headers["content-type"] = "application/x-www-form-urlencoded"
     headers["origin"] = "https://chatgpt.com"
 
-    # 构造请求体
+    # Tạo body yêu cầu
     body = urlencode({
         "callbackUrl": "/",
         "csrfToken": csrf_token,

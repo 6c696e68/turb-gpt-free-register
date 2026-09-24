@@ -44,7 +44,7 @@ from config import (
     USER_AGENT,
     IMPERSONATE,
 )
-# OTP_POLL_INTERVAL / OTP_MAX_WAIT 是 WebUI 可热改的，从模块读
+# OTP_POLL_INTERVAL / OTP_MAX_WAIT là WebUI có thể hot-edit, đọc từ module
 from config import email as _email_cfg
 from core.otp_utils import looks_like_openai_email, extract_otp
 
@@ -52,10 +52,10 @@ logger = logging.getLogger(__name__)
 
 _PROJECT_ROOT = Path(__file__).resolve().parent.parent
 
-# 邮箱 → account 上下文的内存缓存，fetch_latest_otp 用
+# Bộ nhớ đệm trong RAM cho ngữ cảnh email → account, dùng cho fetch_latest_otp
 _CONTEXT_CACHE: dict[str, "OutlookAccount"] = {}
 
-# 远端 mail.chatai.codes 被禁用时，本进程内直接跳过远端，走 Microsoft Graph 直连。
+# Khi mail.chatai.codes từ xa bị vô hiệu, trong tiến trình này bỏ qua từ xa trực tiếp, đi Microsoft Graph kết nối thẳng.
 _REMOTE_DISABLED = False
 _MS_TOKEN_CACHE: dict[str, tuple[str, float]] = {}
 _MS_TOKEN_FATAL_CACHE: dict[str, tuple[str, float]] = {}
@@ -67,8 +67,8 @@ class OutlookAccount:
     password: str
     client_id: str
     refresh_token: str
-    recovery_email: str = ""  # 可选：恢复邮箱
-    recovery_code: str = ""   # 可选：恢复码
+    recovery_email: str = ""  # Tuỳ chọn: email khôi phục
+    recovery_code: str = ""   # Tuỳ chọn: mã khôi phục
 
 
 class OutlookClientError(RuntimeError):
@@ -93,16 +93,16 @@ def _http_session() -> CurlSession:
 
 
 # ============================================================
-# mail.chatai.codes 安全签名层（AES-GCM + HMAC-SHA256）
+# Lớp ký bảo mật mail.chatai.codes (AES-GCM + HMAC-SHA256)
 #
-# 流程（与前端 JS 完全对应）：
+# Quy trình (tương ứng hoàn toàn với JS frontend):
 #   1. POST /api/security-session {} → { sessionId, sessionToken, sessionKey, expiresAt }
-#   2. 每次 API 请求前构建 secure envelope：
-#      iv(12B) 随机 + nonce(16B) 随机
+#   2. Trước mỗi request API xây dựng secure envelope:
+#      iv(12B) ngẫu nhiên + nonce(16B) ngẫu nhiên
 #      ciphertext = AES-GCM(key, iv, JSON(payload))   ← key = base64url(sessionKey)
 #      signedText = "{sessionId}.{nonce}.{timestamp}.{iv}.{ciphertext}"
 #      signature  = HMAC-SHA256(key, signedText)
-#   3. 发送 envelope 代替原始 payload
+#   3. Gửi envelope thay cho payload gốc
 # ============================================================
 
 def _b64url_enc(data: bytes) -> str:
@@ -128,7 +128,7 @@ def _aes_gcm_encrypt(key: bytes, iv: bytes, plaintext: bytes) -> bytes:
     return ct + tag
 
 
-# 模块级安全 session 缓存（线程安全）
+# Bộ đệm session an toàn cấp module (thread-safe)
 _sec_session: dict | None = None
 _sec_session_lock = threading.Lock()
 
@@ -222,7 +222,7 @@ def _secure_post(http: CurlSession, url: str, payload: dict, retry: int = 0) -> 
 
 
 # ============================================================
-# 账号文件读写
+# Đọc ghi tệp tài khoản
 # ============================================================
 
 def _parse_accounts_file(path: Path) -> list[OutlookAccount]:
@@ -235,7 +235,7 @@ def _parse_accounts_file(path: Path) -> list[OutlookAccount]:
         if not line or line.startswith("#"):
             continue
         parts = line.split("----")
-        # 支持 4 段或 6 段格式
+        # Hỗ trợ định dạng 4 đoạn hoặc 6 đoạn
         if len(parts) == 4:
             email, password, client_id, refresh_token = (p.strip() for p in parts)
             accounts.append(OutlookAccount(email, password, client_id, refresh_token))
@@ -251,7 +251,7 @@ def _parse_accounts_file(path: Path) -> list[OutlookAccount]:
 
 
 # ============================================================
-# 公共接口：挑账号 / 取 OTP（统一走 DB）
+# Giao diện chung: chọn tài khoản / lấy OTP (thống nhất qua DB)
 # ============================================================
 
 def pick_account() -> OutlookAccount:
@@ -295,17 +295,17 @@ def get_account_context(email: str) -> OutlookAccount | None:
     from core.db import get_account_by_email, get_outlook_by_email
 
     pool_row = get_outlook_by_email(email)
-    # 已注册账号的来源是权威值。即使本地 Outlook 池里残留了同名记录，
-    # 也不能让一个实际来自 Remail/其它来源的账号误走 Outlook 取码。
+    # Nguồn của tài khoản đã đăng ký là giá trị có thẩm quyền. Dù pool Outlook cục bộ còn sót bản ghi cùng tên,
+    # Cũng không được để tài khoản thực tế đến từ Remail/nguồn khác đi nhầm sang lấy mã Outlook.
     registered = get_account_by_email(email)
     registered_source = str((registered or {}).get("email_source") or "").strip().lower()
     registered_source = registered_source.replace(";", ",").replace("|", ",").split(",", 1)[0].strip()
     if registered_source and registered_source != "outlook":
         return None
 
-    # 正常情况下优先使用邮箱池记录；邮箱池被清理、迁移，或记录不完整时，
-    # 用已注册账号保存的同一份 Outlook 素材补齐。注册成功时 insert_account
-    # 会把 password/client_id/refresh_token 持久化在账号记录里。
+    # Bình thường ưu tiên dùng bản ghi pool email; khi pool email bị dọn, di chuyển, hoặc bản ghi không đầy đủ,
+    # Bổ sung bằng cùng một bộ tài liệu Outlook đã lưu của tài khoản đã đăng ký. Khi đăng ký thành công insert_account
+    # sẽ lưu bền password/client_id/refresh_token trong bản ghi tài khoản.
     row = pool_row or registered
     if row is None:
         return None
@@ -379,7 +379,7 @@ def import_outlook_from_text(text: str) -> tuple[int, int]:
 
 
 # ============================================================
-# 抓取邮件：Graph 失败回退 IMAP
+# Lấy email: Graph thất bại thì dự phòng IMAP
 # ============================================================
 
 
@@ -615,8 +615,8 @@ def _ms_access_token(
             if resp.status_code == 200 and isinstance(data, dict) and data.get("access_token"):
                 expires_in = int(data.get("expires_in") or 3600)
                 token = str(data["access_token"])
-                # Microsoft Graph 对个人 Outlook/MSA 账号可能返回 opaque access_token，
-                # 不一定是 JWT；Graph 仍然接受。不能用是否包含 "." 判断是否可用。
+                # Microsoft Graph với tài khoản Outlook/MSA cá nhân có thể trả opaque access_token,
+                # Không nhất thiết là JWT; Graph vẫn chấp nhận. Không thể dùng việc có chứa "." hay không để phán đoán có dùng được hay không.
                 _MS_TOKEN_CACHE[cache_key] = (f"{kind}:{token}", now + max(300, expires_in - 60))
                 logger.debug("[Outlook] Lấy token Microsoft thành công kind=%s jwt=%s", kind, _token_looks_jwt(token))
                 return token, kind
@@ -752,7 +752,7 @@ def _fetch_outlook_rest_messages(http: CurlSession, token: str) -> list[dict]:
         if resp.status_code == 200:
             data = resp.json()
             break
-        # 字段名不兼容时自动降级下一套参数。
+        # Tự động hạ cấp sang bộ tham số tiếp theo khi tên trường không tương thích.
         if resp.status_code == 400 and ("Could not find a property" in text or "ParseUri" in text):
             logger.debug("[Outlook] Tham số Outlook REST không tương thích, hạ cấp rồi thử lại: %s", text[:220])
             continue
@@ -766,7 +766,7 @@ def _fetch_outlook_rest_messages(http: CurlSession, token: str) -> list[dict]:
     for m in rows:
         if not isinstance(m, dict):
             continue
-        # Outlook REST 字段转 Graph 风格；不同版本字段大小写不同。
+        # Chuyển trường Outlook REST sang kiểu Graph; chữ hoa/thường trường khác nhau giữa các phiên bản.
         from_obj = m.get("From") or m.get("from") if isinstance(m.get("From") or m.get("from"), dict) else {}
         email_addr = from_obj.get("EmailAddress") or from_obj.get("emailAddress") if isinstance(from_obj, dict) else {}
         if not isinstance(email_addr, dict):
@@ -866,9 +866,9 @@ def _fetch_via_graph_direct(account: OutlookAccount) -> list[dict]:
                 return out
             except Exception as exc:
                 logger.warning(f"[Outlook] Đọc Microsoft Graph thất bại, thử Outlook REST: {type(exc).__name__}: {exc}")
-                # 重新取 Outlook REST token。注意不能继续复用 Graph token；
-                # Graph token 的 audience 是 graph.microsoft.com，拿去请求
-                # outlook.office.com/api/v2.0 会返回 401。
+                # Lấy lại Outlook REST token. Lưu ý không được tiếp tục tái sử dụng Graph token;
+                # Audience của Graph token là graph.microsoft.com, dùng để request
+                # outlook.office.com/api/v2.0 sẽ trả về 401.
                 _MS_TOKEN_CACHE.pop(f"{account.email}|{account.client_id}|{account.refresh_token[:24]}", None)
                 token, kind = _ms_access_token(account, http=http, preferred_kind="outlook")
         out = _fetch_outlook_rest_messages(http, token)
@@ -942,9 +942,9 @@ def _fetch_via(session: CurlSession, protocol: str, account: OutlookAccount) -> 
     return emails
 
 
-# settle 机制默认值改为从 config 读取（OTP_SETTLE_SECONDS）
-# 抓到第一封 OTP 后，再多等多少秒看是否有更晚到的邮件。
-# 看到更晚的就重置 settle 计时；连续无新邮件 settle 秒后才返回。
+# Giá trị mặc định cơ chế settle đổi thành đọc từ config (OTP_SETTLE_SECONDS)
+# Sau khi bắt được email OTP đầu tiên, đợi thêm bao nhiêu giây xem có email đến muộn hơn không.
+# Thấy cái muộn hơn thì reset bộ đếm settle; liên tục không có thư mới settle giây rồi mới trả về.
 
 
 def fetch_otp_with_account(
@@ -1010,17 +1010,17 @@ def fetch_latest_otp(
         f"tối đa {max_wait or _email_cfg.OTP_MAX_WAIT}s, settle={settle}s..."
     )
 
-    # settle 状态机
-    best_otp: str | None = None       # 当前看到的最新 OTP
-    best_ts: float = 0.0              # 它的邮件时间戳
+    # Máy trạng thái settle
+    best_otp: str | None = None       # OTP mới nhất đang thấy
+    best_ts: float = 0.0              # Timestamp thư của OTP đó
     best_subject: str = ""
     best_protocol: str = ""
     best_source: str = ""
-    settle_until: float | None = None # 抓到第一封后，等到这个时刻才返回
+    settle_until: float | None = None # Sau thư đầu, chờ đến thời điểm này mới trả
     last_diag_log = 0.0
 
     while time.time() < deadline:
-        # 每轮都重新拉，因为可能有新邮件，也可能旧邮件因延迟才出现
+        # Mỗi vòng đều kéo lại, vì có thể có email mới, cũng có thể email cũ do trễ mới xuất hiện
         all_candidates: list[tuple[str, dict, float, str]] = []
         for protocol in ("graph", "imap"):
             emails = _fetch_via(session, protocol, account)
@@ -1029,7 +1029,7 @@ def fetch_latest_otp(
                 source = str(item.get("_fetch_source") or protocol) if isinstance(item, dict) else protocol
                 all_candidates.append((protocol, item, ts, source))
 
-        # 按时间降序，最新的在前
+        # Sắp xếp giảm dần theo thời gian, mới nhất ở trước
         all_candidates.sort(key=lambda x: x[2], reverse=True)
 
         if all_candidates and not best_otp and time.time() - last_diag_log > 12:
@@ -1051,7 +1051,7 @@ def fetch_latest_otp(
             logger.info("[Outlook] Chẩn đoán thư top=%s", diag)
             last_diag_log = time.time()
 
-        # 找出本轮"最新一封通过过滤的 OpenAI 邮件"
+        # Tìm "email OpenAI mới nhất vượt qua bộ lọc" trong vòng này
         for protocol, item, ts, source in all_candidates:
             if not looks_like_openai_email(item):
                 continue
@@ -1069,7 +1069,7 @@ def fetch_latest_otp(
             if not otp:
                 continue
 
-            # 已锁定一个候选；如果新看到的更晚，则替换并重置 settle 倒计时
+            # Đã khóa một ứng viên; nếu cái mới thấy muộn hơn thì thay thế và đặt lại bộ đếm settle
             if ts > best_ts:
                 if best_otp:
                     logger.info(
@@ -1087,9 +1087,9 @@ def fetch_latest_otp(
                 best_protocol = protocol
                 best_source = source
                 settle_until = time.time() + settle
-            break  # 只关心本轮最新那一封
+            break  # Chỉ quan tâm thư mới nhất vòng này
 
-        # 判断是否可以返回
+        # Phán đoán có thể trả về hay không
         now = time.time()
         if best_otp and settle_until is not None and now >= settle_until:
             logger.info(
@@ -1110,7 +1110,7 @@ def fetch_latest_otp(
             )
         time.sleep(interval)
 
-    # 超时但已经锁定过候选（settle 没等到结束就到 deadline 了）
+    # Hết thời gian nhưng đã khóa ứng viên (settle chưa đợi đến kết thúc đã tới deadline)
     if best_otp:
         logger.warning(
             f"[Outlook] Hết hạn tổng nhưng đã có ứng viên, trả OTP={best_otp}, source={best_source or best_protocol} (subject={best_subject!r})"
@@ -1123,8 +1123,8 @@ def fetch_latest_otp(
     )
 
 
-# 时差容忍：只保留极小容忍。
-# 重发 OTP 时上一封旧码常常只早 10~20 秒；若容忍 30 秒，会把上一轮旧码误判为新码。
+# Dung sai lệch giờ: chỉ giữ dung sai cực nhỏ.
+# Khi gửi lại OTP, mã cũ của thư trước thường chỉ sớm hơn 10~20 giây; nếu dung sai 30 giây, sẽ nhầm mã cũ vòng trước thành mã mới.
 _OTP_CLOCK_SKEW_TOLERANCE = 2
 
 
@@ -1143,8 +1143,8 @@ def _parse_email_ts(item: dict) -> float | None:
 
     formats = (
         "%Y-%m-%dT%H:%M:%SZ",       # Graph: 2026-05-08T02:47:00Z
-        "%Y-%m-%dT%H:%M:%S.%fZ",    # Graph 含微秒
-        "%Y-%m-%d %H:%M:%S",        # IMAP / 自定义
+        "%Y-%m-%dT%H:%M:%S.%fZ",    # Graph có microsecond
+        "%Y-%m-%d %H:%M:%S",        # IMAP / tuỳ chỉnh
         "%a, %d %b %Y %H:%M:%S %z", # RFC 2822 with tz
     )
     for fmt in formats:
@@ -1163,6 +1163,6 @@ def _is_after(item: dict, after_ts: float) -> bool:
     """Xem thời gian thư có muộn hơn after_ts không. Chỉ dung sai 30 giây để khỏi nuốt OTP cũ."""
     ts = _parse_email_ts(item)
     if ts is None:
-        # 时间字段缺失/解析不出 → 放过（不要因解析失败就丢邮件）
+        # Trường thời gian thiếu/không phân tích được → bỏ qua (đừng bỏ email vì phân tích thất bại)
         return True
     return ts >= after_ts - _OTP_CLOCK_SKEW_TOLERANCE

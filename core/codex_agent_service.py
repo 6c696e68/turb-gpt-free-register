@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-"""Codex Agent Identity 生成后台队列。"""
+"""Hàng đợi nền tạo Codex Agent Identity."""
 from __future__ import annotations
 
 import logging
@@ -36,7 +36,7 @@ def _sub2_codex_session_import_url() -> str:
     api_base = str(getattr(sub2api_cfg, "SUB2API_API_BASE", "") or "").strip()
     if api_base:
         return _join_sub2_url(api_base, "/api/v1/admin/accounts/import/codex-session")
-    # 兼容旧配置：之前 SUB2API_API_URL 是完整上传接口 URL。
+    # Tương thích cấu hình cũ: trước đây SUB2API_API_URL là URL giao diện tải lên đầy đủ.
     return str(getattr(sub2api_cfg, "SUB2API_API_URL", "") or "").strip()
 
 
@@ -65,7 +65,7 @@ def _float_setting(name: str, default: float, lower: float, upper: float) -> flo
 
 
 def _agent_request_settings() -> tuple[float, int, float]:
-    """复用查套餐的超时/重试配置。"""
+    """Tái sử dụng cấu hình timeout/retry của tra cứu gói cước."""
     timeout = _float_setting("PLAN_CHECK_TIMEOUT", 15.0, 1.0, 60.0)
     attempts = _int_setting("PLAN_CHECK_MAX_ATTEMPTS", 2, 1, 4)
     retry_delay = _float_setting("PLAN_CHECK_RETRY_DELAY", 1.5, 0.0, 30.0)
@@ -91,7 +91,7 @@ def _retryable_agent_error(exc: Exception) -> bool:
 
 
 def _wait_for_rate_slot() -> None:
-    """参考套餐查询：错开 Agent 注册请求启动时间。"""
+    """Tham chiếu truy vấn gói: lệch thời gian khởi động yêu cầu đăng ký Agent."""
     global _NEXT_REQUEST_AT
     min_interval = _float_setting("PLAN_CHECK_MIN_INTERVAL", 0.4, 0.0, 30.0)
     jitter = _float_setting("PLAN_CHECK_JITTER", 0.3, 0.0, 30.0)
@@ -122,8 +122,8 @@ def _run_generate(*, account_id: int, email: str, access_token: str, trigger: st
         from core.chatgpt_plan import open_plan_check_proxy, resolve_plan_check_route
         from core.session import BrowserSession
 
-        # 和查套餐一致解析网络路径；每个账号独立创建 BrowserSession，
-        # 从而得到独立 oai-did / oai-session-id / Datadog trace / 浏览器画像 / 代理出口。
+        # Phân tích đường dẫn mạng nhất quán với tra cứu gói; mỗi tài khoản tạo BrowserSession độc lập,
+        # Từ đó thu được oai-did / oai-session-id / Datadog trace / hồ sơ trình duyệt / cổng proxy độc lập.
         route = resolve_plan_check_route(None)
         route_meta = {k: v for k, v in route.items() if k not in {"proxy", "upstream_proxy"}}
         timeout_seconds, attempts, retry_delay = _agent_request_settings()

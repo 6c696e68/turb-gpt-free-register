@@ -81,7 +81,7 @@ class ProxyChainRelay:
         return f"http://127.0.0.1:{self._listener.getsockname()[1]}"
 
     def traffic_snapshot(self) -> dict[str, int | bool]:
-        """返回整个代理链隧道的实际传输字节数。"""
+        """Trả về số byte truyền thực tế của toàn bộ đường hầm chuỗi proxy."""
         with self._traffic_lock:
             upload = int(self._upload_bytes)
             download = int(self._download_bytes)
@@ -222,7 +222,7 @@ class ProxyChainRelay:
             raise ConnectionError(f"CONNECT proxy động thất bại (SOCKS5 code {reply_code}）")
 
     def _target_http_connect(self, remote: socket.socket, host: str, port: int) -> None:
-        """经上游连接到 HTTP 目标代理，并在目标代理上建立 CONNECT 隧道。"""
+        """Kết nối tới proxy HTTP đích qua upstream và thiết lập đường hầm CONNECT trên proxy đích."""
         destination = f"[{host}]:{port}" if ":" in host and not host.startswith("[") else f"{host}:{port}"
         headers = [
             f"CONNECT {destination} HTTP/1.1",
@@ -340,8 +340,8 @@ class ProxyChainRelay:
                 try:
                     data = source.recv(64 * 1024)
                 except socket.timeout:
-                    # select 与 recv 之间连接状态可能发生变化；不要因为一次
-                    # 短暂的空读就关闭整个 HTTPS 隧道。
+                    # Trạng thái kết nối giữa select và recv có thể thay đổi; đừng vì một lần
+                    # Đọc rỗng ngắn sẽ đóng toàn bộ đường hầm HTTPS.
                     continue
                 if not data:
                     return

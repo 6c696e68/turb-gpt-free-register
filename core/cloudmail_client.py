@@ -120,7 +120,7 @@ def gen_token(email: str | None = None, password: str | None = None, path: str |
     raise CloudMailError(f"Sinh Token CloudMail thất bại: {last_error}")
 
 
-# 兼容旧内部调用名。
+# Tương thích tên gọi nội bộ cũ.
 def login(username: str | None = None, password: str | None = None, path: str | None = None, base_url: str | None = None) -> str:
     return gen_token(email=username, password=password, path=path, base_url=base_url)
 
@@ -274,7 +274,7 @@ def _random_local_part(length: int | None = None) -> str:
     length = int(length or getattr(_email_cfg, "CLOUDMAIL_RANDOM_LOCAL_LENGTH", 12) or 12)
     length = max(6, min(32, length))
     alphabet = string.ascii_lowercase + string.digits
-    # 首字符用字母，减少邮箱服务商对纯数字/特殊前缀的兼容问题。
+    # Ký tự đầu dùng chữ cái, giảm vấn đề tương thích của nhà cung cấp email với tiền tố thuần số/đặc biệt.
     return random.choice(string.ascii_lowercase) + "".join(secrets.choice(alphabet) for _ in range(length - 1))
 
 
@@ -324,7 +324,7 @@ def _parse_time(raw) -> float | None:
     text = str(raw).strip()
     for fmt in ("%Y-%m-%d %H:%M:%S", "%Y-%m-%dT%H:%M:%S", "%Y-%m-%dT%H:%M:%S.%f"):
         try:
-            # 文档标注 createTime 为 UTC。
+            # Tài liệu ghi chú createTime là UTC.
             return datetime.strptime(text.replace("Z", ""), fmt).replace(tzinfo=timezone.utc).timestamp()
         except ValueError:
             continue

@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 """
-curl_cffi Session 封装
-统一管理 Cookie、请求头和 TLS 指纹
+Gói bọc curl_cffi Session
+Quản lý thống nhất Cookie, header yêu cầu và vân tay TLS
 """
 import logging
 import hashlib
@@ -75,8 +75,8 @@ def _seeded_browser_profile(seed: str, geo: dict | None = None) -> dict:
 
 class BrowserSession:
     """
-    模拟 Chrome 浏览器的 HTTP 会话管理器。
-    使用 curl_cffi 的 impersonate 功能绕过 Cloudflare TLS 指纹检测。
+    Trình quản lý phiên HTTP mô phỏng trình duyệt Chrome.
+    Dùng chức năng impersonate của curl_cffi để vượt qua phát hiện dấu vân tay TLS của Cloudflare.
     """
 
     def __init__(
@@ -92,18 +92,18 @@ class BrowserSession:
         fingerprint_seed: str | None = None,
     ):
         """
-        初始化会话。
+        Khởi tạo phiên.
 
         Args:
-            proxy: 代理地址，如 "socks5h://user:pass@host:port"。
-                   不传则从 config.PROXY_POOL 随机抽一个。
-                   显式传 "" 表示禁用代理。
-            detect_exit_geo: 是否探测出口 IP 并自动选择语言/时区画像。
-                             套餐查询等短请求可关闭，避免额外网络等待。
+            proxy: Địa chỉ proxy, ví dụ "socks5h://user:pass@host:port".
+                   Không truyền thì lấy ngẫu nhiên một cái từ config.PROXY_POOL.
+                   Truyền tường minh "" nghĩa là tắt proxy.
+            detect_exit_geo: Có dò IP đầu ra và tự chọn hồ sơ ngôn ngữ/múi giờ hay không.
+                             Request ngắn như tra cứu gói có thể tắt để tránh chờ mạng thêm.
         """
-        # proxy=None  → 从池里随机抽（默认行为），并按代理池上游配置决定是否链式
-        # proxy=""    → 禁用代理（直连）
-        # proxy="..." → 使用指定代理，不套用代理池上游
+        # proxy=None  → lấy ngẫu nhiên từ pool (hành vi mặc định), và theo cấu hình upstream pool proxy quyết định có chain hay không
+        # proxy=""    → tắt proxy (kết nối trực tiếp)
+        # proxy="..." → dùng proxy chỉ định, không áp dụng upstream pool proxy
         self._proxy_pool_relay = None
         if proxy is None:
             self.proxy = pick_proxy()
@@ -120,7 +120,7 @@ class BrowserSession:
 
         self.fingerprint_seed = str(fingerprint_seed or "").strip()
 
-        # 生成/复用设备ID（oai-did），整个任务周期复用。
+        # Tạo/tái sử dụng ID thiết bị (oai-did), tái sử dụng trong toàn chu kỳ nhiệm vụ.
         if device_id:
             self.device_id = str(device_id)
         elif self.fingerprint_seed:
@@ -128,7 +128,7 @@ class BrowserSession:
         else:
             self.device_id = str(uuid.uuid4())
 
-        # 生成 auth_session_logging_id
+        # Tạo auth_session_logging_id
         if auth_session_logging_id:
             self.auth_session_logging_id = str(auth_session_logging_id)
         elif self.fingerprint_seed:
@@ -136,10 +136,10 @@ class BrowserSession:
         else:
             self.auth_session_logging_id = str(uuid.uuid4())
 
-        # Auth Web 在同一份 document 内复用该 ID；真正发生页面导航时再轮换。
+        # Auth Web tái sử dụng ID này trong cùng một document; chỉ luân chuyển khi thực sự điều hướng trang.
         self.document_navigation_id = str(uuid.uuid4())
 
-        # ChatGPT 前端会话 ID：CES / Statsig / API 链路内保持稳定。
+        # ID phiên frontend ChatGPT: giữ ổn định trong chuỗi CES / Statsig / API.
         if oai_session_id:
             self.oai_session_id = str(oai_session_id)
         elif self.fingerprint_seed:
@@ -147,8 +147,8 @@ class BrowserSession:
         else:
             self.oai_session_id = str(uuid.uuid4())
 
-        # Datadog/RUM 关联 ID：每个 BrowserSession 独立生成，禁止跨账号复用。
-        # 同一账号的运行时环境尽量保持固定，避免同账号多次操作指纹漂移。
+        # ID liên kết Datadog/RUM: mỗi BrowserSession tạo độc lập, cấm tái dùng cross-account.
+        # Môi trường runtime của cùng một tài khoản cố gắng giữ cố định, tránh trôi dấu vân tay khi thao tác nhiều lần cùng tài khoản.
         if self.fingerprint_seed:
             self.datadog_trace_id = str(_seed_int(self.fingerprint_seed, "datadog_trace_id"))
             self.datadog_parent_id = str(_seed_int(self.fingerprint_seed, "datadog_parent_id"))
@@ -156,20 +156,20 @@ class BrowserSession:
             self.datadog_trace_id = str(random.getrandbits(63))
             self.datadog_parent_id = str(random.getrandbits(63))
         self.datadog_origin = "rum"
-        # 先使用配置默认值，加载真实 ChatGPT 登录页后从 data-build/data-seq
-        # 动态同步，避免滚动发布期间继续发送过期的前端版本头。
+        # Trước hết dùng giá trị mặc định cấu hình, sau khi tải trang đăng nhập ChatGPT thật thì từ data-build/data-seq
+        # Đồng bộ động, tránh tiếp tục gửi header phiên bản frontend đã hết hạn trong quá trình rolling release.
         self.client_build_number = str(OAI_CLIENT_BUILD_NUMBER)
         self.client_version = str(OAI_CLIENT_VERSION)
 
-        # Sentinel SDK 内部 sid：真实 SDK 会单独生成一个 UUID，和 oai-did 不是同一个值。
-        # Python 初始 p 与 Node Runner 最终 token 都复用这个 sid，保持同一 SDK 实例语义。
+        # sid nội bộ Sentinel SDK: SDK thật sẽ tạo riêng một UUID, không cùng giá trị với oai-did.
+        # p ban đầu của Python và token cuối của Node Runner đều tái sử dụng sid này, giữ ngữ nghĩa cùng một instance SDK.
         if sentinel_sid:
             self.sentinel_sid = str(sentinel_sid)
         elif self.fingerprint_seed:
             self.sentinel_sid = _seed_uuid(self.fingerprint_seed, "sentinel_sid")
         else:
             self.sentinel_sid = str(uuid.uuid4())
-        # 密码注册 iframe 与顶层 Auth 页是两个独立 Sentinel SDK 实例。
+        # iframe đăng ký mật khẩu và trang Auth cấp cao nhất là hai phiên bản Sentinel SDK độc lập.
         if self.fingerprint_seed:
             self.sentinel_iframe_sid = _seed_uuid(self.fingerprint_seed, "sentinel_iframe_sid")
         else:
@@ -182,25 +182,25 @@ class BrowserSession:
             self.react_container_key = "__reactContainer$" + uuid.uuid4().hex[:11]
         self.react_resources_key = "__reactResources$" + self.react_container_key.split("$", 1)[1]
 
-        # 创建 curl_cffi 会话
+        # Tạo phiên curl_cffi
         self.session = Session(impersonate=IMPERSONATE)
 
-        # 设置代理
+        # Thiết lập proxy
         if transport_proxy:
             self.session.proxies = {
                 "http": transport_proxy,
                 "https": transport_proxy,
             }
 
-        # 设置超时
+        # Thiết lập timeout
         self.session.timeout = REQUEST_TIMEOUT
 
-        # 会话级熔断：收到 403/429 后停止继续打后续接口，避免异常状态下扩大误伤。
+        # Cầu chì cấp phiên: sau khi nhận 403/429 thì dừng gọi các API tiếp theo, tránh mở rộng thiệt hại nhầm trong trạng thái bất thường.
         self.blocked_until = 0.0
         self.blocked_reason = ""
 
-        # 先用当前代理检测出口 IP 地理信息，再为本会话挑一份稳定浏览器画像。
-        # 这样 Accept-Language / navigator.language / timezone 可自动跟随出口地区。
+        # Trước tiên dùng proxy hiện tại kiểm tra thông tin địa lý IP ra, rồi chọn một hồ sơ trình duyệt ổn định cho phiên này.
+        # Như vậy Accept-Language / navigator.language / timezone có thể tự theo vùng xuất proxy.
         self.exit_geo = self._detect_exit_geo() if detect_exit_geo else {}
         self._enforce_proxy_quality()
         if browser_profile:
@@ -214,22 +214,22 @@ class BrowserSession:
         if issues:
             logger.warning("[Vân tay] profile trình duyệt không khớp: %s", "; ".join(issues))
 
-        # 让 HTTP Cookie、OAuth 参数 ext-oai-did、Sentinel 里的 id 三者一致。
-        # 浏览器里 oai-did 通常会作为一方 Cookie 存在；协议层主动补齐可减少同一会话内
-        # “头部/参数/JS 指纹有设备 ID，但 Cookie Jar 为空”的不一致。
+        # Làm cho HTTP Cookie, tham số OAuth ext-oai-did, và id trong Sentinel ba thứ nhất quán.
+        # Trong trình duyệt oai-did thường tồn tại như first-party Cookie; lớp protocol chủ động bổ sung có thể giảm trong cùng phiên
+        # Sự không nhất quán “header/tham số/dấu vân tay JS có device ID, nhưng Cookie Jar trống”.
         for domain in ("chatgpt.com", "auth.openai.com", "sentinel.openai.com"):
             self.session.cookies.set("oai-did", self.device_id, domain=domain, path="/")
-        # 参考真实前端会话：语言不仅体现在 Accept-Language/oai-language，也写入
-        # 同一个 Cookie Jar，避免代理为 JP 但 Cookie 仍泄漏默认地区。
+        # Tham chiếu phiên frontend thật: ngôn ngữ không chỉ ở Accept-Language/oai-language, mà còn ghi vào
+        # Cùng một Cookie Jar, tránh proxy là JP nhưng Cookie vẫn rò rỉ vùng mặc định.
         locale = self.navigator_language()
         for domain in ("chatgpt.com", "auth.openai.com"):
             self.session.cookies.set("oai-locale", locale, domain=domain, path="/")
 
-        # Cloudflare 状态只能来自真实响应 Set-Cookie；这里仅记录变化，不主动伪造/覆盖。
+        # Trạng thái Cloudflare chỉ có thể đến từ Set-Cookie response thật; ở đây chỉ ghi nhận thay đổi, không chủ động giả mạo/ghi đè.
         self._cf_cookie_seen = self.cf_cookie_snapshot()
 
     def cf_cookie_snapshot(self) -> dict:
-        """返回当前 CookieJar 中的 Cloudflare 关键 Cookie 摘要，便于确认同 IP/同会话连续性。"""
+        """Trả tóm tắt Cookie Cloudflare trong CookieJar hiện tại, tiện xác nhận liên tục cùng IP/cùng session."""
         out = {}
         try:
             for cookie in self.session.cookies.jar:
@@ -263,7 +263,7 @@ class BrowserSession:
         return text if len(text) <= limit else text[: max(0, limit - 3)] + "..."
 
     def fingerprint_summary(self) -> dict:
-        """返回适合日志/落库的浏览器指纹摘要，不展开过长数组字段。"""
+        """Trả về tóm tắt vân tay trình duyệt phù hợp log/lưu DB, không bung các trường mảng quá dài."""
         profile = getattr(self, "browser_profile", {}) or {}
         geo = profile.get("geo") or self.exit_geo or {}
         summary = {
@@ -309,7 +309,7 @@ class BrowserSession:
         return summary
 
     def fingerprint_summary_text(self) -> str:
-        """把摘要压成单行，方便日志输出。"""
+        """Nén tóm tắt thành một dòng, tiện xuất nhật ký."""
         p = self.fingerprint_summary()
         parts = [
             f"device_id={self._short_value(p.get('device_id'), 12)}",
@@ -331,7 +331,7 @@ class BrowserSession:
             self._cf_cookie_seen = current
 
     def _enforce_proxy_quality(self) -> None:
-        """根据 GeoIP org/ASN 粗判代理质量，默认拒绝云厂商/DC 出口。"""
+        """Đánh giá thô chất lượng proxy theo GeoIP org/ASN, mặc định từ chối cổng ra cloud vendor/DC."""
         try:
             from config import browser as _browser_cfg
             reject = bool(getattr(_browser_cfg, "REJECT_CLOUD_PROXY", True))
@@ -353,7 +353,7 @@ class BrowserSession:
             )
 
     def _cookie_header_for_domain(self, domain: str) -> str:
-        """导出当前会话给指定域名可见的 Cookie，供 Node VM document.cookie 使用。"""
+        """Xuất Cookie của phiên hiện tại hiển thị cho miền chỉ định, dùng cho Node VM document.cookie."""
         pairs = []
         wanted = domain.lower().lstrip(".")
         try:
@@ -377,7 +377,7 @@ class BrowserSession:
         return self._cookie_header_for_domain("chatgpt.com") or f"oai-did={self.device_id}"
 
     def _detect_exit_geo(self) -> dict:
-        """通过当前代理检测出口 IP 地理信息；失败返回空 dict 并回退到默认地区画像。"""
+        """Qua proxy hiện tại phát hiện thông tin địa lý IP đầu ra; thất bại trả về dict rỗng và fallback về hồ sơ khu vực mặc định."""
         try:
             from config import browser as _browser_cfg
             if not getattr(_browser_cfg, "AUTO_BROWSER_LOCALE_FROM_IP", True):
@@ -426,14 +426,14 @@ class BrowserSession:
 
     @staticmethod
     def _normalize_geo_response(data: dict) -> dict:
-        """兼容 ipinfo / ipapi / ipwho.is 等常见 JSON 字段。"""
+        """Tương thích các trường JSON phổ biến như ipinfo / ipapi / ipwho.is."""
         if not isinstance(data, dict):
             return {}
         timezone = data.get("timezone")
         if isinstance(timezone, dict):
             timezone = timezone.get("id") or timezone.get("name")
-        # ipwho.is 的 country="Japan"、country_code="JP"；旧逻辑优先 country
-        # 会得到伪代码 JAPAN，随后语言画像错误回落 en-US。始终优先 ISO 字段。
+        # country="Japan", country_code="JP" của ipwho.is; logic cũ ưu tiên country
+        # Sẽ ra mã giả JAPAN, rồi hồ sơ ngôn ngữ fallback sai về en-US. Luôn ưu tiên trường ISO.
         raw_country = data.get("country_code") or data.get("countryCode")
         if not raw_country:
             country_obj = data.get("country")
@@ -451,14 +451,14 @@ class BrowserSession:
         }
 
     def _get_common_headers(self) -> dict:
-        """获取通用请求头，优先使用本 BrowserSession 的稳定画像。"""
+        """Lấy header yêu cầu chung, ưu tiên dùng hồ sơ ổn định của BrowserSession này."""
         profile = getattr(self, "browser_profile", {}) or {}
         headers = {
             "User-Agent": str(profile.get("user_agent") or USER_AGENT),
             "accept-language": str(profile.get("accept_language") or ACCEPT_LANGUAGE),
         }
 
-        # Safari 不发送 Chromium Client Hints；Chrome/Chromium 画像才补 sec-ch-*。
+        # Safari không gửi Chromium Client Hints; chỉ hồ sơ Chrome/Chromium mới bổ sung sec-ch-*.
         send_client_hints = bool(profile.get("send_client_hints", bool(SEC_CH_UA)))
         if send_client_hints:
             if profile.get("sec_ch_ua") or SEC_CH_UA:
@@ -478,12 +478,12 @@ class BrowserSession:
         return headers
 
     def navigator_language(self) -> str:
-        """当前会话画像里的 navigator.language。"""
+        """navigator.language trong hồ sơ phiên hiện tại."""
         return str((getattr(self, "browser_profile", {}) or {}).get("navigator_language") or "zh-CN")
 
     @staticmethod
     def _sec_fetch_site_for(target_origin: str, referer: str) -> str:
-        """按 Referer 粗略模拟浏览器的 Sec-Fetch-Site。"""
+        """Mô phỏng thô Sec-Fetch-Site của trình duyệt theo Referer."""
         ref = (referer or "").lower()
         target = target_origin.lower().rstrip("/")
         if ref.startswith(target):
@@ -493,7 +493,7 @@ class BrowserSession:
         return "none"
 
     def get_datadog_headers(self) -> dict:
-        """获取当前会话稳定的 Datadog/RUM 关联头。"""
+        """Lấy header liên kết Datadog/RUM ổn định của phiên hiện tại."""
         return {
             "x-datadog-origin": self.datadog_origin,
             "x-datadog-sampling-priority": "1",
@@ -502,7 +502,7 @@ class BrowserSession:
         }
 
     def get_trace_context_headers(self) -> dict:
-        """补齐 Auth Web 抓包里的 W3C traceparent / Datadog tracestate。"""
+        """Bổ sung W3C traceparent / Datadog tracestate trong gói bắt Auth Web."""
         trace_hex = format(int(self.datadog_trace_id), "032x")[-32:]
         parent_hex = format(int(self.datadog_parent_id), "016x")[-16:]
         return {
@@ -511,8 +511,8 @@ class BrowserSession:
         }
 
     def _attach_auth_rum_headers(self, headers: dict) -> dict:
-        """Auth Web JSON 接口头：HAR 中只出现 RUM/trace/access-flow，不带 oai-client-*。"""
-        # 浏览器每个 fetch 都创建新的 span，而不是整个登录链复用同一 trace。
+        """Header giao diện Auth Web JSON: trong HAR chỉ xuất hiện RUM/trace/access-flow, không kèm oai-client-*."""
+        # Mỗi fetch của trình duyệt đều tạo span mới, thay vì cả chuỗi đăng nhập tái dùng cùng một trace.
         self.datadog_trace_id = str(random.getrandbits(64) or 1)
         self.datadog_parent_id = str(random.getrandbits(64) or 1)
         headers.update(self.get_trace_context_headers())
@@ -526,17 +526,17 @@ class BrowserSession:
         return self.document_navigation_id
 
     def js_timezone_offset_min(self) -> int:
-        """返回 JS Date.getTimezoneOffset() 语义：UTC-local，东八区为 -480。"""
+        """Trả về ngữ nghĩa JS Date.getTimezoneOffset(): UTC-local, múi giờ Đông 8 là -480."""
         profile = getattr(self, "browser_profile", {}) or {}
         return -int(profile.get("timezone_offset_minutes", 0) or 0)
 
     def _attach_datadog_headers(self, headers: dict) -> dict:
-        """为前端 API 请求补齐 Datadog 头，降低无诊断头 silent-drop 概率。"""
+        """Bổ sung header Datadog cho các yêu cầu API frontend, giảm xác suất silent-drop khi thiếu header chẩn đoán."""
         headers.update(self.get_datadog_headers())
         return headers
 
     def _attach_oai_context_headers(self, headers: dict) -> dict:
-        """补齐同一设备上下文头，和 oai-did Cookie / OAuth ext-oai-did 保持一致。"""
+        """Bổ sung header ngữ cảnh cùng thiết bị, giữ nhất quán với Cookie oai-did / OAuth ext-oai-did."""
         headers["oai-client-build-number"] = str(getattr(self, "client_build_number", OAI_CLIENT_BUILD_NUMBER))
         headers["oai-client-version"] = str(getattr(self, "client_version", OAI_CLIENT_VERSION))
         headers["oai-device-id"] = self.device_id
@@ -545,7 +545,7 @@ class BrowserSession:
         return headers
 
     def observe_chatgpt_document(self, response) -> None:
-        """从本次真实登录页 HTML 同步 ChatGPT 前端 build 元数据。"""
+        """Đồng bộ metadata build frontend ChatGPT từ HTML trang đăng nhập thực tế lần này."""
         try:
             final_url = str(getattr(response, "url", "") or "")
             if urlparse(final_url).hostname != "chatgpt.com":
@@ -567,13 +567,13 @@ class BrowserSession:
             logger.debug("[Vân tay] parse build trang đăng nhập ChatGPT thất bại：%s", exc)
 
     def _attach_frontend_api_headers(self, headers: dict) -> dict:
-        """前端 API 统一头：BrowserProfile + oai 上下文 + Datadog。"""
+        """Header thống nhất API frontend: BrowserProfile + ngữ cảnh oai + Datadog."""
         self._attach_oai_context_headers(headers)
         self._attach_datadog_headers(headers)
         return headers
 
     def get_nextauth_headers(self, referer: str = "https://chatgpt.com/") -> dict:
-        """NextAuth `/api/auth/*` 头；HAR 中不携带 oai-client-*。"""
+        """Header NextAuth `/api/auth/*`; không mang oai-client-* trong HAR."""
         headers = self._get_common_headers()
         headers.update({
             "accept": "*/*",
@@ -588,8 +588,8 @@ class BrowserSession:
 
     def get_chatgpt_headers(self, referer: str = "https://chatgpt.com/login") -> dict:
         """
-        获取 chatgpt.com 域名的请求头。
-        用于步骤1-3。
+        Lấy header yêu cầu cho miền chatgpt.com.
+        Dùng cho bước 1-3.
         """
         headers = self._get_common_headers()
         headers.update({
@@ -605,8 +605,8 @@ class BrowserSession:
 
     def get_auth_headers(self, referer: str = "https://auth.openai.com/create-account/password") -> dict:
         """
-        获取 auth.openai.com 域名的请求头。
-        用于步骤7、10、12。
+        Lấy header request domain auth.openai.com.
+        Dùng cho bước 7, 10, 12.
         """
         headers = self._get_common_headers()
         headers.update({
@@ -623,8 +623,8 @@ class BrowserSession:
 
     def get_auth_navigate_headers(self, referer: str = "https://chatgpt.com/", user_initiated: bool = True, target_origin: str = "https://auth.openai.com") -> dict:
         """
-        获取 auth.openai.com 导航请求头（用于GET页面请求）。
-        用于步骤4、5、8。
+        Lấy header request điều hướng auth.openai.com (dùng cho request GET trang).
+        Dùng cho bước 4, 5, 8.
         """
         headers = self._get_common_headers()
         headers.update({
@@ -639,12 +639,12 @@ class BrowserSession:
             headers["referer"] = referer
         if user_initiated:
             headers["sec-fetch-user"] = "?1"
-        # document 导航由浏览器网络栈发出，不携带 fetch/XHR 使用的
-        # x-datadog-* 自定义头；跨站 OAuth 导航尤其需要保持原生头集合。
+        # Điều hướng document do network stack trình duyệt phát, không mang header mà fetch/XHR dùng
+        # Header tùy chỉnh x-datadog-*; điều hướng OAuth cross-site đặc biệt cần giữ bộ header gốc.
         return headers
 
     def get_chatgpt_navigate_headers(self, referer: str = "https://chatgpt.com/", user_initiated: bool = True) -> dict:
-        """获取 chatgpt.com 页面导航请求头，用于预热登录页 / 回到应用页。"""
+        """Lấy header điều hướng trang chatgpt.com, dùng để làm nóng trang đăng nhập / quay lại trang ứng dụng."""
         headers = self._get_common_headers()
         headers.update({
             "accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.7",
@@ -662,8 +662,8 @@ class BrowserSession:
 
     def get_sentinel_headers(self) -> dict:
         """
-        获取 sentinel.openai.com 的请求头。
-        用于步骤6、9、11。
+        Lấy header request của sentinel.openai.com.
+        Dùng cho bước 6, 9, 11.
         """
         from config import SENTINEL_SV
         headers = self._get_common_headers()
@@ -677,12 +677,12 @@ class BrowserSession:
             "sec-fetch-dest": "empty",
             "priority": "u=1, i",
         })
-        # 成功浏览器样本的 Sentinel iframe fetch 不带 oai-client-* 或
-        # x-datadog-*，只保留标准 CORS 请求头。
+        # Fetch iframe Sentinel của mẫu trình duyệt thành công không mang oai-client-* hoặc
+        # x-datadog-*, chỉ giữ các header CORS chuẩn.
         return headers
 
     def get_sentinel_frame_headers(self, user_initiated: bool = False) -> dict:
-        """Sentinel SDK iframe 的同站文档导航头。"""
+        """Header điều hướng tài liệu same-origin của iframe Sentinel SDK."""
         headers = self._get_common_headers()
         headers.update({
             "accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.7",
@@ -700,7 +700,7 @@ class BrowserSession:
 
     @staticmethod
     def _chatgpt_target_route(path: str) -> str:
-        """把真实 URL path 归一成 HAR 里的 x-openai-target-route 形态。"""
+        """Chuẩn hóa path URL thật thành dạng x-openai-target-route trong HAR."""
         if path.startswith("/backend-api/accounts/check/"):
             return "/backend-api/accounts/check/{version}"
         if path.startswith("/backend-anon/accounts/check/"):
@@ -713,10 +713,10 @@ class BrowserSession:
 
     def _attach_openai_target_headers_for_url(self, url: str, headers: dict | None) -> dict | None:
         """
-        自动补齐 HAR 中 chatgpt.com 前端 API 的 target 诊断头。
+        Tự động bổ sung header chẩn đoán target cho API frontend chatgpt.com trong HAR.
 
-        NextAuth `/api/auth/*` 和 auth.openai.com JSON 接口在抓包中不带这些头，
-        这里仅对 chatgpt.com 的 backend/ces 前端接口补齐，避免各调用点手动维护。
+        Các giao diện NextAuth `/api/auth/*` và JSON auth.openai.com trong gói bắt không mang các header này,
+        ở đây chỉ bổ sung cho các giao diện frontend backend/ces của chatgpt.com, tránh phải duy trì thủ công tại từng điểm gọi.
         """
         if headers is None:
             return headers
@@ -730,7 +730,7 @@ class BrowserSession:
             return headers
         if not (path.startswith("/backend-api/") or path.startswith("/backend-anon/") or path.startswith("/ces/")):
             return headers
-        # 不覆盖调用方显式指定的值，便于后续特殊接口单独调整。
+        # Không ghi đè giá trị do bên gọi chỉ định rõ, thuận tiện điều chỉnh riêng các interface đặc biệt sau này.
         headers.setdefault("x-openai-target-path", path)
         headers.setdefault("x-openai-target-route", self._chatgpt_target_route(path))
         return headers
@@ -741,10 +741,10 @@ class BrowserSession:
             raise RuntimeError(f"当前 BrowserSession 已熔断冷却（剩余 {remain}s): {self.blocked_reason}")
 
     def reset_circuit_breaker(self) -> None:
-        """清理一次可选预热产生的本地熔断状态。
+        """Xóa một lần trạng thái cầu chì cục bộ do preheat tùy chọn tạo ra.
 
-        某些 best-effort bootstrap 接口返回 403 时，不代表后续正式认证接口
-        不可用；调用方完成错误隔离后可显式恢复本会话继续执行。
+        Khi một số API bootstrap best-effort trả 403, không có nghĩa các API xác thực chính thức sau đó
+        không dùng được; sau khi bên gọi đã cô lập lỗi có thể khôi phục tường minh phiên này để tiếp tục.
         """
         self.blocked_until = 0.0
         self.blocked_reason = ""

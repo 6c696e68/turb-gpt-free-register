@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-"""通过 RoxyBrowser 指纹浏览器 + Selenium 执行 ChatGPT 注册。"""
+"""Thực hiện đăng ký ChatGPT qua trình duyệt fingerprint RoxyBrowser + Selenium."""
 from __future__ import annotations
 
 import logging
@@ -24,7 +24,7 @@ logger = logging.getLogger(__name__)
 
 
 def _enable_performance_logging(options) -> None:
-    """尽量开启 Chrome performance log；不支持时不阻断注册。"""
+    """Cố gắng bật Chrome performance log; nếu không hỗ trợ thì không chặn đăng ký."""
     try:
         options.set_capability("goog:loggingPrefs", {"performance": "ALL"})
     except Exception as exc:
@@ -57,7 +57,7 @@ def _build_driver(opened: RoxyOpenResult):
     if opened.debugger_address:
         logger.info("[Roxy] Selenium kết nối debuggerAddress=%s", opened.debugger_address)
         options = Options()
-        # 页面里长轮询/风控脚本偶尔会让 driver.get 等到超时；eager 只等 DOMContentLoaded。
+        # Long polling/script kiểm soát rủi ro trong trang đôi khi khiến driver.get chờ đến timeout; eager chỉ đợi DOMContentLoaded.
         options.page_load_strategy = "eager"
         _enable_performance_logging(options)
         options.add_experimental_option("debuggerAddress", opened.debugger_address)
@@ -89,7 +89,7 @@ def _build_driver(opened: RoxyOpenResult):
 
 
 def _center_browser_window(driver) -> None:
-    """把可见的 Roxy 窗口移动到 Windows 主屏工作区中央。"""
+    """Di chuyển cửa sổ Roxy đang hiển thị vào giữa vùng làm việc màn hình chính Windows."""
     if bool(getattr(_cfg, "ROXY_OPEN_HEADLESS", False)):
         return
     try:
@@ -126,10 +126,10 @@ def _wait(driver, timeout: int | None = None):
 
 
 def _safe_get(driver, url: str, *, timeout: int = 45, attempts: int = 2, accept_hosts: tuple[str, ...] = ()) -> None:
-    """带容错的页面跳转。
+    """Chuyển trang có dung sai lỗi.
 
-    Roxy/Chrome 150 偶发 `Timed out receiving message from renderer`，实际页面可能已经可用。
-    这里超时后先 `window.stop()`，只要当前 URL/DOM 已进入目标页就继续；否则重试一次。
+    Roxy/Chrome 150 thỉnh thoảng gặp `Timed out receiving message from renderer`, nhưng trang thực tế có thể đã sẵn sàng.
+    Ở đây sau khi timeout trước hết gọi `window.stop()`, chỉ cần URL/DOM hiện tại đã vào trang đích thì tiếp tục; nếu không thì thử lại một lần.
     """
     from selenium.common.exceptions import TimeoutException, WebDriverException
 
@@ -211,7 +211,7 @@ def _browser_actions_enabled() -> bool:
 
 
 def _apply_browser_automation_mask(driver) -> None:
-    """连接 Selenium 后尽量降低明显自动化特征；失败不影响主流程。"""
+    """Sau khi kết nối Selenium cố gắng giảm đặc điểm tự động hóa rõ ràng; thất bại không ảnh hưởng luồng chính."""
     if not _browser_actions_enabled():
         return
     try:
@@ -245,7 +245,7 @@ def _human_scroll_to(driver, el) -> None:
         driver.execute_script("arguments[0].scrollIntoView({block: arguments[1], inline:'nearest'});", el, block)
         if _browser_actions_enabled():
             time.sleep(random.uniform(0.08, 0.35))
-            # 轻微滚动抖动，避免每次都精准居中。
+            # Rung cuộn nhẹ, tránh mỗi lần đều căn giữa chính xác.
             driver.execute_script("window.scrollBy(0, arguments[0]);", random.randint(-90, 90))
             time.sleep(random.uniform(0.05, 0.22))
             driver.execute_script("arguments[0].scrollIntoView({block:'center', inline:'nearest'});", el)
@@ -257,10 +257,10 @@ def _human_scroll_to(driver, el) -> None:
 
 
 def _human_click(driver, el, *, label: str = "") -> None:
-    """快速人工化点击。
+    """Click nhân hóa nhanh.
 
-    之前用 ActionChains 在 Roxy/Chrome 150 上偶发卡住 1-2 分钟，导致邮箱提交很慢。
-    这里改为 CDP 派发鼠标事件；没有 CDP 时再用 JS/原生 click 兜底。
+    Trước đây dùng ActionChains trên Roxy/Chrome 150 đôi khi bị kẹt 1-2 phút, khiến gửi email rất chậm.
+    Ở đây đổi sang CDP phát sự kiện chuột; không có CDP thì dùng JS/click gốc làm dự phòng.
     """
     _human_scroll_to(driver, el)
     if not _browser_actions_enabled():
@@ -302,7 +302,7 @@ def _human_click(driver, el, *, label: str = "") -> None:
 
 
 def _human_type_text(driver, el, value: str, *, clear: bool = True) -> None:
-    """按字符/小段输入，触发真实 key events；失败时回退 JS setter。"""
+    """Nhập theo ký tự/đoạn nhỏ, kích hoạt key events thật; thất bại thì fallback JS setter."""
     if not _browser_actions_enabled():
         if clear:
             try:
@@ -338,7 +338,7 @@ def _human_type_text(driver, el, value: str, *, clear: bool = True) -> None:
         text = str(value)
         i = 0
         while i < len(text):
-            # 邮箱/密码整体仍逐字符，但偶尔 2 字符一组，节奏更自然。
+            # Email/mật khẩu nhìn chung vẫn từng ký tự, nhưng thỉnh thoảng 2 ký tự một nhóm, nhịp độ tự nhiên hơn.
             step = 2 if random.random() < 0.12 and i + 1 < len(text) else 1
             el.send_keys(text[i:i + step])
             i += step
@@ -374,7 +374,7 @@ _MISSING_PAGE_ELEMENT_REFRESH_RETRIES = 3
 
 
 def _refresh_after_missing_page_element(driver, step: str, retry_index: int) -> bool:
-    """元素缺失时刷新当前页面，避免把页面迟渲染误判成流程失败。"""
+    """Khi thiếu phần tử thì làm mới trang hiện tại, tránh nhầm trang render chậm thành thất bại quy trình."""
     max_retries = _MISSING_PAGE_ELEMENT_REFRESH_RETRIES
     if retry_index >= max_retries:
         return False
@@ -436,7 +436,7 @@ _EMAIL_INPUT_SELECTORS = [
 
 
 class _EmailFlowAdvanced(RuntimeError):
-    """等待邮箱输入框期间，页面实际上已经进入了后续认证步骤。"""
+    """Trong lúc chờ ô nhập email, trang thực tế đã vào các bước xác thực tiếp theo."""
 
     def __init__(self, state: str):
         super().__init__(state)
@@ -444,7 +444,7 @@ class _EmailFlowAdvanced(RuntimeError):
 
 
 def _current_email_submit_next_state(driver) -> str | None:
-    """无等待地识别邮箱提交后的有效状态，避免把慢跳转误判成邮箱页丢失。"""
+    """Nhận diện trạng thái hợp lệ sau khi gửi email mà không chờ, tránh nhầm chuyển hướng chậm thành mất trang email."""
     if _has_access_token(driver):
         return "logged_in"
     if _is_login_password_page(driver):
@@ -501,7 +501,7 @@ def _find_visible_email_input_js(driver):
 
 
 def _is_oauth_consent_like(driver) -> bool:
-    """检测是否已到 OAuth 授权/consent 页。这里不能再点任何邮箱分支或全局提交按钮。"""
+    """Kiểm tra xem đã đến trang ủy quyền OAuth/consent chưa. Tại đây không được nhấn bất kỳ nhánh email nào hoặc nút gửi toàn cục."""
     try:
         return bool(driver.execute_script(r"""
         const url = String(location.href || '').toLowerCase();
@@ -538,7 +538,7 @@ def _assert_not_external_idp(driver, label: str = '') -> None:
 
 
 def _click_email_entry_option(driver) -> bool:
-    """点击“邮箱方式”入口；只看 DOM 技术属性，不看按钮可见文案，并显式排除 Google 等第三方。"""
+    """Nhấp vào lối vào "cách email"; chỉ xem thuộc tính kỹ thuật DOM, không xem văn bản hiển thị của nút, và loại trừ rõ ràng Google cùng bên thứ ba khác."""
     if _is_oauth_consent_like(driver):
         logger.info("%s Hiện nghi OAuth Trang uỷ quyền, Bỏ qua bấm dự phòng lối vào email", _log_prefix(driver))
         return False
@@ -576,7 +576,7 @@ def _click_email_entry_option(driver) -> bool:
 
 
 def _wait_for_email_input(driver, timeout: int | None = None):
-    """进入邮箱登录/注册方式并返回已找到的可见邮箱输入框。"""
+    """Vào cách đăng nhập/đăng ký email và trả về ô nhập email hiển thị đã tìm thấy."""
     wait_timeout = timeout or int(_cfg.ROXY_SELENIUM_TIMEOUT)
     last_state = None
     for refresh_retry in range(_MISSING_PAGE_ELEMENT_REFRESH_RETRIES + 1):
@@ -605,7 +605,7 @@ def _wait_for_email_input(driver, timeout: int | None = None):
 
 
 def _type_email_address(driver, email: str, timeout: int | None = None) -> None:
-    """进入邮箱登录/注册方式并填写邮箱。全程不依赖页面可见文字。"""
+    """Vào phương thức đăng nhập/đăng ký email và điền email. Toàn bộ không phụ thuộc chữ hiển thị trên trang."""
     el = _wait_for_email_input(driver, timeout=timeout)
     _human_type_text(driver, el, email, clear=True)
 
@@ -706,7 +706,7 @@ def _current_email_input_value(driver) -> str:
 
 
 def _stabilize_email_input_before_submit(driver, email: str) -> dict:
-    """提交前把 DOM value / React 受控状态 / blur-change 状态统一稳定下来。"""
+    """Trước khi submit, ổn định thống nhất DOM value / trạng thái controlled của React / trạng thái blur-change."""
     try:
         return driver.execute_script(r"""
         const email = String(arguments[0] || '').trim();
@@ -749,7 +749,7 @@ def _stabilize_email_input_before_submit(driver, email: str) -> dict:
 
 
 def _submit_email_form_stable(driver, email: str) -> dict:
-    """第一次提交就按“补交成功”的方式执行：稳定 value 后 Enter + DOM click。"""
+    """Lần gửi đầu thực hiện theo cách “bổ sung thành công”: ổn định value rồi Enter + DOM click."""
     try:
         return driver.execute_script(r"""
         const email = String(arguments[0] || '').trim();
@@ -837,9 +837,9 @@ def _submit_email_form_stable(driver, email: str) -> dict:
 
 
 def _submit_email_step(driver, email: str | None = None) -> None:
-    # 不再优先走浏览器内 NextAuth fetch：
-    # Roxy/Chrome 150 下 execute_async_script + fetch 偶发卡到 script timeout；
-    # 实测 UI 首次提交后若停在 /auth/login?email=...，由 _recover_email_submit_if_stuck 补交表单更稳定。
+    # Không còn ưu tiên dùng NextAuth fetch trong trình duyệt:
+    # Dưới Roxy/Chrome 150, execute_async_script + fetch đôi khi bị kẹt ở script timeout;
+    # Thực tế sau lần submit UI đầu nếu dừng ở /auth/login?email=..., dùng _recover_email_submit_if_stuck để submit lại form ổn định hơn.
     email_value = str(email or _current_email_input_value(driver) or "").strip()
     stable = _stabilize_email_input_before_submit(driver, email_value)
     logger.info("%s trạng thái ổn định trước khi gửi email: %s", _log_prefix(driver), stable)
@@ -858,7 +858,7 @@ def _submit_email_step(driver, email: str | None = None) -> None:
 
 
 def _recover_email_submit_if_stuck(driver, email: str) -> dict:
-    """邮箱提交后停在 /auth/login?email= 且输入框被清空时，补一次原生表单提交。"""
+    """Sau khi gửi email, nếu dừng ở /auth/login?email= và ô nhập bị xóa trống, bổ sung một lần gửi form gốc."""
     try:
         return driver.execute_script(r"""
         const email = String(arguments[0] || '').trim();
@@ -890,11 +890,11 @@ def _recover_email_submit_if_stuck(driver, email: str) -> dict:
 
 
 def _submit_email_via_browser_nextauth(driver, email: str) -> dict:
-    """在 Roxy 浏览器上下文里调用 ChatGPT NextAuth signin。
+    """Gọi ChatGPT NextAuth signin trong ngữ cảnh trình duyệt Roxy.
 
-    UI submit 在 Roxy/Chrome 150 上会偶发只跳到 `/auth/login?email=...` 后停住。
-    这里改走浏览器页面内 fetch，仍使用当前 Roxy 浏览器的 cookie / 指纹环境，
-    拿到 auth.openai.com authorize URL 后让浏览器跳转。
+    UI submit trên Roxy/Chrome 150 đôi khi chỉ nhảy tới `/auth/login?email=...` rồi dừng.
+    Ở đây chuyển sang fetch trong trang trình duyệt, vẫn dùng cookie / môi trường fingerprint của trình duyệt Roxy hiện tại,
+    lấy được authorize URL auth.openai.com rồi cho trình duyệt chuyển hướng.
     """
     try:
         current = str(getattr(driver, "current_url", "") or "")
@@ -995,7 +995,7 @@ def _submit_email_via_browser_nextauth(driver, email: str) -> dict:
 
 
 def _email_input_value_state(driver) -> dict:
-    """读取当前可见邮箱框状态，用于提交后确认是否真的进入下一步。"""
+    """Đọc trạng thái ô email đang hiển thị, dùng xác nhận sau khi gửi đã thật sự sang bước tiếp."""
     try:
         return driver.execute_script(r"""
         const visible = el => !!el && !!(el.offsetWidth || el.offsetHeight || el.getClientRects().length)
@@ -1016,14 +1016,14 @@ def _is_email_login_page_still_present(driver) -> bool:
 
 
 def _wait_email_submit_next_state(driver, email: str, timeout: int = 18) -> str:
-    """邮箱提交后等待进入 password / otp / logged_in；仍停留邮箱页则返回 email_page。
+    """Sau khi gửi email, chờ chuyển sang password / otp / logged_in; nếu vẫn ở trang email thì trả về email_page.
 
-    Cloak/Playwright 路径里，点击 submit 后页面经常先发生一次 SPA 导航：
-    `chatgpt.com/auth/login?email=...`，同时 React 会短暂把 email input 清空。
-    旧逻辑一看到空 input 就立刻返回 `email_cleared`，导致在真正跳到
-    `auth.openai.com/...` 前过早重填，形成“提交 -> 清空 -> 重填”的循环。
-    这里对 email_cleared 做去抖：只记录并继续观察几秒；若期间进入
-    password/otp/login_password/logged_in 则按真实状态返回，持续清空才让上层重试。
+    Trong đường Cloak/Playwright, sau khi bấm submit trang thường SPA navigate một lần trước:
+    `chatgpt.com/auth/login?email=...`, đồng thời React tạm thời xóa trống email input.
+    Logic cũ vừa thấy input trống là trả ngay `email_cleared`, khiến điền lại sớm trước khi
+    thật sự nhảy tới `auth.openai.com/...`, tạo vòng “gửi -> xóa -> điền lại”.
+    Ở đây debounce email_cleared: chỉ ghi nhận và tiếp tục quan sát vài giây; nếu trong lúc đó
+    vào password/otp/login_password/logged_in thì trả theo trạng thái thật, chỉ khi vẫn xóa trống mới để tầng trên thử lại.
     """
     end = time.time() + timeout
     last = None
@@ -1047,7 +1047,7 @@ def _wait_email_submit_next_state(driver, email: str, timeout: int = 18) -> str:
                 now = time.time()
                 if cleared_seen_at is None:
                     cleared_seen_at = now
-                # URL 已带 email 查询参数时更像是提交后的中间态，给它更长观察窗口。
+                # Khi URL đã mang tham số truy vấn email thì giống trạng thái trung gian sau khi gửi hơn, cho cửa sổ quan sát dài hơn.
                 debounce = 18.0 if ("/auth/login" in url and "email=" in url) else 5.0
                 if now - cleared_last_log_at > 2.0:
                     logger.info(
@@ -1068,7 +1068,7 @@ def _wait_email_submit_next_state(driver, email: str, timeout: int = 18) -> str:
                     return "email_cleared"
             else:
                 cleared_seen_at = None
-            # 仍是当前邮箱页，继续短等。
+            # Vẫn là trang email hiện tại, tiếp tục chờ ngắn.
         time.sleep(0.8)
     logger.info("%s chờ bước tiếp sau khi gửi email quá thời gian, trạng thái trang email cuối=%s", _log_prefix(driver), last)
     return "email_page" if _is_email_login_page_still_present(driver) else "unknown"
@@ -1080,7 +1080,7 @@ def _submit_email_and_wait_next(
     attempts: int = 3,
     email_supplier: Callable[[], str] | None = None,
 ) -> str:
-    """填写并提交邮箱，必须确认进入 password/otp/logged_in 才返回。"""
+    """Điền và gửi email, phải xác nhận đã vào password/otp/logged_in mới trả về."""
     last_state = None
     current_email = str(email or "").strip()
     for attempt in range(1, attempts + 1):
@@ -1094,7 +1094,7 @@ def _submit_email_and_wait_next(
             if current_email:
                 _type_email_address(driver, current_email, timeout=20)
             else:
-                # 先确认页面已有可用输入框，再领取邮箱；不能把领取动作放在页面导航之前。
+                # Trước tiên xác nhận trang đã có ô nhập khả dụng, rồi nhận email; không đặt thao tác nhận trước khi điều hướng trang.
                 email_input = _wait_for_email_input(driver, timeout=20)
                 if email_supplier is None:
                     raise RuntimeError("Đã tìm thấy ô nhập email, Nhưng chưa cung cấp bộ phân bổ email")
@@ -1125,8 +1125,8 @@ def _submit_email_and_wait_next(
             logger.info("%s Sau khi gửi email đã sang bước tiếp: %s", _log_prefix(driver), state_name)
             return state_name
         diagnostic_state = _email_input_value_state(driver)
-        # Selenium 读取 DOM 时页面可能恰好完成慢跳转。诊断采样后必须再判断一次，
-        # 否则会在已经出现验证码输入框时错误进入“重新填写邮箱”分支。
+        # Khi Selenium đọc DOM, trang có thể vừa hoàn thành chuyển hướng chậm. Sau khi lấy mẫu chẩn đoán phải đánh giá lại một lần,
+        # Nếu không sẽ nhầm vào nhánh "điền lại email" khi đã xuất hiện ô nhập mã xác minh.
         advanced = _current_email_submit_next_state(driver)
         if advanced:
             if advanced == "login_password":
@@ -1142,7 +1142,7 @@ def _type_otp(driver, code: str) -> None:
     from selenium.webdriver.common.by import By
 
     for refresh_retry in range(_MISSING_PAGE_ELEMENT_REFRESH_RETRIES + 1):
-        # 单输入框
+        # Ô nhập đơn
         for selector in [
             "input[autocomplete='one-time-code']",
             "input[name='code']",
@@ -1154,7 +1154,7 @@ def _type_otp(driver, code: str) -> None:
                 _human_type_text(driver, els[0], code, clear=True)
                 return
 
-        # 6 个分格输入框
+        # 6 ô nhập liệu phân cách
         boxes = [e for e in driver.find_elements(By.CSS_SELECTOR, "input") if _visible(e)]
         numeric_boxes = []
         for e in boxes:
@@ -1288,7 +1288,7 @@ def _wait_after_email_otp_submit(driver, timeout: int = 30) -> str:
         if invalid or (last.get('errors') or []):
             return 'invalid'
     if _is_email_verification_page(driver):
-        # 超时仍停留：若无明确错误标记，判定为提交成功、跳转缓慢，按 accepted 放行。
+        # Hết thời gian vẫn dừng: nếu không có dấu hiệu lỗi rõ ràng, coi là gửi thành công, chuyển hướng chậm, cho qua theo accepted.
         has_error_mark = bool(last.get('errors')) or any(
             str(i.get('ariaInvalid') or '').lower() == 'true' for i in (last.get('inputs') or [])
         )
@@ -1319,8 +1319,8 @@ def _click_continue(driver) -> None:
 
 
 def _maybe_accept(driver) -> None:
-    # 只处理明确的 cookie/consent 弹层按钮；不要用 “Continue” 兜底，
-    # 非日本出口时 “Continue with Google” 也会命中，导致误点 Google 登录。
+    # Chỉ xử lý các nút lớp phủ cookie/consent rõ ràng; không dùng “Continue” làm phương án dự phòng,
+    # Khi xuất không phải Nhật Bản, “Continue with Google” cũng khớp, dẫn đến bấm nhầm đăng nhập Google.
     for selectors in ([
         "button#onetrust-accept-btn-handler",
         "button[data-testid='cookie-accept']",
@@ -1375,7 +1375,7 @@ def _has_access_token(driver) -> bool:
 
 
 def _is_profile_like(snapshot: dict) -> bool:
-    """资料页识别：兼容 about-you/profile；年龄/生日控件可能不是 input，而是 React Aria widget。"""
+    """Nhận diện trang hồ sơ: tương thích about-you/profile; điều khiển tuổi/ngày sinh có thể không phải input mà là React Aria widget."""
     url = str(snapshot.get('url') or '').lower()
     inputs = snapshot.get('inputs') or []
     widgets = snapshot.get('widgets') or []
@@ -1403,12 +1403,12 @@ def _is_profile_like(snapshot: dict) -> bool:
         ' year', '-year', '_year', 'data-type year',
         'spinbutton', 'react-aria-select', 'type number',
     ))
-    # about-you/profile URL 本身已经足够强；部分新版页面会用无 name 的 React Aria 控件。
+    # URL about-you/profile bản thân đã đủ mạnh; một số trang phiên bản mới dùng control React Aria không có name.
     return has_profile_url and (has_name_field or has_age_or_birth_field or bool(inputs) or bool(widgets))
 
 
 def _set_element_value(driver, el, value: str) -> None:
-    """兼容 React 受控输入框：用原生 setter 设置值并派发 input/change。"""
+    """Tương thích ô nhập controlled của React: dùng setter gốc để đặt giá trị và phát sự kiện input/change."""
     driver.execute_script(r"""
     const el = arguments[0];
     const value = String(arguments[1]);
@@ -1458,7 +1458,7 @@ def _select_or_type(driver, selectors: list[str], value: str, timeout: int = 3) 
                     try:
                         sel.select_by_visible_text(str(int(value)))
                     except Exception:
-                        # 月份 select 可能是 0-based，也可能是 1-based；先 value/text，不行再 index。
+                        # select tháng có thể là 0-based, cũng có thể là 1-based; thử value/text trước, không được thì dùng index.
                         sel.select_by_index(max(0, int(value)-1))
                 driver.execute_script("arguments[0].dispatchEvent(new Event('change', {bubbles:true}));", el)
         else:
@@ -1470,11 +1470,11 @@ def _select_or_type(driver, selectors: list[str], value: str, timeout: int = 3) 
 
 
 def _fill_birthday_or_age(driver, birthday: str, age: int) -> str | None:
-    """填写 about-you 的年龄/生日控件。
+    """Điền control tuổi/ngày sinh trên about-you.
 
-    参考 FlowPilot：优先处理直接年龄 input；否则兼容 hidden birthday/date、原生年月日
-    select/input、React Aria hidden native select、role=spinbutton[data-type=year/month/day]。
-    返回 age / birthday / ymd / react_select / spinbutton / None。
+    Tham khảo FlowPilot: ưu tiên xử lý input tuổi trực tiếp; nếu không thì tương thích hidden birthday/date, select/input
+    năm-tháng-ngày gốc, React Aria hidden native select, role=spinbutton[data-type=year/month/day].
+    Trả về age / birthday / ymd / react_select / spinbutton / None.
     """
     y, m, d = birthday.split('-')
     result = driver.execute_script(r"""
@@ -1612,7 +1612,7 @@ def _fill_birthday_or_age(driver, birthday: str, age: int) -> str | None:
 
 
 def _generate_roxy_password() -> str:
-    """参考 FlowPilot 密码策略：8~64 位，含大小写、数字、符号。"""
+    """Tham khảo chính sách mật khẩu FlowPilot: 8~64 ký tự, gồm chữ hoa/thường, số, ký hiệu."""
     upper = 'ABCDEFGHJKLMNPQRSTUVWXYZ'
     lower = 'abcdefghjkmnpqrstuvwxyz'
     digits = '23456789'
@@ -1662,8 +1662,8 @@ def _password_page_state(driver) -> dict:
 
 def _is_signup_password_page(driver) -> bool:
     state = _password_page_state(driver)
-    # 页面刚完成导航时 execute_script 可能短暂失败；URL 仍足以确认这是注册密码页，
-    # 不能因此提前返回 None，导致后续错误地进入 OTP 输入阶段。
+    # Khi trang vừa hoàn thành điều hướng, execute_script có thể thất bại tạm thời; URL vẫn đủ để xác nhận đây là trang mật khẩu đăng ký,
+    # Không được vì thế trả về None sớm, khiến sau đó nhầm vào giai đoạn nhập OTP.
     url = str(state.get('url') or getattr(driver, 'current_url', '') or '').lower()
     if any(x in url for x in ('/create-account/password', '/u/signup/password', '/signup/password')):
         return True
@@ -1693,7 +1693,7 @@ def _is_login_password_page(driver) -> bool:
 
 
 def _resubmit_signup_password_form(driver) -> dict:
-    """密码页点击无跳转时，针对当前密码表单执行一次原生 requestSubmit。"""
+    """Khi bấm trên trang mật khẩu mà không chuyển trang, thực hiện một lần requestSubmit gốc trên form mật khẩu hiện tại."""
     try:
         return driver.execute_script(r"""
         const visible = el => !!el && !!(el.offsetWidth || el.offsetHeight || el.getClientRects().length)
@@ -1833,7 +1833,7 @@ def _click_continue_with_password_if_present(driver) -> dict:
 
 
 def _fill_password_page_if_present(driver, email: str, timeout: int = 25) -> str | None:
-    """邮箱提交后兼容 create-account/password。返回本次设置的 OpenAI 账号密码；未遇到密码页返回 None。"""
+    """Sau khi gửi email tương thích create-account/password. Trả về mật khẩu tài khoản OpenAI đã thiết lập lần này; nếu không gặp trang mật khẩu thì trả về None."""
     end = time.time() + timeout
     verification_wait_end = min(end, time.time() + 10)
     last = {}
@@ -1846,9 +1846,9 @@ def _fill_password_page_if_present(driver, email: str, timeout: int = 25) -> str
                 result = _click_continue_with_password_if_present(driver)
                 if result.get("ok"):
                     logger.info("%s Đã nhấn ở trang mã OTP email\"Tiếp tục bằng mật khẩu\": email=%s detail=%s", _log_prefix(driver), email, result)
-                    # 点击后导航在高延迟代理下可能要十几秒。旧逻辑只等 0.8 秒便再次
-                    # 点击，并沿用原来的 25 秒总期限，最后可能恰好在密码页刚出现时
-                    # 返回 None。首次点击后单独预留导航/渲染时间，并等待状态真正改变。
+                    # Sau khi nhấp, điều hướng dưới proxy độ trễ cao có thể mất hơn mười giây. Logic cũ chỉ đợi 0.8 giây rồi lại
+                    # Nhấp, và tiếp tục dùng hạn tổng 25 giây ban đầu, cuối cùng có thể vừa lúc trang mật khẩu vừa xuất hiện
+                    # Trả về None. Sau lần click đầu dành riêng thời gian điều hướng/render, và đợi trạng thái thực sự thay đổi.
                     if not password_route_requested:
                         password_route_requested = True
                         end = max(end, time.time() + 40)
@@ -1933,8 +1933,8 @@ def _fill_password_page_if_present(driver, email: str, timeout: int = 25) -> str
                 continue
             raise RuntimeError(f"Xử lý trang mật khẩu thất bại: {result} state={last}")
         _human_type_text(driver, result.get("input"), password, clear=True)
-        # React/Auth0 会在 input/change 后异步校验密码强度并启用 Continue。
-        # 之前输入完 0.4~1.4s 就点，偶发点在按钮还未真正可提交/事件未绑定完成时，页面无反应。
+        # React/Auth0 sẽ kiểm tra độ mạnh mật khẩu bất đồng bộ sau input/change và bật Continue.
+        # Trước đây nhập xong 0.4~1.4s là bấm, thỉnh thoảng bấm khi nút chưa thực sự submit được/sự kiện chưa bind xong, trang không phản hồi.
         human_delay("form", minimum=2.0, maximum=3.6)
         submit_result = driver.execute_script(r"""
         const visible = el => !!el && !!(el.offsetWidth || el.offsetHeight || el.getClientRects().length)
@@ -1985,8 +1985,8 @@ def _fill_password_page_if_present(driver, email: str, timeout: int = 25) -> str
             raise RuntimeError(f"Trang mật khẩu không tìm thấy phần có thể click Continue Nút: {submit_result} state={_password_page_state(driver)}")
         _human_click(driver, submit_result.get("button"), label="password_submit")
         logger.info("%s Đã điền và bấm trang mật khẩu Continue: detail=%s", _log_prefix(driver), {k: v for k, v in submit_result.items() if k != "button"})
-        # 高延迟代理下 Auth0 提交和导航可能明显超过 20 秒；过早进入 OTP 阶段
-        # 会在 /create-account/password 上查找验证码框。这里给足提交/导航时间。
+        # Dưới proxy độ trễ cao, việc gửi và điều hướng Auth0 có thể vượt rõ rệt 20 giây; vào giai đoạn OTP quá sớm
+        # Sẽ tìm ô mã xác minh trên /create-account/password. Ở đây cho đủ thời gian submit/điều hướng.
         wait_end = time.time() + 60
         retried_submit = False
         while time.time() < wait_end:
@@ -2014,16 +2014,16 @@ def _fill_password_page_if_present(driver, email: str, timeout: int = 25) -> str
             if not _is_signup_password_page(driver):
                 return password
             time.sleep(0.5)
-        # 密码提交超时仍停留在注册密码页时，不能把“已设置密码”当成成功并
-        # 直接交给后续 OTP 阶段；此时 OTP 输入框必然不存在。明确失败并保留
-        # 当前 URL/DOM 诊断，避免无意义地刷新密码页三次。
+        # Khi gửi mật khẩu hết thời gian vẫn dừng ở trang mật khẩu đăng ký, không được coi “đã đặt mật khẩu” là thành công và
+        # Giao thẳng cho giai đoạn OTP tiếp theo; lúc này ô nhập OTP chắc chắn không tồn tại. Thất bại rõ ràng và giữ lại
+        # Chẩn đoán URL/DOM hiện tại, tránh làm mới trang mật khẩu ba lần vô nghĩa.
         if _is_signup_password_page(driver):
             current_url = str(getattr(driver, "current_url", "") or "")
             raise RuntimeError(f"Sau khi gửi mật khẩu vẫn ở trang mật khẩu đăng ký: url={current_url} state={_password_page_state(driver)}")
         return password
-    # 如果已经请求切换到密码方式，不允许在导航竞态中静默进入 OTP 阶段。
-    # 最后再读取一次浏览器 URL；已抵达密码路由但 DOM 尚未就绪时明确报错，
-    # 避免后续在密码页连续刷新并查找 OTP 输入框。
+    # Nếu đã yêu cầu chuyển sang cách mật khẩu, không cho phép im lặng vào giai đoạn OTP trong race điều hướng.
+    # Cuối cùng đọc lại URL trình duyệt một lần nữa; khi đã đến route mật khẩu nhưng DOM chưa sẵn sàng thì báo lỗi rõ ràng,
+    # Tránh sau đó liên tục làm mới trang mật khẩu và tìm ô nhập OTP.
     current_url = str(getattr(driver, "current_url", "") or "")
     if password_route_requested and any(x in current_url.lower() for x in (
         "/create-account/password", "/u/signup/password", "/signup/password",
@@ -2034,9 +2034,9 @@ def _fill_password_page_if_present(driver, email: str, timeout: int = 25) -> str
 
 
 def _accept_profile_consents(driver) -> int:
-    """about-you/profile 下出现韩国/日本个人信息同意协议时，默认全部勾选。
+    """Khi xuất hiện thỏa thuận đồng ý thông tin cá nhân Hàn Quốc/Nhật Bản dưới about-you/profile, mặc định chọn tất cả.
 
-    不依赖可见文字；优先处理 allCheckboxes，再处理所有必选 consent checkbox。
+    Không phụ thuộc chữ hiển thị; ưu tiên xử lý allCheckboxes, rồi xử lý mọi checkbox consent bắt buộc.
     """
     try:
         result = driver.execute_script(r"""
@@ -2091,7 +2091,7 @@ def _accept_profile_consents(driver) -> int:
 
 
 def _complete_profile_page(driver, name: str, birthday: str, timeout: int = 45) -> bool:
-    """等待并完成姓名/生日页；若已经登录成功则返回 False，不把它当失败。"""
+    """Chờ và hoàn thành trang họ tên/ngày sinh; nếu đã đăng nhập thành công thì trả về False, không coi đó là thất bại."""
     end = time.time() + timeout
     y, m, d = birthday.split('-')
     from datetime import date
@@ -2111,7 +2111,7 @@ def _complete_profile_page(driver, name: str, birthday: str, timeout: int = 45) 
 
         logger.info('%s Đã phát hiện trang profile, Bắt đầu điền họ tên ngày sinh: url=%s inputs=%s', _log_prefix(driver), snap.get('url'), snap.get('inputs'))
         name_ok = False
-        # 常见单姓名字段
+        # Trường họ tên đơn phổ biến
         for selectors in [
             ["input[name='name']", "input[name='fullName']", "input[name='full_name']", "input[autocomplete='name']"],
             ["input[placeholder*='Name']", "input[placeholder*='name']", "input[aria-label*='Name']", "input[aria-label*='name']"],
@@ -2120,7 +2120,7 @@ def _complete_profile_page(driver, name: str, birthday: str, timeout: int = 45) 
                 logger.info("%s Đã điền trường họ tên: %s", _log_prefix(driver), name)
                 name_ok = True
                 break
-        # 兼容 first/last 分开
+        # Tương thích first/last tách riêng
         if not name_ok:
             parts = name.split(' ', 1)
             first = parts[0]
@@ -2153,7 +2153,7 @@ def _complete_profile_page(driver, name: str, birthday: str, timeout: int = 45) 
 
 
 def _click_if_enabled_submit(driver) -> bool:
-    """提交资料页：优先 form.requestSubmit/button[type=submit]，不依赖按钮文字。"""
+    """Gửi trang hồ sơ: ưu tiên form.requestSubmit/button[type=submit], không phụ thuộc chữ trên nút."""
     try:
         target = driver.execute_script(r"""
         const visible = (el) => !!(el && (el.offsetWidth || el.offsetHeight || el.getClientRects().length));
@@ -2194,7 +2194,7 @@ def _click_if_enabled_submit(driver) -> bool:
 
 
 def _read_chatgpt_session_once(driver) -> dict | None:
-    """当前页面必须在 chatgpt.com；读取 /api/auth/session，拿不到 token 返回 None。"""
+    """Trang hiện tại phải ở chatgpt.com; đọc /api/auth/session, không lấy được token thì trả về None."""
     script = r"""
     const done = arguments[0];
     fetch('/api/auth/session', {credentials: 'include'})
@@ -2213,7 +2213,7 @@ def _read_chatgpt_session_once(driver) -> dict | None:
 
 
 def _switch_to_chatgpt_window_if_any(driver) -> bool:
-    """有些浏览器/适配层会在新窗口完成 callback；尝试切到已有 chatgpt.com 句柄。"""
+    """Một số trình duyệt/lớp adapter hoàn tất callback trong cửa sổ mới; thử chuyển sang handle chatgpt.com đã có."""
     try:
         handles = list(getattr(driver, "window_handles", []) or [])
         current_handle = None
@@ -2239,11 +2239,11 @@ def _switch_to_chatgpt_window_if_any(driver) -> bool:
 
 
 def _fetch_chatgpt_session(driver, timeout: int = 90, auto_jump_wait: int = 15) -> dict:
-    """等待页面完成跳转并从 ChatGPT 页面内读取登录 session/accessToken。
+    """Chờ trang hoàn tất chuyển hướng và đọc session/accessToken đăng nhập từ trong trang ChatGPT.
 
-    旧逻辑会在 auth.openai.com 上一直等到总超时，Cloak/部分 Chromium 场景下
-    实际账号已创建成功但当前句柄 URL 没及时更新，导致白等 120 秒。现在只给
-    自动跳转 `auto_jump_wait` 秒；超过后立即主动打开 chatgpt.com 读 session。
+    Logic cũ đợi trên auth.openai.com đến hết tổng timeout; với Cloak/một số Chromium
+    tài khoản thực tế đã tạo thành công nhưng URL handle hiện tại chưa cập nhật kịp, khiến chờ phí 120 giây. Nay chỉ cho
+    tự động nhảy `auto_jump_wait` giây; quá hạn thì ngay lập tức mở chatgpt.com đọc session.
     """
     end = time.time() + timeout
     auto_jump_end = time.time() + max(3, int(auto_jump_wait or 15))
@@ -2302,7 +2302,7 @@ def run_roxy_registration(
     batch_dir: Path | None = None,
     on_email_acquired: Callable[[str], None] | None = None,
 ) -> dict:
-    """Roxy 指纹浏览器自动化注册入口。"""
+    """Điểm vào đăng ký tự động trình duyệt vân tay Roxy."""
     client = RoxyBrowserClient()
     opened = client.open_profile()
     driver = None
@@ -2315,7 +2315,7 @@ def run_roxy_registration(
     network_traffic: dict | None = None
 
     def _merge_proxy_transport_traffic() -> None:
-        """用代理链全量计数补正仅覆盖当前页面 target 的 CDP 统计。"""
+        """Dùng đếm toàn phần chuỗi proxy để hiệu chỉnh thống kê CDP chỉ phủ target trang hiện tại."""
         nonlocal network_traffic
         transport = client.proxy_transport_snapshot()
         if not transport or not transport.get("available"):
@@ -2357,7 +2357,7 @@ def run_roxy_registration(
         try:
             traffic_tracker = SeleniumTrafficTracker(driver, label="Roxy")
         except Exception as exc:
-            # 统计失败不应影响注册主流程。
+            # Thất bại thống kê không nên ảnh hưởng quy trình đăng ký chính.
             logger.warning("[Roxyđăng ký] Khởi tạo thống kê lưu lượng trình duyệt thất bại, Tiếp tục đăng ký: %s: %s", type(exc).__name__, str(exc)[:180])
         data_saver = BrowserDataSaver(label="Roxy")
         if traffic_tracker is not None:
@@ -2388,8 +2388,8 @@ def run_roxy_registration(
         _maybe_accept(driver)
         _check_manual_stop()
 
-        # 填邮箱。OpenAI UI 会随出口 IP/语言变化；这里只按 DOM 技术属性找邮箱入口，
-        # 并排除 Google/Apple/Microsoft 等第三方入口，不依赖按钮可见文字。
+        # Điền email. UI OpenAI thay đổi theo IP đầu ra/ngôn ngữ; ở đây chỉ tìm ô email theo thuộc tính kỹ thuật DOM,
+        # và loại trừ các lối vào bên thứ ba như Google/Apple/Microsoft, không phụ thuộc văn bản hiển thị của nút.
         def _email_supplier_after_input() -> str:
             nonlocal email
             _check_manual_stop()
@@ -2407,14 +2407,14 @@ def run_roxy_registration(
         _traffic_checkpoint()
         _check_manual_stop()
 
-        # 新版注册流如果邮箱后直接进入验证码页，也优先点击“使用密码继续”进入
-        # /create-account/password，设置密码并把密码写入账号 extra.registration_password。
+        # Luồng đăng ký bản mới nếu sau email vào thẳng trang mã xác minh, cũng ưu tiên bấm “Tiếp tục bằng mật khẩu” để vào
+        # /create-account/password, đặt mật khẩu và ghi mật khẩu vào extra.registration_password của tài khoản.
         openai_password = _fill_password_page_if_present(driver, email, timeout=25)
         _traffic_checkpoint()
         _check_manual_stop()
 
-        # 防御性校验：任何密码页处理分支都不得把仍停留在密码路由的页面交给
-        # OTP 输入逻辑，否则只会刷新密码页并报告“找不到 OTP 输入框”。
+        # Kiểm tra phòng thủ: mọi nhánh xử lý trang mật khẩu đều không được giao trang vẫn còn ở route mật khẩu cho
+        # logic nhập OTP, nếu không chỉ làm mới trang mật khẩu và báo “không tìm thấy ô nhập OTP”.
         if _is_signup_password_page(driver):
             raise RuntimeError(
                 f"sau xử lý trang mật khẩu vẫn ở trang mật khẩu đăng ký: "
@@ -2431,9 +2431,9 @@ def run_roxy_registration(
                 except Exception as exc:
                     if otp_attempt >= max_otp_attempts:
                         raise
-                    # 兜底：OpenAI 重发验证码时常常是同一封邮件（时间戳不变），
-                    # after_ts 过滤会把它当成旧邮件忽略。先宽松取最新一条验证码，
-                    # 取到就直接用它重试提交，避免误点“重新发送”后死等。
+                    # Dự phòng: Khi OpenAI gửi lại mã xác minh thường là cùng một email (dấu thời gian không đổi),
+                    # Bộ lọc after_ts sẽ coi nó là email cũ và bỏ qua. Trước hết lấy lỏng một mã xác minh mới nhất,
+                    # Lấy được thì dùng ngay để thử gửi lại, tránh bấm nhầm "gửi lại" rồi chờ mãi.
                     fallback_otp = None
                     try:
                         fallback_otp = wait_for_otp(email, after_ts=0.0, max_wait=15, poll_interval=3)
@@ -2483,14 +2483,14 @@ def run_roxy_registration(
             human_delay("api")
             current_otp = None
 
-        # about-you / profile 信息页：必须完成或确认已有登录态，不能静默跳过。
+        # Trang thông tin about-you / profile: phải hoàn thành hoặc xác nhận đã có trạng thái đăng nhập, không được bỏ qua im lặng.
         logger.info("[Roxyđăng ký] Bắt đầu chờ trang profile/session đăng nhập")
         _check_manual_stop()
         profile_submitted = _complete_profile_page(driver, name, birthday, timeout=60)
         _traffic_checkpoint()
         if profile_submitted:
             create_acknowledged = True
-            # 给 OAuth 回调 / session cookie 写入一点时间。
+            # Dành một chút thời gian để ghi OAuth callback / session cookie.
             human_delay("post_auth")
 
         logger.info("[Roxyđăng ký] chờ ChatGPT Chuyển hướng và ghi session/accessToken")
@@ -2500,13 +2500,13 @@ def run_roxy_registration(
         access_token = session_info["accessToken"]
         logger.info("[Roxyđăng ký] Đã lấy được accessToken: %s", email)
         _check_manual_stop()
-        # 已拿到 accessToken 后不再需要 ChatGPT 应用壳；Codex 复用当前窗口时保留完整页面。
+        # Sau khi đã có accessToken không còn cần shell ứng dụng ChatGPT; khi Codex tái sử dụng cửa sổ hiện tại thì giữ trang đầy đủ.
         try:
             from config import codex as _codex_deep_cfg
             if not bool(getattr(_codex_deep_cfg, "ENABLE_CODEX_AUTO", False)) and data_saver is not None:
                 data_saver.enable_post_auth_deep_mode(driver)
-                # 不需要 Codex 时切到本地空白页，停止 ChatGPT SPA 的轮询、遥测
-                # 和懒加载资源；accessToken 已经在上一步落盘所需数据中取得。
+                # Khi không cần Codex thì chuyển sang trang trống local, dừng polling và telemetry của ChatGPT SPA
+                # và tài nguyên lazy-load; accessToken đã lấy được trong dữ liệu cần ghi đĩa ở bước trước.
                 try:
                     driver.get("about:blank")
                     logger.info("[Roxyđăng ký] Đã chuyển about:blank, Dừng lưu lượng nền trang sau đăng ký")
@@ -2527,8 +2527,8 @@ def run_roxy_registration(
         try:
             from config import codex as _codex_cfg
             if bool(getattr(_codex_cfg, "ENABLE_CODEX_AUTO", False)):
-                # 注册流程本身已创建 Roxy 一号一环境。这里不能再新建第二个 Roxy 环境；
-                # 复用当前注册窗口，先清理 Cookie/session/localStorage/cache，再开始 Codex 授权。
+                # Quy trình đăng ký bản thân đã tạo môi trường Roxy một tài khoản một môi trường. Ở đây không được tạo thêm môi trường Roxy thứ hai;
+                # Tái sử dụng cửa sổ đăng ký hiện tại, trước hết dọn Cookie/session/localStorage/cache, rồi bắt đầu ủy quyền Codex.
                 from core.roxy_codex_oauth import run_roxy_codex_oauth
                 logger.info("[Roxyđăng ký][Codex] ENABLE_CODEX_AUTO=True, Dùng lại đăng ký hiện tại Roxy Thực thi cửa sổ Codex uỷ quyền, Không tạo môi trường mới")
                 _check_manual_stop()
@@ -2546,7 +2546,7 @@ def run_roxy_registration(
         except Exception as exc:
             codex_result = {"status": "failed", "ok": False, "message": f"{type(exc).__name__}: {str(exc)[:180]}"}
 
-        # 统计注册浏览器关闭前的完整会话；注册后停留期间的网络请求也计入。
+        # Thống kê phiên đầy đủ trước khi đóng trình duyệt đăng ký; request mạng trong thời gian ở lại sau đăng ký cũng tính.
         post_register_dwell(email, label="Roxy đăng ký")
         _traffic_checkpoint()
         if asset_cache is not None:
@@ -2604,7 +2604,7 @@ def run_roxy_registration(
             data_saver.stop()
         logger.error("[Roxyđăng ký] Thất bại: %s: %s", type(exc).__name__, exc)
         logger.debug("[Roxyđăng ký] Chi tiết thất bại", exc_info=True)
-        # 未确认创建前回收邮箱；确认后避免重复使用。
+        # Thu hồi email trước khi xác nhận tạo; sau xác nhận tránh dùng lại.
         try:
             if email:
                 from core.email_provider import release_email

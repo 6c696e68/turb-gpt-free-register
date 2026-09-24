@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-"""CloakBrowser 的 Selenium 风格轻量适配层。"""
+"""Lớp thích ứng nhẹ kiểu Selenium của CloakBrowser."""
 from __future__ import annotations
 
 import logging
@@ -71,7 +71,7 @@ class CloakElement:
             else:
                 self.handle.fill("", timeout=10000)
         except Exception:
-            # 部分非 input 元素不支持 fill，回退键盘清空。
+            # Một số phần tử không phải input không hỗ trợ fill, lùi về xóa bằng bàn phím.
             self.click()
             self.page.keyboard.press("Meta+A")
             self.page.keyboard.press("Backspace")
@@ -84,7 +84,7 @@ class CloakElement:
             return ""
 
     def send_keys(self, *values: str) -> None:
-        # 兼容 Selenium: el.send_keys(Keys.COMMAND, 'a')。
+        # Tương thích Selenium: el.send_keys(Keys.COMMAND, 'a').
         text = "".join(str(v or "") for v in values)
         lower = text.lower()
         try:
@@ -92,7 +92,7 @@ class CloakElement:
         except Exception:
             pass
         if "\ue03d" in text or "\ue009" in text or "command" in lower or "control" in lower:
-            # Selenium Keys.CONTROL/COMMAND 编码可能传入私有区字符；这里按全选处理。
+            # Mã hóa Selenium Keys.CONTROL/COMMAND có thể truyền ký tự private-use; ở đây xử lý như chọn tất cả.
             try:
                 self.page.keyboard.press("Meta+A")
             except Exception:
@@ -124,7 +124,7 @@ class _SwitchTo:
 
 
 class CloakSeleniumDriver:
-    """只实现本项目 Roxy Selenium 流程实际用到的 WebDriver 子集。"""
+    """Chỉ triển khai tập con WebDriver mà quy trình Roxy Selenium của dự án này thực sự dùng."""
 
     def __init__(self, browser: Any, context: Any | None, page: Any, proxy_relay: Any | None = None):
         self.browser = browser
@@ -246,8 +246,8 @@ class CloakSeleniumDriver:
         cleaned = []
         for item in rest:
             if isinstance(item, CloakElement):
-                # 极少数脚本会传多个元素；用真实 handle 直接会在嵌套 payload 中失效，
-                # 这里退化为 None，比把错误对象传进 JS 更安全。
+                # Rất ít script sẽ truyền nhiều phần tử; dùng handle thật trực tiếp sẽ thất bại trong payload lồng nhau,
+                # Ở đây thoái hóa thành None, an toàn hơn so với truyền đối tượng lỗi vào JS.
                 cleaned.append(None)
             else:
                 cleaned.append(item)
@@ -303,7 +303,7 @@ class CloakSeleniumDriver:
                 raise TimeoutError("execute_async_script timeout")
             return result
 
-        # Selenium 脚本经常以 `return ...` 为主体；用 Function 保持语义。
+        # Script Selenium thường lấy `return ...` làm thân chính; dùng Function để giữ ngữ nghĩa.
         wrapper = """({script, args}) => {
           const fn = new Function(...args.map((_, i) => 'a' + i), script);
           return fn(...args);
@@ -328,7 +328,7 @@ def _normalize_proxy(proxy: str | None) -> str | None:
 
 
 def _detect_cloak_exit_geo(proxy_url: str | None = None) -> dict:
-    """按当前/代理出口检测地理信息，供 Cloak 显式 locale/timezone 使用。"""
+    """Phát hiện thông tin địa lý theo cổng ra hiện tại/proxy, để Cloak dùng locale/timezone tường minh."""
     try:
         import requests
         from config import browser as _browser_cfg
@@ -369,13 +369,13 @@ def _detect_cloak_exit_geo(proxy_url: str | None = None) -> dict:
 
 
 def _build_cloak_locale_options(proxy_url: str | None = None) -> dict:
-    """生成 Cloak/Playwright 双层语言时区配置。"""
+    """Tạo cấu hình ngôn ngữ và múi giờ hai lớp Cloak/Playwright."""
     explicit_locale = str(getattr(_cfg, "CLOAK_LOCALE", "") or "").strip()
     explicit_timezone = str(getattr(_cfg, "CLOAK_TIMEZONE", "") or "").strip()
     out = {}
     if explicit_locale:
         out["locale"] = explicit_locale
-        # Accept-Language 用 config.browser 自动推断更完整；显式时给一个保守值。
+        # Accept-Language dùng config.browser suy luận tự động đầy đủ hơn; khi chỉ định tường minh thì cho một giá trị bảo thủ.
         out["accept_language"] = f"{explicit_locale},{explicit_locale.split('-')[0]};q=0.9,en-US;q=0.8,en;q=0.7"
     if explicit_timezone:
         out["timezone"] = explicit_timezone
@@ -397,11 +397,11 @@ def _build_cloak_locale_options(proxy_url: str | None = None) -> dict:
 
 
 def build_cloak_driver(proxy: str | None = None) -> tuple[CloakSeleniumDriver, CloakOpenResult]:
-    """启动 CloakBrowser 并返回 Selenium 风格 driver。
+    """Khởi động CloakBrowser và trả về driver kiểu Selenium.
 
-    proxy=None  时按 config.proxy.PROXY_POOL 随机抽取；
-    proxy=""    时显式禁用代理；
-    proxy="..." 时使用指定代理。
+    proxy=None  thì lấy ngẫu nhiên từ config.proxy.PROXY_POOL;
+    proxy=""    thì tắt proxy rõ ràng;
+    proxy="..." thì dùng proxy được chỉ định.
     """
     proxy_relay = None
     proxy_pool_target = ""
@@ -426,9 +426,9 @@ def build_cloak_driver(proxy: str | None = None) -> tuple[CloakSeleniumDriver, C
 
     proxy_url = _normalize_proxy(proxy) if bool(getattr(_cfg, "CLOAK_USE_PROXY", True)) else None
     locale_opts = _build_cloak_locale_options(proxy_url)
-    # geoip=True 交给 CloakBrowser 根据当前出口 IP 自动匹配 timezone/locale/WebRTC。
-    # 之前只有显式 proxy_url 时才开启；如果用户走系统代理/VPN/透明代理，代码层面
-    # 看不到 proxy_url，会误关 geoip，导致语言/时区不跟随出口。这里改为完全尊重配置。
+    # geoip=True giao cho CloakBrowser tự động khớp timezone/locale/WebRTC theo IP đầu ra hiện tại.
+    # Trước đây chỉ bật khi có proxy_url tường minh; nếu người dùng dùng proxy hệ thống/VPN/proxy trong suốt, ở tầng mã
+    # Không thấy proxy_url sẽ tắt nhầm geoip, khiến ngôn ngữ/múi giờ không theo cổng ra. Ở đây đổi thành tôn trọng hoàn toàn cấu hình.
     opts = {
         "headless": bool(getattr(_cfg, "CLOAK_HEADLESS", False)),
         "humanize": bool(getattr(_cfg, "CLOAK_HUMANIZE", True)),
@@ -465,15 +465,15 @@ def build_cloak_driver(proxy: str | None = None) -> tuple[CloakSeleniumDriver, C
         context = launch_persistent_context(user_data_dir, **opts)
         page = context.new_page()
         browser = getattr(context, "browser", None) or context
-        # persistent context 的 locale/timezone 已通过 launch_persistent_context 参数传入。
+        # locale/timezone của persistent context đã được truyền qua tham số launch_persistent_context.
     else:
         browser = launch(**opts)
         context = browser.new_context(**context_kwargs)
         page = context.new_page()
 
     driver = CloakSeleniumDriver(browser=browser, context=context, page=page, proxy_relay=proxy_relay)
-    # Roxy/Cloak 共用部分页面操作函数；给共享函数一个显式日志前缀，
-    # 避免 Cloak 注册流程里出现 `[Roxy注册]`。
+    # Roxy/Cloak dùng chung một số hàm thao tác trang; gán prefix log tường minh cho hàm chia sẻ,
+    # Tránh xuất hiện `[Roxy đăng ký]` trong quy trình đăng ký Cloak.
     driver._registration_log_prefix = "[Cloak đăng ký]"
     driver.set_page_load_timeout(int(getattr(_cfg, "CLOAK_SELENIUM_TIMEOUT", 90) or 90))
     return driver, CloakOpenResult(raw={

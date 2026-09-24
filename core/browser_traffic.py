@@ -1,10 +1,10 @@
 # -*- coding: utf-8 -*-
-"""浏览器注册流程的网络流量统计。
+"""Thống kê lưu lượng mạng quy trình đăng ký trình duyệt.
 
-统计的是浏览器侧能观察到的 HTTP 请求/响应字节，不会读取或保存请求内容。
-Playwright 直接使用 ``Request.sizes()``；Selenium/Roxy 优先读取 Chrome
-performance log，无法读取时退回到 Resource Timing。两种方式都不包含
-TLS/IP/代理隧道等协议额外开销，因此不等同于代理服务商的计费流量。
+Thống kê byte request/response HTTP quan sát được phía trình duyệt, không đọc hay lưu nội dung request.
+Playwright dùng trực tiếp ``Request.sizes()``; Selenium/Roxy ưu tiên đọc Chrome
+performance log, không đọc được thì fallback Resource Timing. Cả hai cách đều không gồm
+chi phí giao thức thêm như TLS/IP/đường hầm proxy, nên không tương đương lưu lượng tính phí của nhà cung cấp proxy.
 """
 from __future__ import annotations
 
@@ -36,13 +36,13 @@ _RESOURCE_TYPE_ALIASES = {
 
 
 def _normalize_resource_type(value: Any) -> str:
-    """统一 Playwright/CDP/Resource Timing 的资源类型名称。"""
+    """Thống nhất tên loại tài nguyên của Playwright/CDP/Resource Timing."""
     raw = str(value or "other").strip().lower()
     return _RESOURCE_TYPE_ALIASES.get(raw, raw or "other")
 
 
 def _non_negative_int(value: Any) -> int:
-    """把 Playwright/CDP 返回的数字安全地归一化为非负整数。"""
+    """Chuẩn hóa an toàn số do Playwright/CDP trả về thành số nguyên không âm."""
     try:
         value = int(float(value or 0))
     except (TypeError, ValueError, OverflowError):
@@ -51,7 +51,7 @@ def _non_negative_int(value: Any) -> int:
 
 
 def _optional_size(value: Any) -> int | None:
-    """读取可能使用 -1 表示 unknown 的尺寸字段。"""
+    """Đọc trường kích thước có thể dùng -1 để biểu thị unknown."""
     if value is None:
         return None
     try:
@@ -84,11 +84,11 @@ def _iso_now() -> str:
 
 
 def _safe_url_for_log(url: Any, *, max_length: int = 600) -> str:
-    """保留 host/path/查询键，隐藏 URL 查询值，避免明细日志落敏感 token。"""
+    """Giữ host/path/khóa truy vấn, ẩn giá trị truy vấn URL, tránh ghi token nhạy cảm vào nhật ký chi tiết."""
     text = str(url or "")
     if not text:
         return "-"
-    # data/blob URL 可能本身携带完整资源内容，不能原样写入日志。
+    # data/blob URL có thể tự mang nội dung tài nguyên đầy đủ, không được ghi nguyên vào log.
     if text.lower().startswith(("data:", "blob:")):
         return text.split(":", 1)[0].lower() + ":<redacted>"
     try:
@@ -99,7 +99,7 @@ def _safe_url_for_log(url: Any, *, max_length: int = 600) -> str:
                 continue
             key = part.split("=", 1)[0]
             query_keys.append(f"{key}=<redacted>")
-        # URL 中的 userinfo 也可能是代理/临时凭证；只保留 host 和 port。
+        # userinfo trong URL cũng có thể là proxy/thông tin xác thực tạm thời; chỉ giữ host và port.
         netloc = parsed.netloc
         if "@" in netloc:
             netloc = netloc.rsplit("@", 1)[-1]
@@ -111,7 +111,7 @@ def _safe_url_for_log(url: Any, *, max_length: int = 600) -> str:
 
 
 def _is_loopback_url(url: Any) -> bool:
-    """本机回环 HTTP(S)/WS(S) 资源不属于代理或公网注册流量。"""
+    """Tài nguyên HTTP(S)/WS(S) loopback máy cục bộ không thuộc lưu lượng proxy hoặc đăng ký mạng công cộng."""
     try:
         parsed = urlsplit(str(url or ""))
         if parsed.scheme.lower() not in {"http", "https", "ws", "wss"}:
@@ -125,7 +125,7 @@ def _is_loopback_url(url: Any) -> bool:
 
 
 def _coverage_count(value: Any) -> int:
-    """把 Profiler 覆盖率中的 count/offset 规范化为非负整数。"""
+    """Chuẩn hóa count/offset trong độ phủ Profiler thành số nguyên không âm."""
     try:
         return max(0, int(float(value or 0)))
     except (TypeError, ValueError, OverflowError):
@@ -133,7 +133,7 @@ def _coverage_count(value: Any) -> int:
 
 
 def _safe_js_function_name(value: Any, *, max_length: int = 220) -> str:
-    """函数名只用于诊断日志，去掉控制字符并限制长度。"""
+    """Tên hàm chỉ dùng cho nhật ký chẩn đoán, loại bỏ ký tự điều khiển và giới hạn độ dài."""
     text = str(value or "<anonymous>")
     text = "".join(char if char >= " " and char != "\x7f" else " " for char in text)
     text = " ".join(text.split()) or "<anonymous>"
@@ -141,7 +141,7 @@ def _safe_js_function_name(value: Any, *, max_length: int = 220) -> str:
 
 
 def _is_blockable_script_url(url: Any) -> bool:
-    """只把可通过 URL 规则拦截的 HTTP(S) 脚本列为屏蔽候选。"""
+    """Chỉ liệt kê các script HTTP(S) có thể chặn bằng quy tắc URL làm ứng viên chặn."""
     try:
         parsed = urlsplit(str(url or ""))
         return parsed.scheme.lower() in {"http", "https"} and bool(parsed.netloc)
@@ -150,7 +150,7 @@ def _is_blockable_script_url(url: Any) -> bool:
 
 
 class _TrafficAccumulator:
-    """保存流量计数；按需保存脱敏后的资源明细，不保存 Header 或请求体。"""
+    """Lưu bộ đếm lưu lượng; lưu chi tiết tài nguyên đã ẩn danh khi cần, không lưu Header hoặc thân yêu cầu."""
 
     def __init__(self, *, label: str, method: str):
         self.label = label
@@ -184,8 +184,8 @@ class _TrafficAccumulator:
         self._request_detail_index: dict[str, int] = {}
         self._request_detail_sequence = 0
 
-        # Chrome Profiler precise coverage。默认关闭；开启时只保留函数名、调用计数、
-        # offset 和脱敏 URL，不读取函数参数、返回值或源码内容。
+        # Chrome Profiler precise coverage. Mặc định tắt; khi bật chỉ giữ tên hàm, số lần gọi,
+        # offset và URL đã che, không đọc tham số hàm, giá trị trả về hoặc nội dung mã nguồn.
         self._js_coverage_log_enabled = bool(getattr(_browser_cfg, "BROWSER_JS_COVERAGE_LOG", False))
         try:
             coverage_max = int(getattr(_browser_cfg, "BROWSER_JS_COVERAGE_MAX_ENTRIES", 1000) or 1000)
@@ -201,11 +201,11 @@ class _TrafficAccumulator:
         self._js_coverage_functions: list[dict[str, Any]] = []
 
     def attach_data_saver(self, data_saver: Any | None) -> None:
-        """把省流量拦截器的计数附加到浏览器流量快照。"""
+        """Gắn thêm bộ đếm của bộ chặn tiết kiệm lưu lượng vào ảnh chụp lưu lượng trình duyệt."""
         self._data_saver = data_saver
 
     def attach_local_asset_cache(self, cache: Any | None) -> None:
-        """让统计器把 Fetch.fulfillRequest 本地正文排除出代理下载流量。"""
+        """Để bộ thống kê loại nội dung cục bộ Fetch.fulfillRequest ra khỏi lưu lượng tải xuống qua proxy."""
         self._local_asset_cache = cache
 
     def _js_coverage_mark_target_attempt(self) -> None:
@@ -240,7 +240,7 @@ class _TrafficAccumulator:
             self._js_coverage_supported = False
 
     def _ingest_js_coverage(self, payload: Any, *, target: str = "") -> None:
-        """解析 Profiler.takePreciseCoverage，只保留可用于诊断的摘要。"""
+        """Phân tích Profiler.takePreciseCoverage, chỉ giữ tóm tắt dùng cho chẩn đoán."""
         if not self._js_coverage_log_enabled:
             return
         if not isinstance(payload, dict):
@@ -304,7 +304,7 @@ class _TrafficAccumulator:
                         "call_count": function_call_count,
                         "range_count": len(normalized_ranges),
                         "executed_range_count": function_executed_ranges,
-                        # 仅保存 offset/count，避免把源码或参数带进日志/快照。
+                        # Chỉ lưu offset/count, tránh đưa mã nguồn hoặc tham số vào log/snapshot.
                         "ranges": normalized_ranges,
                         "function_index": function_index,
                     }
@@ -327,7 +327,7 @@ class _TrafficAccumulator:
                 self._js_coverage_functions.extend(executed_functions)
 
     def _js_coverage_snapshot(self) -> dict[str, Any]:
-        """返回适合写入 network_traffic 的 JS 覆盖率摘要。"""
+        """Trả về tóm tắt độ phủ JS phù hợp để ghi vào network_traffic."""
         with self._lock:
             scripts = [dict(item) for item in self._js_coverage_scripts.values()]
             functions = list(self._js_coverage_functions)
@@ -339,8 +339,8 @@ class _TrafficAccumulator:
             error = self._js_coverage_error
             max_entries = int(self._js_coverage_max_entries)
 
-        # 将覆盖率脚本和网络明细按脱敏 URL 关联，便于直接判断“未执行但下载很大”的
-        # chunk。没有开启资源明细日志时这些字段自然为 0，不影响覆盖率本身。
+        # Liên kết script coverage và chi tiết mạng theo URL đã che, tiện phán đoán trực tiếp “chưa thực thi nhưng tải rất lớn”
+        # chunk. Khi chưa bật log chi tiết tài nguyên các field này tự nhiên là 0, không ảnh hưởng bản thân coverage.
         traffic_by_url: dict[str, dict[str, int]] = {}
         with self._lock:
             request_details = list(self._request_details)
@@ -368,15 +368,15 @@ class _TrafficAccumulator:
             item["traffic_blocked"] = int(traffic.get("blocked", 0))
 
         scripts.sort(key=lambda item: (not bool(item.get("executed")), str(item.get("url") or "")))
-        # 同一个 URL 可能出现在多个 Page/target；只要任一 target 执行过，就不能
-        # 因另一个 target 未执行而把该 URL 误列为候选。
+        # Cùng một URL có thể xuất hiện ở nhiều Page/target; chỉ cần bất kỳ target nào đã thực thi thì không thể
+        # Do một target khác chưa thực thi mà liệt kê nhầm URL này thành ứng viên.
         url_executed: dict[str, bool] = {}
         for item in scripts:
             url = str(item.get("url") or "")
             if item.get("blockable_url") and url:
                 url_executed[url] = bool(url_executed.get(url, False) or item.get("executed"))
         candidate_urls = [url for url, executed in url_executed.items() if not executed]
-        # 快照只保存脚本级摘要；逐函数 offset 只写日志，避免 extra_json 膨胀。
+        # Ảnh chụp nhanh chỉ lưu tóm tắt cấp script; offset từng hàm chỉ ghi nhật ký, tránh extra_json phình to.
         script_summaries = scripts[:max_entries]
         return {
             "enabled": enabled,
@@ -486,7 +486,7 @@ class _TrafficAccumulator:
             self.http_download_bytes += _non_negative_int(download)
 
     def _prepare_request_details(self) -> None:
-        """在输出明细前补齐实现层特有的信息（例如 WebSocket 帧）。"""
+        """Bổ sung thông tin đặc thù tầng triển khai trước khi xuất chi tiết (ví dụ khung WebSocket)."""
 
     @staticmethod
     def _cache_status(*, cache_status: Any = None, from_cache: Any = None) -> str:
@@ -519,7 +519,7 @@ class _TrafficAccumulator:
         websocket_payload_download_bytes: Any = 0,
         detail_key: Any = None,
     ) -> None:
-        """记录单个资源的脱敏明细，供 stop() 时输出分析日志。"""
+        """Ghi chi tiết đã che của từng tài nguyên, để xuất log phân tích khi stop()."""
         if not self._detail_log_enabled:
             return
         try:
@@ -561,7 +561,7 @@ class _TrafficAccumulator:
                 self._request_details[existing_index] = detail
 
     def _update_request_detail(self, detail_key: Any, **updates: Any) -> None:
-        """更新已记录资源的可变字段，不读取或保存请求/响应内容。"""
+        """Cập nhật các trường có thể thay đổi của tài nguyên đã ghi, không đọc hoặc lưu nội dung request/response."""
         if not self._detail_log_enabled:
             return
         key = str(detail_key)
@@ -741,7 +741,7 @@ class _TrafficAccumulator:
 
 
 class PlaywrightTrafficTracker(_TrafficAccumulator):
-    """统计一个 BrowserContext 内所有 Page 的 HTTP/WebSocket 流量。"""
+    """Thống kê lưu lượng HTTP/WebSocket của tất cả Page trong một BrowserContext."""
 
     def __init__(self, context: Any, *, label: str = "BrowserUse"):
         super().__init__(label=label, method="playwright.request.sizes")
@@ -763,12 +763,12 @@ class PlaywrightTrafficTracker(_TrafficAccumulator):
             logger.debug("[%s] lắng nghe lưu lượng đăng ký thất bại event=%s：%s", self.label, event, exc)
 
     def _attach(self) -> None:
-        # 监听 BrowserContext，而不是只监听当前 page，确保 popup/重定向窗口也计入。
+        # Lắng nghe BrowserContext, không chỉ page hiện tại, đảm bảo cửa sổ popup/chuyển hướng cũng được tính.
         self._listen(self.context, "request", self._on_request)
         self._listen(self.context, "requestfinished", self._on_request_finished)
         self._listen(self.context, "requestfailed", self._on_request_failed)
-        # websocket 是 Page 事件，不是 BrowserContext 事件；对已有页面和后续 popup
-        # 都挂载监听。
+        # websocket là sự kiện Page, không phải sự kiện BrowserContext; với trang đã có và popup sau này
+        # Đều gắn trình lắng nghe.
         self._listen(self.context, "page", self._on_page)
         for page in list(getattr(self.context, "pages", []) or []):
             self._on_page(page)
@@ -778,7 +778,7 @@ class PlaywrightTrafficTracker(_TrafficAccumulator):
         self._start_playwright_js_coverage(page)
 
     def _start_playwright_js_coverage(self, page: Any) -> None:
-        """为每个 Chromium Page 建立独立 CDP session 并开启精确覆盖率。"""
+        """Tạo CDP session độc lập cho mỗi Chromium Page và bật độ phủ chính xác."""
         if not self._js_coverage_log_enabled:
             return
         page_key = id(page)
@@ -816,7 +816,7 @@ class PlaywrightTrafficTracker(_TrafficAccumulator):
 
     @staticmethod
     def _request_fallback_upload(request: Any) -> int:
-        """失败请求没有 sizes() 时，尽量估算已经发出的头/体。"""
+        """Khi yêu cầu thất bại không có sizes(), cố gắng ước lượng header/body đã gửi."""
         try:
             method = str(getattr(request, "method", "GET") or "GET")
         except Exception:
@@ -852,13 +852,11 @@ class PlaywrightTrafficTracker(_TrafficAccumulator):
 
     @classmethod
     def _request_metadata(cls, request: Any, *, include_response: bool = True) -> dict[str, Any]:
-        """读取 Playwright 请求的可公开元数据，不读取响应 body。
+        """Đọc metadata công khai của request Playwright, không đọc response body.
 
-        ``Request.response()`` 是同步 API，内部会等待 Playwright 事件循环。
-        在 ``requestfailed`` 回调中调用它会与正在派发的回调重入，可能把原本的
-        导航异常替换成 ``CancelledError``/``Event loop is closed``。失败请求没有
-        可用的响应状态，因此该路径必须显式跳过响应读取。
-        """
+        ``Request.response()`` là API đồng bộ, bên trong sẽ chờ event loop Playwright.
+        Gọi nó trong callback ``requestfailed`` sẽ re-enter callback đang dispatch, có thể
+        làm request failed đáng lẽ timeout bị nuốt/treo."""
         try:
             resource_type = getattr(request, "resource_type", "other")
         except Exception:
@@ -887,8 +885,8 @@ class PlaywrightTrafficTracker(_TrafficAccumulator):
             except Exception:
                 pass
             try:
-                # Playwright 能明确暴露的是 Service Worker 响应；普通 HTTP
-                # 缓存命中没有稳定的 Request API，不能把未知误报成 miss。
+                # Playwright có thể phơi bày rõ ràng là phản hồi Service Worker; HTTP thông thường
+                # Cache hit không có Request API ổn định, không được báo nhầm unknown thành miss.
                 if bool(getattr(response, "from_service_worker", False)):
                     cache_status = "service_worker"
             except Exception:
@@ -932,8 +930,8 @@ class PlaywrightTrafficTracker(_TrafficAccumulator):
         unfinished: bool = False,
         include_response: bool = True,
     ) -> None:
-        # 明细日志关闭时不要触碰 Request 的同步方法；尤其不能让诊断逻辑影响
-        # requestfailed/page.goto 的主流程。
+        # Khi tắt nhật ký chi tiết không chạm phương thức đồng bộ của Request; đặc biệt không để logic chẩn đoán ảnh hưởng
+        # Luồng chính của requestfailed/page.goto.
         if not self._detail_log_enabled:
             return
         metadata = self._request_metadata(request, include_response=include_response)
@@ -965,8 +963,8 @@ class PlaywrightTrafficTracker(_TrafficAccumulator):
                 self.request_count += 1
             self._requests[key] = request
 
-        # route.abort() 的请求没有真正发出；不能在 sizes() 不可用时把它估算成
-        # 已上传的请求头，否则省下来的流量会被统计口径重新加回来。
+        # Request của route.abort() không thực sự được gửi; không được ước lượng nó thành khi sizes() không dùng được
+        # Header yêu cầu đã tải lên, nếu không lưu lượng tiết kiệm sẽ bị khẩu thống kê cộng lại.
         try:
             blocked = bool(self._data_saver and self._data_saver.was_playwright_blocked(request))
         except Exception:
@@ -980,9 +978,9 @@ class PlaywrightTrafficTracker(_TrafficAccumulator):
             )
             return
 
-        # Playwright 文档明确说明：failed request 上 Request.sizes() 会抛错，且
-        # 其内部先调用 response()。更关键的是这里正处于 requestfailed 事件回调，
-        # 任何等待 Playwright 的同步调用都可能触发 API 重入并破坏 page.goto()。
+        # Tài liệu Playwright nêu rõ: Request.sizes() trên failed request sẽ ném lỗi, và
+        # Bên trong nó gọi response() trước. Quan trọng hơn là ở đây đang trong callback sự kiện requestfailed,
+        # Mọi lời gọi đồng bộ chờ Playwright đều có thể kích hoạt reentrancy API và phá page.goto().
         if failed:
             upload = self._request_fallback_upload(request)
             self._add_http(upload, 0)
@@ -1000,8 +998,8 @@ class PlaywrightTrafficTracker(_TrafficAccumulator):
 
         values = self._request_size_values(request)
         if values is None:
-            # 极少数完成事件也可能拿不到 sizes()；此时只估算上传，且不再读取
-            # response，避免把统计异常传播给 Playwright 事件派发。
+            # Rất ít sự kiện hoàn thành cũng có thể không lấy được sizes(); lúc đó chỉ ước lượng upload, và không đọc nữa
+            # response, tránh lan truyền ngoại lệ thống kê sang phân phối sự kiện Playwright.
             upload = self._request_fallback_upload(request)
             self._add_http(upload, 0)
             with self._lock:
@@ -1141,7 +1139,7 @@ class PlaywrightTrafficTracker(_TrafficAccumulator):
         return unfinished
 
     def _collect_playwright_js_coverage(self) -> None:
-        """结束各 Page 的 Profiler session 并汇总覆盖率。"""
+        """Kết thúc session Profiler của từng Page và tổng hợp độ phủ."""
         if not self._js_coverage_log_enabled:
             return
         with self._lock:
@@ -1190,8 +1188,8 @@ class PlaywrightTrafficTracker(_TrafficAccumulator):
             snapshot = self._finish_snapshot()
             self._log_snapshot(snapshot)
             return snapshot
-        # 同步 Playwright 的事件会在这里调用前完成；仍未完成的请求单独标记，
-        # 不伪造响应字节，避免把“估计值”误报成精确值。
+        # Sự kiện đồng bộ Playwright sẽ hoàn thành trước khi gọi ở đây; request vẫn chưa xong đánh dấu riêng,
+        # Không giả mạo byte phản hồi, tránh báo nhầm "giá trị ước tính" thành giá trị chính xác.
         with self._lock:
             self._stopped = True
         self.unfinished_request_count = self._record_unfinished_playwright_requests()
@@ -1204,10 +1202,10 @@ class PlaywrightTrafficTracker(_TrafficAccumulator):
 
 
 class SeleniumTrafficTracker(_TrafficAccumulator):
-    """统计 Roxy/Selenium 的 Chrome performance log 流量。
+    """Thống kê lưu lượng Chrome performance log của Roxy/Selenium.
 
-    Selenium 没有统一的网络事件订阅 API，ChromeDriver 会把 CDP Network
-    事件放进 performance log；本类在 checkpoint/stop 时批量取出并解析。
+    Selenium không có API đăng ký sự kiện mạng thống nhất, ChromeDriver đưa sự kiện CDP Network
+    vào performance log; lớp này lấy hàng loạt và parse tại checkpoint/stop.
     """
 
     def __init__(self, driver: Any, *, label: str = "Roxy"):
@@ -1222,15 +1220,15 @@ class SeleniumTrafficTracker(_TrafficAccumulator):
         self._websocket_stats: dict[str, dict[str, Any]] = {}
         self._js_coverage_started = False
         try:
-            # 对已经连接到指纹浏览器的 debuggerAddress 也尽量开启 Network 域；
-            # 是否能读到 performance log 仍由对应的 ChromeDriver 决定。
+            # Với debuggerAddress đã kết nối trình duyệt fingerprint cũng cố bật domain Network hết mức;
+            # Việc có đọc được performance log hay không vẫn do ChromeDriver tương ứng quyết định.
             self.driver.execute_cdp_cmd("Network.enable", {})
         except Exception as exc:
             logger.debug("[%s] Network.enable thất bại, sẽ thử đọc performance log sẵn có：%s", label, exc)
         self._start_selenium_js_coverage()
 
     def _start_selenium_js_coverage(self) -> None:
-        """在当前 Selenium/CDP target 上开启 Chrome Profiler 精确覆盖率。"""
+        """Bật Chrome Profiler coverage chính xác trên Selenium/CDP target hiện tại."""
         if not self._js_coverage_log_enabled:
             return
         self._js_coverage_mark_target_attempt()
@@ -1248,7 +1246,7 @@ class SeleniumTrafficTracker(_TrafficAccumulator):
             logger.debug("[%s] khởi động độ phủ JS chính xác thất bại：%s: %s", self.label, type(exc).__name__, str(exc)[:180])
 
     def _collect_selenium_js_coverage(self) -> None:
-        """读取并停止当前 Selenium target 的 Profiler 覆盖率。"""
+        """Đọc và dừng độ phủ Profiler của Selenium target hiện tại."""
         if not self._js_coverage_log_enabled or not self._js_coverage_started:
             return
         with self._lock:
@@ -1428,7 +1426,7 @@ class SeleniumTrafficTracker(_TrafficAccumulator):
             previous = self._requests.get(request_id)
             redirect = params.get("redirectResponse")
             if previous is not None and not previous.get("finished"):
-                # 同一个 requestId 的重定向会重新触发 requestWillBeSent。
+                # Redirect cùng một requestId sẽ kích hoạt lại requestWillBeSent.
                 redirect_body = (redirect or {}).get("encodedDataLength", 0) if isinstance(redirect, dict) else 0
                 if isinstance(redirect, dict):
                     previous["response"] = redirect
@@ -1610,8 +1608,8 @@ class SeleniumTrafficTracker(_TrafficAccumulator):
                 )
                 continue
 
-            # WebSocket 握手本身已经按 HTTP 请求计入，帧 payload 在这里合并到
-            # 同一行，避免分析时漏掉注册页面的实时通道流量。
+            # Bắt tay WebSocket bản thân đã được tính theo yêu cầu HTTP, payload khung được gộp vào đây
+            # Cùng một dòng, tránh khi phân tích bỏ sót lưu lượng kênh thời gian thực của trang đăng ký.
             response = record.get("response") or {}
             cache_status = self._record_cache_status(record)
             cached = cache_status == "hit"
@@ -1641,7 +1639,7 @@ class SeleniumTrafficTracker(_TrafficAccumulator):
             )
 
     def drain(self) -> int:
-        """读取当前 performance log 缓冲区，返回解析的记录数。"""
+        """Đọc bộ đệm performance log hiện tại, trả về số bản ghi đã phân tích."""
         try:
             entries = self.driver.get_log("performance")
             self._log_supported = True
@@ -1669,7 +1667,7 @@ class SeleniumTrafficTracker(_TrafficAccumulator):
         return parsed
 
     def _collect_resource_timing_fallback(self) -> None:
-        """performance log 不可用时统计当前文档已暴露的响应传输字节。"""
+        """Khi performance log không khả dụng, thống kê số byte truyền phản hồi đã lộ của tài liệu hiện tại."""
         if self._network_event_count:
             return
         script = """
@@ -1755,7 +1753,7 @@ class SeleniumTrafficTracker(_TrafficAccumulator):
             with self._lock:
                 self._stopped = True
                 unfinished_records = [record for record in self._requests.values() if not record.get("finished")]
-                # 停止前把已经从 CDP dataReceived 看到的部分响应计入；剩余未知部分不虚构。
+                # Trước khi dừng, tính phần phản hồi đã thấy từ CDP dataReceived; phần còn lại chưa biết không bịa.
                 for record in unfinished_records:
                     partial_body = 0
                     if not record.get("served_from_cache") and not record.get("partial_accounted"):

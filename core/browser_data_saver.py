@@ -21,8 +21,8 @@ from config import browser as _cfg
 logger = logging.getLogger(__name__)
 
 
-# Playwright 的 Request.resource_type 枚举。这里保留常用类型，未知值不会导致
-# 注册流程失败；用户可以在配置中填写多个值，每行一个。
+# Enum Request.resource_type của Playwright. Ở đây giữ các loại thường dùng, giá trị lạ sẽ không khiến
+# Quy trình đăng ký thất bại; người dùng có thể điền nhiều giá trị trong cấu hình, mỗi dòng một cái.
 _RESOURCE_TYPE_ALIASES = {
     "images": "image",
     "img": "image",
@@ -49,8 +49,8 @@ _KNOWN_RESOURCE_TYPES = {
     "other",
 }
 
-# Selenium/CDP 没有通过 Network.setBlockedURLs 暴露 resourceType 过滤器，只能按
-# URL glob 过滤。因此只列常见静态资源后缀，不把整个 third-party 域名拦掉。
+# Selenium/CDP không expose bộ lọc resourceType qua Network.setBlockedURLs, chỉ có thể theo
+# Lọc URL glob. Vì vậy chỉ liệt kê các hậu tố tài nguyên tĩnh phổ biến, không chặn cả domain third-party.
 _URL_EXTENSIONS_BY_TYPE = {
     "image": (
         ".apng", ".avif", ".bmp", ".gif", ".ico", ".jfif", ".jpeg", ".jpg",
@@ -63,14 +63,14 @@ _URL_EXTENSIONS_BY_TYPE = {
     "font": (".eot", ".otf", ".ttf", ".woff", ".woff2"),
     "manifest": (".webmanifest", "/manifest.json"),
     "texttrack": (".vtt", ".srt"),
-    # 下面几类不是默认值，但允许高级配置使用；开启前应确认页面不依赖它们。
+    # Các loại dưới đây không phải giá trị mặc định, nhưng cho phép cấu hình nâng cao dùng; trước khi bật nên xác nhận trang không phụ thuộc chúng.
     "stylesheet": (".css",),
     "script": (".js", ".mjs"),
 }
 
-# 登录风控/验证挑战可能把验证码图片、challenge 资源标为 image。Playwright 路由
-# 可以按 URL 例外放行这些资源；Selenium/CDP 的 URL 黑名单没有例外规则，只能依赖
-# 这类资源通常不使用常见静态后缀，遇到验证码异常时应关闭模式排查。
+# Kiểm soát rủi ro đăng nhập/thách thức xác minh có thể đánh dấu ảnh captcha, tài nguyên challenge là image. Định tuyến Playwright
+# Có thể cho phép ngoại lệ các resource này theo URL; blacklist URL của Selenium/CDP không có quy tắc ngoại lệ, chỉ có thể dựa vào
+# Loại tài nguyên này thường không dùng hậu tố tĩnh phổ biến, gặp bất thường captcha nên tắt chế độ để kiểm tra.
 _CHALLENGE_KEYWORDS = (
     "captcha", "challenge", "arkose", "hcaptcha", "recaptcha", "turnstile",
     "verification", "verify",
@@ -91,7 +91,7 @@ def _as_items(value: Any, *, lower: bool = True) -> list[str]:
 
 
 def configured_resource_types() -> list[str]:
-    """读取并规范化省流量拦截类型；无效类型被忽略。"""
+    """Đọc và chuẩn hóa loại chặn tiết kiệm lưu lượng; loại không hợp lệ sẽ bị bỏ qua."""
     raw = getattr(_cfg, "BROWSER_DATA_SAVER_BLOCKED_RESOURCE_TYPES", ("image", "media"))
     result: list[str] = []
     for item in _as_items(raw, lower=True):
@@ -102,10 +102,10 @@ def configured_resource_types() -> list[str]:
 
 
 def configured_url_patterns() -> list[str]:
-    """读取并规范化额外 URL glob 规则；空项去重，保留配置顺序。"""
+    """Đọc và chuẩn hóa quy tắc URL glob bổ sung; bỏ mục rỗng, khử trùng, giữ thứ tự cấu hình."""
     raw = getattr(_cfg, "BROWSER_DATA_SAVER_BLOCKED_URL_PATTERNS", ())
     result: list[str] = []
-    # URL path 可能区分大小写，不能像 resource_type 一样统一转小写。
+    # URL path có thể phân biệt hoa thường, không thể chuyển thống nhất sang chữ thường như resource_type.
     for item in _as_items(raw, lower=False):
         if item not in result:
             result.append(item)
@@ -118,7 +118,7 @@ def _is_challenge_url(url: str) -> bool:
 
 
 def _infer_resource_type(url: str) -> str:
-    """Selenium 的 CDP 事件缺少 type 时，按 URL 后缀做保守推断。"""
+    """Khi sự kiện CDP của Selenium thiếu type, suy luận thận trọng theo hậu tố URL."""
     try:
         path = urlsplit(str(url or "")).path.lower()
     except Exception:
@@ -130,7 +130,7 @@ def _infer_resource_type(url: str) -> str:
 
 
 class BrowserDataSaver:
-    """给一个浏览器会话安装可选资源拦截器。"""
+    """Cài đặt bộ chặn tài nguyên tùy chọn cho một phiên trình duyệt."""
 
     def __init__(self, *, label: str = "Browser"):
         self.label = str(label or "Browser")
@@ -151,7 +151,7 @@ class BrowserDataSaver:
         self.method = "disabled"
 
     def _matching_url_pattern(self, url: str) -> str | None:
-        """返回第一个命中的 URL glob；规则匹配大小写按 URL 原文执行。"""
+        """Trả về URL glob khớp đầu tiên; khớp quy tắc phân biệt hoa thường theo nguyên văn URL."""
         text = str(url or "")
         if not text:
             return None
@@ -170,7 +170,7 @@ class BrowserDataSaver:
         matched_url_pattern = self._matching_url_pattern(url)
         if resource_type not in self.resource_types and matched_url_pattern is None:
             return False
-        # 验证挑战资源优先放行；普通页面图片/媒体仍然拦截。
+        # Tài nguyên thách thức xác minh được cho qua ưu tiên; ảnh/media trang thường vẫn bị chặn.
         if _is_challenge_url(url):
             return False
         return True
@@ -192,7 +192,7 @@ class BrowserDataSaver:
                 self._blocked_playwright_requests.add(id(request))
 
     def was_playwright_blocked(self, request: Any) -> bool:
-        """供 Playwright 流量统计器排除 route.abort() 产生的伪上传字节。"""
+        """Để bộ đếm lưu lượng Playwright loại trừ các byte tải lên giả do route.abort() tạo ra."""
         with self._lock:
             key = id(request)
             if key not in self._blocked_playwright_requests:
@@ -201,7 +201,7 @@ class BrowserDataSaver:
             return True
 
     def install_playwright(self, context: Any) -> "BrowserDataSaver":
-        """在 BrowserContext 上按 resource_type 拦截请求。"""
+        """Chặn yêu cầu trên BrowserContext theo resource_type."""
         if not self.enabled:
             return self
         if not self.resource_types and not self.url_patterns:
@@ -222,12 +222,12 @@ class BrowserDataSaver:
                         try:
                             route.abort("blockedbyclient")
                         except TypeError:
-                            # 兼容极旧的 Playwright route.abort() 签名。
+                            # Tương thích chữ ký Playwright route.abort() cực cũ.
                             route.abort()
                         return
                     route.continue_()
                 except Exception as exc:
-                    # 拦截器不能阻断注册主流程；处理异常时尽量放行请求。
+                    # Interceptor không được chặn quy trình đăng ký chính; khi xử lý ngoại lệ cố gắng cho request đi qua.
                     logger.debug("[%s] xử lý route tiết lưu lượng thất bại, thử cho qua：%s", self.label, exc)
                     try:
                         route.continue_()
@@ -250,24 +250,24 @@ class BrowserDataSaver:
         return self
 
     def install_selenium(self, driver: Any) -> "BrowserDataSaver":
-        """通过 Chrome CDP Network.setBlockedURLs 安装 URL 后缀和 URL glob 拦截。"""
+        """Cài đặt chặn hậu tố URL và URL glob qua Chrome CDP Network.setBlockedURLs."""
         if not self.enabled:
             return self
         patterns: list[str] = []
         for resource_type in self.resource_types:
             for extension in _URL_EXTENSIONS_BY_TYPE.get(resource_type, ()):
-                # 省略 scheme/host，匹配带 query/hash 的同类资源 URL。
+                # Bỏ scheme/host, khớp URL tài nguyên cùng loại có query/hash.
                 patterns.append(f"*{extension}*")
-        # CDP 的 URL matcher 使用 * 作为通配符；将 Playwright 规则中的 **
-        # 收窄成单个 *，即可兼容跨路径 URL 的 CDP 匹配。
+        # URL matcher của CDP dùng * làm wildcard; chuyển ** trong quy tắc Playwright
+        # Thu hẹp thành một * duy nhất, là có thể tương thích khớp CDP cho URL xuyên đường dẫn.
         patterns.extend(pattern.replace("**", "*") for pattern in self.url_patterns)
-        # 去重并保持配置/扩展名顺序，便于日志和测试稳定。
+        # Loại trùng và giữ thứ tự cấu hình/phần mở rộng, thuận tiện cho log và kiểm thử ổn định.
         patterns = list(dict.fromkeys(patterns))
         if not patterns:
             logger.info("[%s] chế độ tiết lưu lượng đã bật nhưng Selenium không có rule URL dùng được", self.label)
             return self
         try:
-            # 某些情况下流量统计器没有成功初始化，仍需单独开启 Network 域。
+            # Trong một số trường hợp bộ đếm lưu lượng không khởi tạo thành công, vẫn cần bật riêng miền Network.
             try:
                 driver.execute_cdp_cmd("Network.enable", {})
             except Exception:
@@ -289,7 +289,7 @@ class BrowserDataSaver:
         return self
 
     def enable_post_auth_deep_mode(self, driver: Any) -> bool:
-        """注册完成后收紧规则，阻断不再需要的应用壳和遥测请求。"""
+        """Sau khi đăng ký xong, thắt chặt quy tắc, chặn các request shell ứng dụng và telemetry không còn cần thiết."""
         if not self.enabled or not bool(getattr(_cfg, "BROWSER_DATA_SAVER_DEEP_MODE", True)):
             return False
         patterns = [
@@ -311,10 +311,10 @@ class BrowserDataSaver:
             return False
 
     def observe_cdp_event(self, method: str, params: dict[str, Any], request: dict[str, Any] | None = None) -> bool:
-        """让 Selenium 流量统计器识别 CDP inspector 拦截事件。
+        """Để bộ đếm lưu lượng Selenium nhận diện sự kiện chặn của CDP inspector.
 
-        返回 True 表示这是本省流量规则拦截的请求，统计器应跳过它的请求头估算，
-        因为该请求实际上没有发到网络。
+        Trả về True nghĩa là đây là request bị quy tắc lưu lượng này chặn; bộ đếm nên bỏ qua ước lượng header của nó,
+        vì request thực tế không được gửi ra mạng.
         """
         if not self.enabled or method != "Network.loadingFailed":
             return False
@@ -327,8 +327,8 @@ class BrowserDataSaver:
         if self._selenium_patterns:
             if not url or not any(fnmatchcase(url, pattern) for pattern in self._selenium_patterns):
                 return False
-        # 保留未调用 install_selenium() 时的资源类型事件兼容性；正常安装成功后
-        # 总会有 URL 规则，走上面的精确分支。
+        # Giữ tương thích sự kiện loại tài nguyên khi chưa gọi install_selenium(); sau khi cài đặt thành công bình thường
+        # Luôn có quy tắc URL, đi nhánh chính xác ở trên.
         elif resource_type not in self.resource_types:
             return False
         self._record_blocked(resource_type, url_pattern=self._matching_url_pattern(url))
@@ -347,7 +347,7 @@ class BrowserDataSaver:
             }
 
     def stop(self) -> None:
-        """移除 Playwright 路由；CDP URL 规则随浏览器会话结束。"""
+        """Gỡ bỏ định tuyến Playwright; quy tắc URL CDP kết thúc cùng phiên trình duyệt."""
         if self._stopped:
             return
         self._stopped = True

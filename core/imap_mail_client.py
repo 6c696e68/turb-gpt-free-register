@@ -72,7 +72,7 @@ def get_account_context(email: str) -> ImapEmailAccount | None:
 def release_account(email: str, status: str = "available", note: str | None = None) -> None:
     from core import db
     db.release_imap_email(email, status=status, note=note)
-    # 已注册账号后续查活仍需取码，因此只在真正回收为可用时清掉缓存。
+    # Tài khoản đã đăng ký vẫn cần lấy mã khi kiểm tra hoạt động sau này, nên chỉ xóa bộ đệm khi thực sự thu hồi thành khả dụng.
     if status == "available":
         _CONTEXT_CACHE.pop(str(email or "").lower(), None)
 

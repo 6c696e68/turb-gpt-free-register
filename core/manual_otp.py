@@ -10,7 +10,7 @@ from collections import defaultdict
 logger = logging.getLogger(__name__)
 
 _lock = threading.Lock()
-# email(lower) -> list[code]  支持同一邮箱多次验证码
+# email(lower) -> list[code]  Hỗ trợ cùng một email nhiều mã xác minh
 _codes: dict[str, list[str]] = defaultdict(list)
 # email(lower) -> Event
 _events: dict[str, threading.Event] = {}
@@ -61,7 +61,7 @@ def submit_manual_otp(email: str, code: str) -> dict:
     if not code:
         raise ValueError("Mã OTP trống")
     if not code.isdigit() or len(code) not in (4, 5, 6, 7, 8):
-        # OpenAI 通常 6 位；放宽一点兼容
+        # OpenAI thường 6 chữ số; nới lỏng một chút để tương thích
         raise ValueError(f"Định dạng mã OTP có vẻ không đúng: {code!r}")
     with _lock:
         _codes[key].append(code)
@@ -88,7 +88,7 @@ def wait_for_manual_otp(email: str, *, timeout: int = 180, job_id: int | None = 
     if not key:
         raise RuntimeError("OTP thủ công: email trống")
 
-    # 若已有预提交验证码，直接用
+    # Nếu đã có mã xác minh gửi trước, dùng trực tiếp
     existing = pop_manual_otp(email)
     if existing:
         clear_waiting(email)
@@ -103,7 +103,7 @@ def wait_for_manual_otp(email: str, *, timeout: int = 180, job_id: int | None = 
     )
     logger.info("[ManualOTP] hãy mở email %s, ở WebUI gửi cạnh tác vụ 6 chữ số mã OTP", email)
 
-    # CLI 交互兜底：如果有 TTY，也允许终端输入
+    # Dự phòng tương tác CLI: nếu có TTY, cũng cho phép nhập từ terminal
     try:
         import sys
         has_tty = bool(getattr(sys, "stdin", None) and sys.stdin.isatty())
@@ -119,12 +119,12 @@ def wait_for_manual_otp(email: str, *, timeout: int = 180, job_id: int | None = 
                 return code
 
             if has_tty:
-                # 非阻塞感：短暂等事件，再提示一次
+                # Cảm giác không chặn: đợi sự kiện ngắn, rồi nhắc lại một lần
                 if ev.wait(timeout=1.0):
                     code = pop_manual_otp(email)
                     if code:
                         return code
-                # 给 CLI 一次机会
+                # Cho CLI một cơ hội
                 try:
                     typed = input(f">>> Nhập thủ công mã OTP của {email}: ").strip()
                 except EOFError:
@@ -137,7 +137,7 @@ def wait_for_manual_otp(email: str, *, timeout: int = 180, job_id: int | None = 
             else:
                 ev.wait(timeout=1.0)
 
-            # 支持任务被手动停止
+            # Hỗ trợ nhiệm vụ bị dừng thủ công
             try:
                 from core.registration_service import check_stop_requested
                 check_stop_requested()

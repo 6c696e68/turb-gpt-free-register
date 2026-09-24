@@ -31,7 +31,7 @@ class QQMailClientError(RuntimeError):
 
 
 # ============================================================
-# 邮件解析工具
+# Công cụ phân tích email
 # ============================================================
 
 def _decode_email_header(header_value: str | None) -> str:
@@ -150,7 +150,7 @@ def _msg_to_dict(msg) -> dict:
 
 
 # ============================================================
-# IMAP 连接与搜索
+# Kết nối và tìm kiếm IMAP
 # ============================================================
 
 def _connect_imap() -> imaplib.IMAP4_SSL:
@@ -192,7 +192,7 @@ def _search_messages(mail: imaplib.IMAP4_SSL, after_dt: datetime | None = None) 
     if not ids:
         return []
 
-    # 只取最近 15 封（防止 inbox 太大，也够用）
+    # Chỉ lấy 15 thư gần nhất (tránh inbox quá lớn, cũng đủ dùng)
     recent_ids = ids[-15:]
 
     messages = []
@@ -213,7 +213,7 @@ def _search_messages(mail: imaplib.IMAP4_SSL, after_dt: datetime | None = None) 
 
 
 # ============================================================
-# 公共接口
+# Giao diện công cộng
 # ============================================================
 
 def pick_domain_email() -> str:
@@ -270,7 +270,7 @@ def fetch_latest_otp(
     deadline = time.time() + (max_wait or _email_cfg.OTP_MAX_WAIT)
     interval = poll_interval or _email_cfg.OTP_POLL_INTERVAL
     settle = settle_seconds if settle_seconds is not None else _email_cfg.OTP_SETTLE_SECONDS
-    # 30s 时钟偏差容忍
+    # Dung sai lệch đồng hồ 30s
     after_dt = datetime.fromtimestamp(after_ts - 30, tz=timezone.utc)
 
     logger.info(
@@ -300,15 +300,15 @@ def fetch_latest_otp(
                 except Exception:
                     pass
 
-        # 按时间降序排列
+        # Sắp xếp theo thời gian giảm dần
         messages.sort(key=lambda m: m.get("date") or "", reverse=True)
 
-        # 查找最新 OpenAI 邮件
+        # Tìm email OpenAI mới nhất
         for item in messages:
             if not looks_like_openai_email(item):
                 continue
 
-            # 必须匹配收件地址（避免捡到其他域名地址的旧验证码）
+            # Phải khớp địa chỉ nhận thư (tránh lấy nhầm mã xác minh cũ từ địa chỉ tên miền khác)
             to_field = (item.get("to") or "").lower()
             if target_lower not in to_field:
                 continue
@@ -318,7 +318,7 @@ def fetch_latest_otp(
             if not otp:
                 continue
 
-            # 解析时间戳
+            # Phân tích timestamp
             ts = 0.0
             raw_ts = item.get("date") or item.get("receivedDateTime") or ""
             if raw_ts:
@@ -348,9 +348,9 @@ def fetch_latest_otp(
                 best_ts = ts
                 best_subject = subject
                 settle_until = time.time() + settle
-            break  # 只关心最新那一封
+            break  # Chỉ quan tâm thư mới nhất
 
-        # settle 判断
+        # phán đoán settle
         now = time.time()
         if best_otp and settle_until is not None and now >= settle_until:
             logger.info(
@@ -370,7 +370,7 @@ def fetch_latest_otp(
             )
         time.sleep(interval)
 
-    # 超时但有候选
+    # Hết thời gian nhưng có ứng viên
     if best_otp:
         logger.warning(
             f"[QQMail] Hết hạn tổng nhưng đã có ứng viên, trả OTP={best_otp} (subject={best_subject!r})"

@@ -59,9 +59,9 @@ def reserve(email: str) -> bool:
                 status = str((acc or {}).get("codex_status") or "").lower()
             except Exception:
                 status = ""
-            # 修复“实际已停止/线程已结束，但进程内占位未释放”导致无法再次补跑。
-            # 用户点停止后，部分浏览器/短信等待步骤可能不会立刻退出，UI 已是 stopped 但进程占位仍在。
-            # 这种场景允许清理占位后重新补跑；旧线程仍保留 stop_requested，会在检查点退出。
+            # Sửa “thực tế đã dừng/thread đã kết thúc nhưng chỗ chiếm trong tiến trình chưa giải phóng” khiến không thể chạy bù lại.
+            # Sau khi user bấm dừng, một số bước chờ browser/SMS có thể không thoát ngay, UI đã stopped nhưng process vẫn chiếm chỗ.
+            # Kịch bản này cho phép dọn placeholder rồi chạy bù lại; luồng cũ vẫn giữ stop_requested, sẽ thoát tại checkpoint.
             terminal_status = status in {"stopped", "failed", "success", "deactivated", "skipped", "cancelled"}
             if ((not alive) and (status != "retrying" or age > 15 * 60)) or (terminal_status and (stop_req or age > 30)):
                 logger.warning(
@@ -130,13 +130,13 @@ def request_stop(email: str) -> dict:
 
     injected = bool(thread_id and _async_raise(int(thread_id), CodexRetryStopped))
     db.update_account_codex_status(email, "stopped", "Người dùng dừng thủ công chạy bù Codex")
-    # 如果没有可注入的存活线程，立即释放进程内占位，避免 UI 显示已停止但再次补跑仍 409。
+    # Nếu không có luồng sống có thể inject, giải phóng placeholder trong tiến trình ngay, tránh UI hiện đã dừng nhưng chạy bù lại vẫn 409.
     with _RETRYING_LOCK:
         if not _thread_alive(thread_id):
             _clear_state_locked(key)
     if injected:
-        # 异常注入通常会很快让线程进入 finally/release；若浏览器/CDP/短信等待阻塞导致线程
-        # 短时间内仍未退出，延迟清理占位，避免 UI 已显示“已停止”但再次补跑仍 409。
+        # Exception injection thường nhanh chóng đưa thread vào finally/release; nếu browser/CDP/chờ SMS block khiến thread
+        # Trong thời gian ngắn vẫn chưa thoát, trì hoãn dọn placeholder, tránh UI đã hiện "đã dừng" nhưng chạy bù lại vẫn 409.
         def _delayed_release() -> None:
             time.sleep(5)
             with _RETRYING_LOCK:

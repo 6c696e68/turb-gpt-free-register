@@ -1,14 +1,14 @@
 # -*- coding: utf-8 -*-
 """
-Sentinel Token 生成模块
-逆向自 sentinel.openai.com 的 sdk.js
+Module tạo Sentinel Token
+Đảo ngược từ sdk.js của sentinel.openai.com
 
-核心逻辑：
-1. 生成 `p` 字段（浏览器指纹数据，base64编码的 JSON 数组）
-2. 发送 POST 请求到 sentinel.openai.com/backend-api/sentinel/req
-3. 解析响应中的 token、turnstile、proofofwork
-4. 计算 Proof of Work（FNV-1a 哈希）
-5. 组装最终的 openai-sentinel-token 请求头值
+Logic cốt lõi:
+1. Sinh trường `p` (dữ liệu fingerprint trình duyệt, mảng JSON mã hóa base64)
+2. Gửi POST tới sentinel.openai.com/backend-api/sentinel/req
+3. Parse token, turnstile, proofofwork trong phản hồi
+4. Tính Proof of Work (hash FNV-1a)
+5. Ghép giá trị header openai-sentinel-token cuối cùng
 """
 import json
 import time
@@ -28,42 +28,42 @@ from config import (
 
 def generate_fingerprint_data(device_id: str, attempt: int = 1, elapsed_ms: float = 0, profile: dict | None = None) -> str:
     """
-    生成浏览器指纹数据（p字段）。
-    对应 SDK 中 getConfig() + N() 函数。
+    Tạo dữ liệu fingerprint trình duyệt (trường p).
+    Tương ứng hàm getConfig() + N() trong SDK.
 
-    SDK 中 getConfig() 返回的数组结构：
+    Cấu trúc mảng getConfig() trả về trong SDK:
     [
-        screen.width + screen.height,           # [0] 屏幕宽高之和
-        "" + new Date,                           # [1] 当前时间字符串
-        performance.memory.jsHeapSizeLimit,      # [2] JS堆大小限制
-        Math.random() / attempt,                 # [3] 随机数（PoW时替换为尝试次数）
+        screen.width + screen.height,           # [0] tổng chiều rộng + chiều cao màn hình
+        "" + new Date,                           # [1] chuỗi thời gian hiện tại
+        performance.memory.jsHeapSizeLimit,      # [2] giới hạn kích thước heap JS
+        Math.random() / attempt,                 # [3] số ngẫu nhiên (khi PoW thay bằng số lần thử)
         navigator.userAgent,                     # [4] UA
-        随机script src,                          # [5] 随机一个script标签的src
-        data-build 属性值,                       # [6] document.documentElement 的 data-build 属性
-        navigator.language,                      # [7] 语言
-        navigator.languages.join(","),            # [8] 语言列表
-        Math.random(),                           # [9] 随机数（PoW时替换为耗时）
-        随机navigator属性,                       # [10] 随机一个navigator原型方法
-        随机document key,                        # [11] 随机一个document的key
-        随机window key,                          # [12] 随机一个window的key
-        performance.now(),                       # [13] 高精度时间
-        sid (UUID),                              # [14] 会话ID
-        URL search params,                       # [15] URL查询参数
-        navigator.hardwareConcurrency,           # [16] CPU核心数
-        performance.timeOrigin,                  # [17] 性能时间原点
-        Number("ai" in window),                  # [18] window.ai 是否存在
-        Number("InstallTrigger" in window),      # [19] Firefox特有 → 0
-        Number("cache" in window),               # [20] window.cache 是否存在
-        Number("data" in window),                # [21] window.data 是否存在
-        Number("solana" in window),              # [22] Solana钱包 → 0
-        Number("dump" in window),                # [23] Firefox特有 → 0
-        Number("requestIdleCallback" in window), # [24] 是否支持 requestIdleCallback
+        src script ngẫu nhiên,                   # [5] src ngẫu nhiên của một thẻ script
+        giá trị thuộc tính data-build,           # [6] thuộc tính data-build của document.documentElement
+        navigator.language,                      # [7] ngôn ngữ
+        navigator.languages.join(","),            # [8] danh sách ngôn ngữ
+        Math.random(),                           # [9] số ngẫu nhiên (khi PoW thay bằng thời gian tiêu tốn)
+        thuộc tính navigator ngẫu nhiên,         # [10] một phương thức prototype navigator ngẫu nhiên
+        key document ngẫu nhiên,                 # [11] một key document ngẫu nhiên
+        key window ngẫu nhiên,                   # [12] một key window ngẫu nhiên
+        performance.now(),                       # [13] thời gian độ chính xác cao
+        sid (UUID),                              # [14] ID phiên
+        URL search params,                       # [15] tham số truy vấn URL
+        navigator.hardwareConcurrency,           # [16] số lõi CPU
+        performance.timeOrigin,                  # [17] gốc thời gian hiệu năng
+        Number("ai" in window),                  # [18] window.ai có tồn tại không
+        Number("InstallTrigger" in window),      # [19] đặc trưng Firefox → 0
+        Number("cache" in window),               # [20] window.cache có tồn tại không
+        Number("data" in window),                # [21] window.data có tồn tại không
+        Number("solana" in window),              # [22] ví Solana → 0
+        Number("dump" in window),                # [23] đặc trưng Firefox → 0
+        Number("requestIdleCallback" in window), # [24] có hỗ trợ requestIdleCallback không
     ]
 
     Args:
-        device_id: 设备ID
-        attempt: PoW尝试次数（用于替换 [3]）
-        elapsed_ms: PoW耗时毫秒数（用于替换 [9]）
+        device_id: ID thiết bị
+        attempt: số lần thử PoW (dùng để thay [3])
+        elapsed_ms: thời gian PoW tính bằng mili giây (dùng để thay [9])
     """
     profile = profile or {}
     screen_width = int(profile.get("screen_width", SCREEN_WIDTH))
@@ -80,7 +80,7 @@ def generate_fingerprint_data(device_id: str, attempt: int = 1, elapsed_ms: floa
     tz_offset = int(profile.get("timezone_offset_minutes", TIMEZONE_OFFSET_MINUTES))
     tz_name = str(profile.get("timezone_name", TIMEZONE_NAME))
 
-    # 模拟 Chrome 浏览器环境；Date.toString 与配置的时区保持一致。
+    # Mô phỏng môi trường trình duyệt Chrome; Date.toString giữ nhất quán với múi giờ đã cấu hình.
     tz = timezone(timedelta(minutes=tz_offset))
     now = datetime.now(tz)
     sign = "+" if tz_offset >= 0 else "-"
@@ -88,16 +88,16 @@ def generate_fingerprint_data(device_id: str, attempt: int = 1, elapsed_ms: floa
     gmt = f"GMT{sign}{abs_minutes // 60:02d}{abs_minutes % 60:02d}"
     date_str = now.strftime(f"%a %b %d %Y %H:%M:%S {gmt} ({tz_name})")
 
-    # 模拟 performance.now() 与 performance.timeOrigin，保持
-    # timeOrigin + now ≈ Date.now()，避免同一 p 数组内时间自相矛盾。
+    # Mô phỏng performance.now() và performance.timeOrigin, giữ
+    # timeOrigin + now ≈ Date.now(), tránh mâu thuẫn thời gian trong cùng một mảng p.
     perf_now = random.uniform(1000, 8000)
     time_origin = time.time() * 1000 - perf_now
 
-    # 生成 sid（SDK内部的会话ID）
+    # Tạo sid (ID phiên nội bộ SDK)
     sid = str(device_id)
 
-    # 与 sentinel-runner.js 的 JS VM 环境共用同一组候选键；
-    # SDK 每次会随机抽样，抽样值可以变，但候选集合必须真实存在。
+    # Dùng chung cùng một nhóm khóa ứng viên với môi trường JS VM của sentinel-runner.js;
+    # SDK mỗi lần sẽ lấy mẫu ngẫu nhiên, giá trị mẫu có thể thay đổi, nhưng tập ứng viên phải thực sự tồn tại.
     navigator_props = list(profile.get("navigator_proto_samples") or NAVIGATOR_PROTO_SAMPLES)
     document_keys = list(profile.get("document_key_samples") or DOCUMENT_KEY_SAMPLES)
     window_keys = list(profile.get("window_key_samples") or WINDOW_KEY_SAMPLES)
@@ -107,55 +107,55 @@ def generate_fingerprint_data(device_id: str, attempt: int = 1, elapsed_ms: floa
 
     config = [
         screen_width + screen_height,       # [0] screen.width + screen.height
-        date_str,                        # [1] 时间字符串
+        date_str,                        # [1] Chuỗi thời gian
         js_heap_size_limit,              # [2] jsHeapSizeLimit
-        attempt,                         # [3] PoW尝试次数 / Math.random()
+        attempt,                         # [3] Số lần thử PoW / Math.random()
         user_agent,                      # [4] UA
         random.choice(script_src_samples),  # [5] script src
         build_id,                        # [6] data-build
         navigator_language,              # [7] navigator.language
         ",".join(navigator_languages),   # [8] navigator.languages
-        round(elapsed_ms) if elapsed_ms else random.randint(1, 100),  # [9] 耗时 / Math.random()
-        random.choice(navigator_props),  # [10] 随机navigator属性
-        random.choice(document_keys + [react_listening_key, react_container_key, react_resources_key]),  # [11] 随机document key / React 注入 key
-        random.choice(window_keys),       # [12] 随机window key
+        round(elapsed_ms) if elapsed_ms else random.randint(1, 100),  # [9] Thời gian / Math.random()
+        random.choice(navigator_props),  # [10] Thuộc tính navigator ngẫu nhiên
+        random.choice(document_keys + [react_listening_key, react_container_key, react_resources_key]),  # [11] document key ngẫu nhiên / key inject React
+        random.choice(window_keys),       # [12] window key ngẫu nhiên
         round(perf_now, 10),             # [13] performance.now()
         sid,                             # [14] sid
-        "",                              # [15] URL search params (注册页面通常为空)
+        "",                              # [15] URL search params (trang đăng ký thường trống)
         hardware_concurrency,            # [16] hardwareConcurrency
         round(time_origin, 1),           # [17] performance.timeOrigin
         int(window_flags.get("ai", 0)),                 # [18] Number("ai" in window)
-        int(window_flags.get("InstallTrigger", 0)),     # [19] Firefox 特有
+        int(window_flags.get("InstallTrigger", 0)),     # [19] Đặc thù Firefox
         int(window_flags.get("cache", 0)),              # [20] Number("cache" in window)
         int(window_flags.get("data", 0)),               # [21] Number("data" in window)
-        int(window_flags.get("solana", 0)),             # [22] 钱包扩展
-        int(window_flags.get("dump", 0)),               # [23] Firefox 特有
-        int(window_flags.get("requestIdleCallback", 0)), # [24] Safari 默认不暴露 requestIdleCallback
+        int(window_flags.get("solana", 0)),             # [22] Extension ví
+        int(window_flags.get("dump", 0)),               # [23] Đặc thù Firefox
+        int(window_flags.get("requestIdleCallback", 0)), # [24] Safari mặc định không expose requestIdleCallback
     ]
     return config
 
 
 def encode_config(config: list) -> str:
     """
-    将 config 数组编码为 base64 字符串。
-    对应 SDK 中的 N() 函数：
+    Mã hóa mảng config thành chuỗi base64.
+    Tương ứng hàm N() trong SDK:
         JSON.stringify(t) → TextEncoder.encode() → btoa(String.fromCharCode(...))
 
-    注意：SDK 使用 TextEncoder 将 JSON字符串 编码为 UTF-8 字节，然后逐个字节 btoa。
-    这等效于 Python 的：json_str.encode('utf-8') → base64 encode
+    Lưu ý: SDK dùng TextEncoder mã hóa chuỗi JSON thành byte UTF-8, rồi btoa từng byte.
+    Tương đương Python: json_str.encode('utf-8') → base64 encode
     """
     json_str = json.dumps(config, ensure_ascii=False, separators=(',', ':'))
-    # 使用 UTF-8 编码再 base64 处理（与 SDK 的 TextEncoder + btoa 一致）
+    # Dùng mã hóa UTF-8 rồi xử lý base64 (giống TextEncoder + btoa của SDK)
     encoded = base64.b64encode(json_str.encode('utf-8')).decode('ascii')
     return encoded
 
 
 def fnv1a_hash(text: str) -> str:
     """
-    FNV-1a 哈希算法（32位）。
-    对应 SDK 中的哈希函数，用于 Proof of Work 校验。
+    Thuật toán băm FNV-1a (32-bit).
+    Tương ứng hàm hash trong SDK, dùng để kiểm tra Proof of Work.
 
-    JS 原始代码：
+    Mã JS gốc：
         let e = 2166136261;
         for (let r = 0; r < t.length; r++)
             e ^= t.charCodeAt(r),
@@ -170,7 +170,7 @@ def fnv1a_hash(text: str) -> str:
     h = 2166136261
     for ch in text:
         h ^= ord(ch)
-        # Math.imul 模拟：32位整数乘法
+        # Mô phỏng Math.imul: nhân số nguyên 32-bit
         h = _imul(h, 16777619) & 0xFFFFFFFF
 
     h ^= (h >> 16)
@@ -185,71 +185,71 @@ def fnv1a_hash(text: str) -> str:
 
 def _imul(a: int, b: int) -> int:
     """
-    模拟 JavaScript 的 Math.imul（32位整数乘法）。
-    Python 的整数没有溢出，需要手动截断为32位。
+    Mô phỏng Math.imul của JavaScript (nhân số nguyên 32-bit).
+    Số nguyên Python không tràn, cần cắt thủ công về 32-bit.
     """
-    # 确保是32位无符号整数
+    # Đảm bảo là số nguyên không dấu 32 bit
     a = a & 0xFFFFFFFF
     b = b & 0xFFFFFFFF
-    # 32位整数乘法
+    # Phép nhân số nguyên 32 bit
     result = (a * b) & 0xFFFFFFFF
     return result
 
 
 def solve_proof_of_work(seed: str, difficulty: str, device_id: str, max_attempts: int = 500000, profile: dict | None = None) -> str:
     """
-    计算 Proof of Work。
+    Tính Proof of Work.
 
-    SDK 中 _runCheck 的逻辑：
-    1. 将 config[3] 设为尝试次数（nonce）
-    2. 将 config[9] 设为 Math.round(performance.now() - startTime)
-    3. 编码 config → base64 字符串 c
-    4. 计算 fnv1a(seed + c) → 8位hex
-    5. 如果 hex[:len(difficulty)] <= difficulty，则返回 c + "~S"
+    Logic _runCheck trong SDK:
+    1. Gán config[3] = số lần thử (nonce)
+    2. Gán config[9] = Math.round(performance.now() - startTime)
+    3. Mã hóa config → chuỗi base64 c
+    4. Tính fnv1a(seed + c) → hex 8 ký tự
+    5. Nếu hex[:len(difficulty)] <= difficulty thì trả về c + "~S"
 
     Args:
-        seed: 服务端返回的 seed
-        difficulty: 服务端返回的 difficulty（16进制前缀）
-        device_id: 设备ID
-        max_attempts: 最大尝试次数
+        seed: seed do server trả về
+        difficulty: difficulty do server trả về (tiền tố hex)
+        device_id: ID thiết bị
+        max_attempts: số lần thử tối đa
 
     Returns:
-        PoW答案字符串，格式为 base64_encoded_config + "~S"
+        chuỗi đáp án PoW, định dạng base64_encoded_config + "~S"
     """
-    start_time = time.time() * 1000  # 毫秒
+    start_time = time.time() * 1000  # mili-giây
 
-    # 生成初始 config
+    # Tạo config ban đầu
     config = generate_fingerprint_data(device_id, attempt=0, elapsed_ms=0, profile=profile)
 
     diff_len = len(difficulty)
 
     for i in range(max_attempts):
-        # 更新尝试次数和耗时
+        # Cập nhật số lần thử và thời gian tiêu tốn
         config[3] = i
         config[9] = round(time.time() * 1000 - start_time)
 
-        # 编码为 base64
+        # Mã hóa thành base64
         encoded = encode_config(config)
 
-        # 计算哈希
+        # Tính hash
         hash_input = seed + encoded
         hash_result = fnv1a_hash(hash_input)
 
-        # 检查是否满足难度要求
+        # Kiểm tra xem có đáp ứng yêu cầu độ khó không
         if hash_result[:diff_len] <= difficulty:
             return encoded + "~S"
 
-    # 如果达到最大尝试次数仍未找到，返回错误前缀
+    # Nếu đạt số lần thử tối đa vẫn chưa tìm thấy, trả về tiền tố lỗi
     return "wQ8Lk5FbGpA2NcR9dShT6gYjU7VxZ4D" + encode_config(["e"])
 
 
 def generate_requirements_token(device_id: str, profile: dict | None = None) -> str:
     """
-    生成 requirements token（p 字段的值）。
-    对应 SDK 中的 getRequirementsToken() / _generateRequirementsTokenAnswerBlocking()
+    Sinh requirements token (giá trị trường p).
+    Tương ứng getRequirementsToken() / _generateRequirementsTokenAnswerBlocking() trong SDK
 
-    这是第一次调用 sentinel/req 时 p 字段的值。
-    它就是简单的 config 编码 + "~S" 后缀，不需要PoW。
+    Đây là giá trị trường p khi gọi sentinel/req lần đầu.
+    Chỉ là mã hóa config đơn giản + hậu tố "~S", không cần PoW.
     """
     config = generate_fingerprint_data(device_id, attempt=1, elapsed_ms=0, profile=profile)
     encoded = encode_config(config)
@@ -284,9 +284,9 @@ def build_sentinel_token_header(
     flow: str
 ) -> str:
     """
-    构建 openai-sentinel-token 请求头的值。
+    Xây dựng giá trị header openai-sentinel-token.
 
-    最终格式为 JSON 字符串：
+    Định dạng cuối cùng là chuỗi JSON:
     {"p":"<proof>","t":"<turnstile>","c":"<token>","id":"<device_id>","flow":"<flow>"}
     """
     header_value = {
@@ -301,17 +301,17 @@ def build_sentinel_token_header(
 
 def get_enforcement_token(sentinel_response: dict, seed: str, difficulty: str, device_id: str, profile: dict | None = None) -> str:
     """
-    在有 PoW 要求时，计算 enforcement token（带PoW的p字段）。
-    对应 SDK 中的 getEnforcementToken()。
+    Khi có yêu cầu PoW, tính enforcement token (trường p kèm PoW).
+    Tương ứng getEnforcementToken() trong SDK.
 
     Args:
-        sentinel_response: sentinel/req 的响应 JSON
+        sentinel_response: JSON phản hồi của sentinel/req
         seed: proofofwork.seed
         difficulty: proofofwork.difficulty
-        device_id: 设备ID
+        device_id: ID thiết bị
 
     Returns:
-        PoW 结果字符串（base64 + ~S）
+        Chuỗi kết quả PoW (base64 + ~S)
     """
     pow_data = sentinel_response.get("proofofwork", {})
 
@@ -321,5 +321,5 @@ def get_enforcement_token(sentinel_response: dict, seed: str, difficulty: str, d
         answer = solve_proof_of_work(pow_seed, pow_difficulty, device_id, profile=profile)
         return "gAAAAAB" + answer
 
-    # 不需要PoW时，返回简单的指纹
+    # Khi không cần PoW, trả về fingerprint đơn giản
     return generate_requirements_token(device_id, profile=profile)

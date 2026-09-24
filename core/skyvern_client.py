@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-"""Skyvern Browser Sessions 客户端。"""
+"""Client Skyvern Browser Sessions."""
 from __future__ import annotations
 
 import logging
@@ -25,7 +25,7 @@ class SkyvernSession:
 
 
 class SkyvernClient:
-    """最小 Skyvern Browser Session 客户端。"""
+    """Client Browser Session Skyvern tối giản."""
 
     def __init__(self, api_key: str | None = None, api_base: str | None = None):
         self.api_key = (api_key if api_key is not None else getattr(_cfg, "SKYVERN_API_KEY", "") or "").strip()
@@ -44,7 +44,7 @@ class SkyvernClient:
         }
 
     def cdp_headers(self) -> dict[str, str]:
-        """连接 Skyvern browser_address WebSocket 时需要携带的认证头。"""
+        """Header xác thực cần mang theo khi kết nối WebSocket browser_address của Skyvern."""
         api_key = self.require_api_key()
         return {
             "x-api-key": api_key,
@@ -171,7 +171,7 @@ class SkyvernClient:
         data = self.create_browser_session()
         session_id = self._session_id(data)
         address = self._browser_address(data)
-        # create 响应有时先返回 session_id，browser_address 需要 get session 才出现。
+        # Phản hồi create đôi khi trả session_id trước, browser_address cần get session mới xuất hiện.
         if session_id and not address:
             last = data
             for _ in range(10):

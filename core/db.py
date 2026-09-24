@@ -25,13 +25,13 @@ _ACCOUNTS_JSON = _PROJECT_ROOT / "注册成功的邮箱.json"
 _ACCOUNTS_TXT = _PROJECT_ROOT / "注册成功的邮箱.txt"
 _TOKENS_TXT = _PROJECT_ROOT / "注册成功的token.txt"
 _JOBS_JSON = _PROJECT_ROOT / "注册任务.json"
-# 兼容旧测试/外部调用方；静态查看器已停用，不会再写入此路径。
+# Tương thích bài kiểm tra cũ/bên gọi bên ngoài; trình xem tĩnh đã ngừng, sẽ không ghi vào đường dẫn này nữa.
 _VIEWER_HTML = _PROJECT_ROOT / "accounts_viewer.html"
 _CODEX_DIR = _PROJECT_ROOT / "codex_accounts"
 _CODEX_AGENT_DIR = _PROJECT_ROOT / "codex_agent_accounts"
-# 仅供一次性迁移旧导出状态，运行期间不再读取该文件。
+# Chỉ dùng cho việc di chuyển một lần trạng thái xuất cũ, trong lúc chạy không đọc file này nữa.
 _LEGACY_CODEX_EXPORT_STATE = _PROJECT_ROOT / "codex_导出状态.json"
-# SQLite 是运行时唯一业务数据主存储；旧 JSON/TXT 仅用于一次性迁移。
+# SQLite là kho lưu trữ chính dữ liệu nghiệp vụ duy nhất lúc runtime; JSON/TXT cũ chỉ dùng cho di chuyển một lần.
 _SQLITE_PATH = _PROJECT_ROOT / "turb.sqlite3"
 _SQLITE_LOCK = threading.RLock()
 _SQLITE_READY = False
@@ -166,8 +166,8 @@ def _ensure_sqlite() -> None:
         migration_done = conn.execute(
             "SELECT 1 FROM storage_meta WHERE key='legacy_import_completed' LIMIT 1"
         ).fetchone()
-        # 迁移标记写入 SQLite，而不是依赖“表是否为空”。这样用户删除全部数据后，
-        # 重启也不会再次从旧 JSON 恢复已删除的数据。
+        # Ghi dấu hiệu di chuyển vào SQLite, thay vì phụ thuộc “bảng có rỗng hay không”. Như vậy sau khi người dùng xóa toàn bộ dữ liệu,
+        # Khởi động lại cũng không khôi phục lại dữ liệu đã xóa từ JSON cũ.
         if not migration_done:
             sources = {
                 "accounts": (_ACCOUNTS_JSON, _LEGACY_ACCOUNTS_JSON),
@@ -185,12 +185,12 @@ def _ensure_sqlite() -> None:
                 if exists:
                     continue
                 rows = None
-            # 兼容上一版“records 单表 + collection”实现。
+            # Tương thích bản trước “records bảng đơn + collection”.
                 if _table_exists(conn, "records"):
                     legacy = conn.execute("SELECT payload FROM records WHERE collection=? ORDER BY id", (collection,)).fetchall()
                     if legacy:
                         rows = [json.loads(item["payload"]) for item in legacy]
-            # 兼容上一版按邮箱来源拆分的三张表。
+            # Tương thích ba bảng tách theo nguồn email của phiên bản trước.
                 if collection in _EMAIL_SOURCES and rows is None:
                     old_table = _LEGACY_TABLES[collection]
                     if _table_exists(conn, old_table):
@@ -224,9 +224,9 @@ def _ensure_sqlite() -> None:
                           int(bool(row.get("archived"))), str(row.get("created_at") or row.get("imported_at") or ""),
                           str(row.get("updated_at") or ""), json.dumps(row, ensure_ascii=False))),
                     )
-        # 兼容早期 SQLite 版本的保存逻辑：当时写入 email_pool 时漏掉了
-        # source 列，导致通用 API 邮箱在“全部邮箱池”中没有类型，按来源筛选
-        # 也查不到。根据素材字段只修复可明确识别的历史行，避免误分类域名邮箱。
+        # Logic lưu tương thích phiên bản SQLite sớm: lúc ghi vào email_pool đã bỏ sót
+        # cột source, khiến hộp thư API chung trong “toàn bộ pool hộp thư” không có loại, lọc theo nguồn
+        # Cũng không tra được. Chỉ sửa các dòng lịch sử nhận diện rõ theo trường nguyên liệu, tránh phân loại nhầm email tên miền.
         conn.execute(
             "UPDATE email_pool SET source=? "
             "WHERE (source IS NULL OR trim(source)='') AND ("
@@ -249,9 +249,9 @@ def _ensure_sqlite() -> None:
             ")",
             (_EMAIL_SOURCES["outlook"],),
         )
-        # 域名邮箱的历史 payload 没有 client_id/code_url 等特征，剩余的空来源
-        # 记录只能归入域名邮箱池。否则它们会在“全部邮箱池”中显示为未知来源，
-        # 前端又会按 Outlook 处理，导致列表里能看到但删除/改状态找不到。
+        # Payload lịch sử của email tên miền không có các đặc trưng client_id/code_url, nguồn trống còn lại
+        # Bản ghi chỉ có thể đưa vào pool email tên miền. Nếu không chúng sẽ hiện nguồn không xác định trong “toàn bộ pool email”,
+        # Frontend lại xử lý theo Outlook, khiến trong danh sách vẫn thấy nhưng xóa/đổi trạng thái thì không tìm thấy.
         conn.execute(
             "UPDATE email_pool SET source=? "
             "WHERE (source IS NULL OR trim(source)='') AND COALESCE(("
@@ -266,7 +266,7 @@ def _ensure_sqlite() -> None:
             "), 0)=0",
             (_EMAIL_SOURCES["domain"],),
         )
-        # CPA Codex 凭证首次导入数据库；后续列表查询不再扫描 codex_accounts/ 文件。
+        # Credential CPA Codex lần đầu import vào database; các lần truy vấn danh sách sau không còn quét file codex_accounts/.
         if not migration_done and not conn.execute("SELECT 1 FROM codex_accounts LIMIT 1").fetchone() and _CODEX_DIR.exists():
             state = _read_json(_LEGACY_CODEX_EXPORT_STATE, {})
             state = state if isinstance(state, dict) else {}
@@ -289,7 +289,7 @@ def _ensure_sqlite() -> None:
                     "INSERT OR IGNORE INTO codex_accounts(id,filename,email,archived,created_at,updated_at,payload) VALUES(?,?,?,?,?,?,?)",
                     (pos, filename, str(content.get("email") or ""), int(meta["_archived"]), meta["_mtime"], meta["_mtime"], json.dumps(meta, ensure_ascii=False)),
                 )
-        # Agent 凭证也只在首次迁移时读取；运行期间完整内容保存在 SQLite。
+        # Credential Agent cũng chỉ đọc lúc migrate lần đầu; nội dung đầy đủ lúc runtime lưu trong SQLite.
         if not migration_done and not conn.execute("SELECT 1 FROM codex_agent_accounts LIMIT 1").fetchone() and _CODEX_AGENT_DIR.exists():
             for path in sorted(_CODEX_AGENT_DIR.glob("codex-agent-*.json")):
                 try:
@@ -313,7 +313,7 @@ def _ensure_sqlite() -> None:
                 account_payload.pop("codex_agent_auth_path", None)
                 conn.execute("UPDATE accounts SET payload=?, updated_at=? WHERE id=?", (json.dumps(account_payload, ensure_ascii=False), stamp, account_id))
         conn.commit()
-        # 迁移完成后删除旧的通用表，避免运行时继续依赖它。
+        # Sau khi di chuyển xong xóa bảng chung cũ, tránh runtime tiếp tục phụ thuộc vào nó.
         for old_table in (*_LEGACY_TABLES.values(), "records"):
             if _table_exists(conn, old_table) and old_table not in _TABLES.values():
                 conn.execute(f"DROP TABLE {old_table}")
@@ -457,17 +457,17 @@ def _account_filter_sql(
     )
     if plan and plan not in {"all", "any"}:
         if plan == "plus":
-            # 与 _account_matches_plan_filter 保持一致：free(可试用)不算已开通 Plus。
+            # Giữ nhất quán với _account_matches_plan_filter: free (có thể dùng thử) không tính là đã mở Plus.
             where.extend([f"{plan_expr} LIKE ?", f"{plan_expr} NOT LIKE ?"])
             params.extend(["%plus%", "%free%"])
         elif plan in {"plus_trial", "plus_trial_eligible", "trial", "trial_eligible"}:
-            # 只有当前套餐为 free 且套餐查询明确返回可试用资格时才命中。
+            # Chỉ khi gói hiện tại là free và truy vấn gói trả về rõ ràng đủ điều kiện dùng thử mới khớp.
             trial_expr = "lower(COALESCE(CAST(json_extract(payload, '$.plus_trial_eligible') AS TEXT), ''))"
             where.append(f"{plan_expr} = ?")
             where.append(f"{trial_expr} IN (?, ?, ?, ?)")
             params.extend(["free", "1", "true", "yes", "on"])
         elif plan in {"free_no_trial", "free_without_trial", "free_not_trial"}:
-            # 只匹配已明确查询到“不具备 Plus 试用资格”的 free 账号；字段缺失表示资格未知，不命中。
+            # Chỉ khớp tài khoản free đã truy vấn rõ “không đủ điều kiện dùng thử Plus”; thiếu trường nghĩa là tư cách chưa biết, không khớp.
             trial_expr = "lower(COALESCE(CAST(json_extract(payload, '$.plus_trial_eligible') AS TEXT), ''))"
             where.append(f"{plan_expr} = ?")
             where.append(f"{trial_expr} IN (?, ?, ?, ?)")
@@ -633,7 +633,7 @@ def _account_line(row: dict) -> str:
     return "----".join(parts)
 
 
-# “完整导出”里 2FA 段固定的站点占位（需求指定的固定文案）。
+# Placeholder site cố định trong đoạn 2FA của "xuất đầy đủ" (văn bản cố định theo yêu cầu).
 _TWOFA_EXPORT_URL = "https://2fa.run/"
 
 
@@ -641,7 +641,7 @@ def _account_full_export_line(row: dict) -> str:
     "tạo\"đầy đủ xuất\"đơn dòng, định dạng nghiêm theo cần yêu cầu: \n\n  email---email nối mã API---mật khẩu---https://2fa.run/----2FA:khoá\n\n  - email nối mã API: nối mã chỗ dùng \"đầy đủ nối mã liên kết định dạng\". generic_api tài khoản trực tiếp xuất email trong kho\n  lưu  code_url(lấy mã địa chỉ, như http://127.0.0.1:5055/code?email=xxx@domain); \n  đó nó nguồn(gptmail/outlook/remail...)giữ nguồn định danh. \n  - mật khẩu: ChatGPT tài khoản chính nó đăng nhập mật khẩu(registration_password). \n  - 2FA: cố định trước hậu tố \"2FA:\" ghép TOTP khoá. \n  phút ký tự phân tách: trước bốn đoạn của khoảng là \"---\", 2FA đoạn của trước là \"----\"(và cần cầu giữ nhất quán). \n  "
     email = str(row.get("email") or "").strip()
     email_api = _resolve_email_api_link(email, str(row.get("email_source") or "").strip())
-    # 仅填 ChatGPT 注册密码；若该账号没有，则留空。
+    # Chỉ điền mật khẩu đăng ký ChatGPT; nếu tài khoản đó không có thì để trống.
     password = _extract_registration_password(row)
     totp = str(row.get("totp_secret") or "").strip()
     line = "---".join([email, email_api, password, _TWOFA_EXPORT_URL])
@@ -669,7 +669,7 @@ def _resolve_email_api_link(email: str, email_source: str) -> str:
 def _build_generic_api_code_url(email: str) -> str:
     "theo OmniMail lấy mã API ghép theo quy ước đầy đủ lấy mã liên kết; lấy không đến cơ bản địa chỉ khi trả về trống chuỗi. "
     try:
-        # 延迟导入，避免 core.db 与 config 包产生循环依赖。
+        # Import trễ, tránh core.db và gói config phụ thuộc vòng.
         from config.email import OMNIMAIL_BASE
         base = str(OMNIMAIL_BASE or "").strip().rstrip("/")
     except Exception:
@@ -774,8 +774,8 @@ def _account_matches_plan_filter(row: dict, plan_filter: str | None = None) -> b
         return True
     plan = str(row.get("current_plan_type") or row.get("plan_type") or "").strip().lower()
     if f == "plus":
-        # “free(可Plus试用)”/plus_trial_eligible 只是可试用，不算已开通 Plus。
-        # 只有套餐字段本身是 Plus/ChatGPT Plus/plus_* 且不含 free 时才命中。
+        # "free(có thể dùng thử Plus)"/plus_trial_eligible chỉ là có thể dùng thử, không tính là đã mở Plus.
+        # Chỉ khớp khi field gói bản thân là Plus/ChatGPT Plus/plus_* và không chứa free.
         return "plus" in plan and "free" not in plan
     if f in {"plus_trial", "plus_trial_eligible", "trial", "trial_eligible"}:
         trial = row.get("plus_trial_eligible")
@@ -875,8 +875,8 @@ def list_email_pool_page(
         params.append(status)
     if q and str(q).strip():
         like = "%" + str(q).strip().lower() + "%"
-        # payload 覆盖邮箱池自身字段；source 和关联账号 payload 保持旧 WebUI
-        # 的搜索能力（例如搜索 generic_api 或已注册账号 token）。
+        # payload ghi đè các trường của chính pool email; source và payload tài khoản liên kết giữ WebUI cũ
+        # khả năng tìm kiếm (ví dụ tìm generic_api hoặc token tài khoản đã đăng ký).
         where.append(
             "(lower(ep.payload) LIKE ? OR lower(ep.source) LIKE ? OR EXISTS ("
             "SELECT 1 FROM accounts AS a "
@@ -900,8 +900,8 @@ def list_email_pool_page(
             [*params, limit, offset],
         ).fetchall()
 
-    # ``domain`` 是内部 collection 名，API 对外统一使用 cloudflare_domain；
-    # 直接反转 _EMAIL_SOURCES 会把域名邮箱错误地返回成 source=domain。
+    # ``domain`` là tên collection nội bộ, API ra ngoài thống nhất dùng cloudflare_domain;
+    # Đảo ngược trực tiếp _EMAIL_SOURCES sẽ trả về nhầm email miền thành source=domain.
     source_names = {
         _EMAIL_SOURCES["outlook"]: "outlook",
         _EMAIL_SOURCES["generic_api"]: "generic_api",
@@ -961,7 +961,7 @@ def insert_account(
     email_source: str | None = None,
     extra: dict | None = None,
     codex_status: str | None = None,   # success / failed / skipped / missing
-    codex_error: str | None = None,    # 失败原因（仅 codex_status=failed 时有意义）
+    codex_error: str | None = None,    # Lý do thất bại (chỉ khi codex_status=failed)
 ) -> int:
     "chèn hoặc cập nhật đăng ký thành công tài khoản, trả về cục bộ file trong  id. "
     with _LOCK:
@@ -1027,7 +1027,7 @@ def update_account_codex_status(email: str, codex_status: str, codex_error: str 
         row["codex_status"] = codex_status
         row["codex_error"] = codex_error
         if str(codex_status or "").strip().lower() == "deactivated":
-            # Codex 授权阶段判定为 deactivated，按账号废号处理，便于账号列表统一筛选。
+            # Giai đoạn ủy quyền Codex xác định là deactivated, xử lý như tài khoản hủy, tiện lọc thống nhất danh sách tài khoản.
             row["live_check_status"] = "deactivated"
             row["live_check_ok"] = False
             row["live_check_error"] = codex_error or "Codex uỷ quyền xác định tài khoản đã hỏng"
@@ -1270,8 +1270,8 @@ def update_account_plan_check(acc_id: int | None = None, email: str | None = Non
 
         if result.get("account_id"):
             row["account_id"] = result.get("account_id")
-        # 查询失败只更新本次错误和网络信息，不覆盖上一次成功拿到的套餐、
-        # 试用资格、优惠及有效期，避免临时网络故障把真实权益清空。
+        # Truy vấn thất bại chỉ cập nhật lỗi lần này và thông tin mạng, không ghi đè gói cước đã lấy thành công lần trước,
+        # Tư cách dùng thử, ưu đãi và thời hạn hiệu lực, tránh sự cố mạng tạm thời xóa sạch quyền lợi thực.
         if ok:
             if result.get("current_plan_type"):
                 row["current_plan_type"] = result.get("current_plan_type")
@@ -1514,7 +1514,7 @@ def _filtered_decorated_accounts(
     decorated = [r for r in decorated if _matches_codex_status_filter(r, codex_filter)]
     decorated = [r for r in decorated if _matches_totp_status_filter(r, totp_filter)]
     decorated = [r for r in decorated if _account_matches_query(r, q)]
-    # 按创建时间筛选（date_from/date_to 为 ISO 字符串或 YYYY-MM-DD）
+    # Lọc theo thời gian tạo (date_from/date_to là chuỗi ISO hoặc YYYY-MM-DD)
     if date_from or date_to:
         d_from = _parse_iso_dt(date_from)
         d_to = _parse_iso_dt(date_to, end_of_day=True)
@@ -1609,9 +1609,9 @@ def list_account_plan_check_statuses(
             item["codex_agent_has_token"] = bool(str(row.get("codex_agent_token") or "").strip())
             item["has_access_token"] = bool(str(row.get("access_token") or "").strip())
             items.append(item)
-        # updated_at 目前只有秒级精度；一次快速查询可能在同一秒内完成
-        # queued -> running -> success/failed，导致 revision 不变，前端跳过合并状态，
-        # 页面就会一直停在“查询中”。把轻量状态本身纳入签名，保证状态变化可被轮询发现。
+        # updated_at hiện chỉ có độ chính xác đến giây; một truy vấn nhanh có thể hoàn thành trong cùng một giây
+        # queued -> running -> success/failed, khiến revision không đổi, frontend bỏ qua trạng thái gộp,
+        # trang sẽ mãi dừng ở “đang truy vấn”. Đưa bản thân trạng thái nhẹ vào chữ ký, đảm bảo thay đổi trạng thái có thể được phát hiện bởi polling.
         revision_payload = json.dumps(
             [
                 {
@@ -1662,7 +1662,7 @@ def list_accounts(
     date_to: str | None = None,
     totp_filter: str | None = None,
 ) -> list[dict]:
-    # 非分页兼容接口也走同一条 SQL 分页路径，避免 limit=500 时先读取整张表。
+    # Các interface tương thích không phân trang cũng đi cùng một đường phân trang SQL, tránh đọc cả bảng trước khi limit=500.
     result = list_accounts_page(
         limit=limit,
         offset=offset,
@@ -1789,7 +1789,7 @@ def finish_account_email_change(
             row["email"] = str(new_email).strip()
             row["email_source"] = str(source or row.get("email_source") or "")
             row["original_email_line"] = str(material_line or new_email)
-            # 清理旧邮箱来源遗留的 Outlook 凭证；若新来源仍为 Outlook 则写入新素材。
+            # Dọn dẹp thông tin xác thực Outlook còn sót từ nguồn email cũ; nếu nguồn mới vẫn là Outlook thì ghi vật liệu mới.
             row["password"] = ""
             row["client_id"] = ""
             row["refresh_token"] = ""
@@ -1799,7 +1799,7 @@ def finish_account_email_change(
                     row["password"] = mailbox.get("password") or ""
                     row["client_id"] = mailbox.get("client_id") or ""
                     row["refresh_token"] = mailbox.get("refresh_token") or ""
-            # 抓包表明 verify 成功后当前 OAuth token 会立即失效。
+            # Bắt gói cho thấy sau khi verify thành công OAuth token hiện tại sẽ ngay lập tức hết hiệu lực.
             row["access_token"] = ""
             row["token_expired"] = True
             row["live_check_status"] = ""
@@ -2665,7 +2665,7 @@ def get_imap_email_by_email(email: str) -> dict | None:
 
 
 # ============================================================
-# Codex 授权账号（SQLite codex_accounts 表）
+# Tài khoản ủy quyền Codex (bảng SQLite codex_accounts)
 # ============================================================
 
 def _codex_filter_sql(
@@ -2820,7 +2820,7 @@ def archive_codex(filename: str, archived: bool = True) -> dict | None:
 def read_codex_credential(filename: str) -> tuple[str, str]:
     "\n  đọc một  codex-*.json file gốc trong dung. \n  Returns: (content_string, filename)\n  ném ValueError: tên file không hợp cách(phòng thư mục xuyên)/ không tồn tại. \n  "
     with _LOCK:
-        # 防注入：只允许 codex-*.json 模式，不允许路径分隔符
+        # Chống injection: chỉ cho phép mẫu codex-*.json, không cho phép ký tự phân tách đường dẫn
         if not filename.startswith("codex-") or not filename.endswith(".json"):
             raise ValueError(f"tên file không hợp lệ: {filename}")
         if "/" in filename or "\\" in filename or ".." in filename:
@@ -3120,7 +3120,7 @@ def delete_job(job_id: int, *, delete_log: bool = True, allow_running: bool = Fa
 
 
 # ============================================================
-# 迁移与路径
+# Di trú và đường dẫn
 # ============================================================
 
 def _table_exists(conn: sqlite3.Connection, name: str) -> bool:
@@ -3221,7 +3221,7 @@ def migrate_legacy_files() -> dict:
                 if not line or line.startswith("#"):
                     continue
                 parts = line.split("----")
-                # 支持 4 段或 6 段格式
+                # Hỗ trợ định dạng 4 đoạn hoặc 6 đoạn
                 if len(parts) == 4:
                     email, password, client_id, refresh_token = (p.strip() for p in parts)
                 elif len(parts) == 6:
@@ -3264,7 +3264,7 @@ def storage_paths() -> dict:
 
 
 # ============================================================
-# Domain email pool（Cloudflare 域名邮箱跟踪）
+# Domain email pool (theo dõi hộp thư tên miền Cloudflare)
 # ============================================================
 
 _DOMAIN_EMAIL_JSON = _PROJECT_ROOT / "用于注册的域名邮箱.json"
@@ -3288,7 +3288,7 @@ def claim_next_domain_email(email: str) -> dict:
     with _LOCK:
         rows = _load_domain_pool()
         if _find_domain_email(rows, email):
-            # 已存在，直接返回
+            # Đã tồn tại, trả về trực tiếp
             row = _find_domain_email(rows, email)
             return row
         row = {

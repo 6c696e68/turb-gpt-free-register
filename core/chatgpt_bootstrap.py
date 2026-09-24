@@ -1,9 +1,9 @@
 # -*- coding: utf-8 -*-
-"""ChatGPT 前端 bootstrap 预热链路。
+"""Chuỗi bootstrap làm nóng trước frontend ChatGPT.
 
-根据 docs/protocol_fingerprint_har_analysis.md / protocol_har_summary.json
-补齐与真实 Web 首屏更接近的 backend-anon / backend-api 初始化请求。该模块只做
-可失败的预热：任何单个接口异常都会记录并继续，不打断注册主流程。
+Theo docs/protocol_fingerprint_har_analysis.md / protocol_har_summary.json
+bổ sung các request khởi tạo backend-anon / backend-api gần hơn màn hình đầu Web thật. Module này chỉ làm
+warm-up có thể thất bại: mọi exception từng API đều ghi log rồi tiếp tục, không ngắt luồng đăng ký chính.
 """
 from __future__ import annotations
 
@@ -26,7 +26,7 @@ _DIAGNOSTIC_KEY_PARTS = (
 
 
 def _diagnostic_response_summary(resp, limit: int = 1400) -> str:
-    """提取资格相关响应字段，不把 access token、Cookie 或完整用户资料写入日志。"""
+    """Trích xuất các trường phản hồi liên quan đến tư cách; không ghi access token, Cookie hoặc hồ sơ người dùng đầy đủ vào nhật ký."""
     if resp is None:
         return "Không có phản hồi"
     status = int(getattr(resp, "status_code", 0) or 0)
@@ -57,7 +57,7 @@ def _diagnostic_response_summary(resp, limit: int = 1400) -> str:
                 walk(child, f"{path}[{index}]", depth + 1)
 
     walk(payload)
-    # eligibility 响应有时本身就是很小的扁平对象；这种情况下保留全部非敏感标量。
+    # Phản hồi eligibility đôi khi vốn là object phẳng rất nhỏ; khi đó giữ toàn bộ scalar không nhạy cảm.
     if not selected and isinstance(payload, dict) and len(payload) <= 20:
         blocked = ("token", "email", "name", "id", "cookie", "secret")
         selected = {
@@ -93,7 +93,7 @@ def _system_hint_paths(modes: Iterable[str], base: str) -> list[str]:
 
 
 def _chat_requirements_prepare(session: BrowserSession, base: str, referer: str, *, strict: bool = False):
-    """POST sentinel/chat-requirements/prepare，p 字段与会话画像一致。"""
+    """POST sentinel/chat-requirements/prepare, trường p khớp với hồ sơ phiên."""
     sid = getattr(session, "sentinel_sid", session.device_id)
     p = generate_requirements_token(sid, profile=getattr(session, "browser_profile", None))
     return _safe_request(
@@ -110,8 +110,8 @@ def _chat_requirements_prepare(session: BrowserSession, base: str, referer: str,
 
 def _maybe_chat_requirements_finalize(session: BrowserSession, base: str, referer: str, prepare_resp, *, strict: bool = False):
     """
-    HAR 中 finalize 需要 prepare_token/proofofwork/turnstile。不同版本返回结构会变，
-    只有在 prepare 响应明确给到可用字段时才提交，避免构造半截 challenge。
+    Trong HAR, finalize cần prepare_token/proofofwork/turnstile. Cấu trúc trả về thay đổi theo phiên bản,
+    chỉ gửi khi phản hồi prepare cung cấp rõ các trường khả dụng, tránh dựng challenge dở dang.
     """
     if prepare_resp is None:
         return None
@@ -137,11 +137,11 @@ def _maybe_chat_requirements_finalize(session: BrowserSession, base: str, refere
 
 
 def anonymous_bootstrap(session: BrowserSession, *, strict: bool = False) -> None:
-    """注册前匿名态登录页初始化。
+    """Khởi tạo trang đăng nhập trạng thái ẩn danh trước đăng ký.
 
-    2026-09-14 Web 轨迹在登录页只读取 accounts/check、CES settings、me
-    和地区定价配置；旧版的匿名 chat-requirements/models/conversation/init
-    并未发生。这里避免为“像浏览器”反而发送浏览器没有发送的额外请求。
+    Dấu vết Web 2026-09-14 trên trang đăng nhập chỉ đọc accounts/check, CES settings, me
+    và cấu hình giá theo khu vực; chat-requirements/models/conversation/init ẩn danh bản cũ
+    không xảy ra. Ở đây tránh vì “giống trình duyệt” mà gửi thêm request mà trình duyệt không gửi.
     """
     referer = "https://chatgpt.com/auth/login"
     tz = session.js_timezone_offset_min()
@@ -158,8 +158,8 @@ def anonymous_bootstrap(session: BrowserSession, *, strict: bool = False) -> Non
     profile = getattr(session, "browser_profile", {}) or {}
     country = str((profile.get("geo") or {}).get("country") or "").upper()
     if not country:
-        # GeoIP 查询失败时仍按最终浏览器 locale 取地区配置，避免 JP 画像却
-        # 完全没有加载 /checkout_pricing_config/configs/JP。
+        # Khi truy vấn GeoIP thất bại vẫn lấy cấu hình vùng theo locale trình duyệt cuối cùng, tránh chân dung JP nhưng
+        # Hoàn toàn không tải /checkout_pricing_config/configs/JP.
         language = str(profile.get("navigator_language") or "")
         if "-" in language:
             country = language.rsplit("-", 1)[-1].upper()
@@ -169,8 +169,8 @@ def anonymous_bootstrap(session: BrowserSession, *, strict: bool = False) -> Non
             headers=session.get_chatgpt_headers(referer=referer),
         ), strict=strict)
     if not strict:
-        # best-effort 预热中的可选接口即使返回 403，也不能让本地熔断器阻断
-        # 后续正式的 NextAuth 注册链路。
+        # Các API tùy chọn trong warm-up best-effort dù trả về 403 cũng không được để cầu chì cục bộ chặn
+        # Chuỗi đăng ký NextAuth chính thức tiếp theo.
         reset = getattr(session, "reset_circuit_breaker", None)
         if callable(reset):
             reset()
@@ -181,7 +181,7 @@ def anonymous_bootstrap(session: BrowserSession, *, strict: bool = False) -> Non
 
 
 def authenticated_bootstrap(session: BrowserSession, access_token: str | None = None, *, strict: bool = False) -> None:
-    """登录态 ChatGPT bootstrap，access_token 存在时补 Authorization。"""
+    """Bootstrap ChatGPT ở trạng thái đăng nhập; bổ sung Authorization khi có access_token."""
     referer = "https://chatgpt.com/"
     tz = session.js_timezone_offset_min()
 
