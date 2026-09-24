@@ -29,3 +29,16 @@ cp -n .env.example .env
 # WEBUI_AUTH_CODE=research-local
 ./webui.sh start   # http://127.0.0.1:5000
 ```
+
+## Việt hoá (research)
+
+Branch `feat/vi-research` đã Việt hoá:
+- WebUI modern/legacy/login (lang=vi)
+- Config labels/help, CLI `main.py`, `webui.sh`, README, `.env.example`
+- Core operator logs/errors (giữ nguyên matcher protocol/OTP/path tiếng Trung khi bắt buộc)
+
+Chạy:
+```bash
+./webui.sh start
+# http://127.0.0.1:5000  auth: research-local (trong .env local, không commit)
+```
