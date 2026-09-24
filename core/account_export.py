@@ -570,7 +570,22 @@ def setup_2fa(
         if _email_cfg.USE_EMAIL_SERVICE:
             from core.email_provider import wait_for_otp
             logger.info("[2FA] 自动等待邮箱重认证 OTP...")
-            otp_code = wait_for_otp(email, after_ts=reauth_otp_after_ts)
+            try:
+                otp_code = wait_for_otp(email, after_ts=reauth_otp_after_ts)
+            except Exception as first_wait_exc:
+                # 重认证页本身没有可靠的 resend API；重新发起一次 authorize
+                # 流程会让 auth.openai.com 再发送一封新的 OTP。只自动重发一次，
+                # 避免邮箱服务异常时无限重复触发验证码。
+                logger.warning(
+                    "[2FA] 首次等待重认证 OTP 超时，尝试重新发送验证码：%s: %s",
+                    type(first_wait_exc).__name__, str(first_wait_exc)[:180],
+                )
+                reauth_otp_after_ts = time.time()
+                resend_auth_url = _trigger_reauth_with_retry(session, email)
+                human_delay("api")
+                _follow_reauth_with_retry(session, resend_auth_url)
+                logger.info("[2FA] 已重新触发重认证 OTP，开始第二轮等待")
+                otp_code = wait_for_otp(email, after_ts=reauth_otp_after_ts)
             logger.info("[2FA] 已收到邮箱重认证 OTP")
         else:
             logger.info("")
